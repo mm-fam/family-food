@@ -1,4 +1,4 @@
-# Family Food runbooks
+# Poppy 2.0 runbooks
 
 Step-by-step procedures. Read `family-food-system.md` first for the schema.
 

@@ -1,9 +1,9 @@
-# Family Food
+# Poppy 2.0
 
 The family's shared grocery list, staples, and weekly meal plan. A plain web page on GitHub Pages, backed by a Google Sheet.
 
 ```
-phones (GitHub Pages)  ──POST──▶  Apps Script web app  ──▶  "Family Food (app data)" Google Sheet
+phones (GitHub Pages)  ──POST──▶  Apps Script web app  ──▶  "Poppy 2.0 (app data)" Google Sheet
                                                                      ▲
                                         Claude (Google connector) ───┘  receipts, carts, review
 ```
@@ -23,7 +23,7 @@ phones (GitHub Pages)  ──POST──▶  Apps Script web app  ──▶  "Fam
 
 ### 1. Backend (about 5 minutes)
 
-1. Open the **Family Food (app data)** sheet → **Extensions → Apps Script**.
+1. Open the **Poppy 2.0 (app data)** sheet → **Extensions → Apps Script**.
 2. Delete what's in `Code.gs`, paste in `apps-script/Code.gs` from this repo, and save.
 3. **Project Settings** (gear icon) → **Script Properties** → **Add script property**: `FAMILY_PASSCODE` = the passcode the family will type. Save.
 4. Back in the editor, pick `setup` in the function dropdown and click **Run**. Approve the permissions prompt (it's your own script). This adds the nightly cleanup job.

@@ -1,4 +1,4 @@
-# Family Food roadmap
+# Poppy 2.0 roadmap
 
 _Keep this current: move items between sections and date them. Don't let it become a diary._
 
@@ -45,3 +45,4 @@ _(Mike's findings from private testing go here)_
 | Oct 2026 | "Probably due" is a suggestion only; never auto-added. |
 | Oct 31 2026 | MVP live. Private testing; no family outreach until Mike says. |
 | Oct 31 2026 | Family logo is the app icon (full badge on cream background; maskable version for Android). |
+| Oct 31 2026 | App renamed **Poppy 2.0** (app title, home-screen name, Sheet title, docs). Repo/URL stay `family-food` so links keep working. New logo to follow. |

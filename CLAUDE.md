@@ -1,13 +1,13 @@
 # CLAUDE.md
 
-Guide for Claude working on Family Food. Read `docs/system.md` before changing anything.
+Guide for Claude working on Poppy 2.0. Read `docs/system.md` before changing anything.
 
 ## Docs
 - `docs/system.md`: architecture, Sheet schema, API actions, status
 - `docs/runbooks.md`: receipt ingest, cart building, deploying app/backend, schema-change checklist, troubleshooting
 - `docs/roadmap.md`: phases, backlog, decision log
 
-The claude.ai "Family Food" Project holds fuller versions of these docs, with names and links. This repo is **public**, so it never contains family members' names, email addresses, the Sheet URL, or the passcode.
+The claude.ai Project for this app holds fuller versions of these docs, with names and links. This repo is **public**, so it never contains family members' names, email addresses, the Sheet URL, or the passcode.
 
 ## Layout
 - `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `icons/`: the phone app. Plain JS, no build, no dependencies.

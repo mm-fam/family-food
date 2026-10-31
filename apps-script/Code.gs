@@ -1,7 +1,7 @@
 /**
- * Family Food — backend for the family grocery app.
+ * Poppy 2.0 — backend for the family grocery app.
  *
- * Lives inside the "Family Food (app data)" Google Sheet (Extensions → Apps Script).
+ * Lives inside the "Poppy 2.0 (app data)" Google Sheet (Extensions → Apps Script).
  * Deployed as a web app; the GitHub Pages front end talks to it with POST requests.
  *
  * Setup (once):

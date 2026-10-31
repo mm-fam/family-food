@@ -1,4 +1,6 @@
-# Family Food system reference
+# Poppy 2.0 system reference
+
+The app is named **Poppy 2.0** (the family's name for its earlier AI project). The repo and URL keep the `family-food` name so existing home-screen links keep working.
 
 _Last updated: Oct 31 2026 (v1 MVP)_
 
@@ -20,17 +22,17 @@ A shared phone app where anyone in the family adds what we need, picks dinners, 
 
 ## Architecture
 ```
-phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "Family Food (app data)"
+phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "Poppy 2.0 (app data)"
                                                                        ^
                        Claude (Sheets/Gmail connectors, Chrome) -------+  receipts, carts, review
 ```
 | Piece | Where |
 |---|---|
-| App | `mm-fam/family-food` (public repo), served at https://mm-fam.github.io/family-food/. Plain HTML/JS/CSS, no build: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `icons/` (family logo: 180 apple-touch, 192, 512, 512 maskable). |
+| App | `mm-fam/family-food` (public repo), served at https://mm-fam.github.io/family-food/. Plain HTML/JS/CSS, no build: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `icons/` (placeholder logo until the Poppy 2.0 image arrives: 180 apple-touch, 192, 512, 512 maskable). |
 | Config | `config.js` holds `API_URL` (the Apps Script `/exec` URL). Not a secret. |
 | Backend | `apps-script/Code.gs` in the repo; the live copy is pasted into the Sheet's Apps Script. Deployed as Web app, Execute as Me, access Anyone. |
 | Passcode | Script Property `FAMILY_PASSCODE`. Checked on every request. Never put it in the repo or in project docs. |
-| Data | Google Sheet "Family Food (app data)" in Mike's Drive |
+| Data | Google Sheet "Poppy 2.0 (app data)" in Mike's Drive |
 
 ### App behavior
 - Four tabs: **List, Staples, Meals, Order.** First launch asks passcode + "Who's this?" (stored on the device).

@@ -1,4 +1,4 @@
-/* Family Food — phone app. Plain JS, no build step. */
+/* Poppy 2.0 — phone app. Plain JS, no build step. */
 (function () {
   'use strict';
 
@@ -185,12 +185,12 @@
   }
 
   function viewNoBackend() {
-    return '<div class="setup"><h1>Family Food</h1><p class="note">The app isn’t connected to its Google Sheet yet. Add the Apps Script URL to <b>config.js</b> (see the README).</p></div>';
+    return '<div class="setup"><h1>Poppy 2.0</h1><p class="note">The app isn’t connected to its Google Sheet yet. Add the Apps Script URL to <b>config.js</b> (see the README).</p></div>';
   }
 
   function viewSetup() {
     return '<form class="setup" data-form="unlock">' +
-      '<div><div class="eyebrow">Welcome to</div><h1>Family Food</h1></div>' +
+      '<div><div class="eyebrow">Welcome to</div><h1>Poppy 2.0</h1></div>' +
       '<p class="note">Enter the family passcode. You only do this once on each phone.</p>' +
       '<label class="sr" for="pass">Family passcode</label>' +
       '<input id="pass" class="field" type="password" autocomplete="current-password" placeholder="Family passcode" value="">' +
@@ -201,14 +201,14 @@
 
   function viewPickPerson() {
     const people = D().settings.parents.concat(D().settings.kids);
-    return '<div class="setup"><div><div class="eyebrow">Family Food</div><h1>Who’s this?</h1></div>' +
+    return '<div class="setup"><div><div class="eyebrow">Poppy 2.0</div><h1>Who’s this?</h1></div>' +
       '<p class="note">Pick your name so everyone knows who added what.</p>' +
       '<div class="people">' + people.map((p) => '<button data-act="pick-me" data-name="' + esc(p) + '">' + esc(p) + '</button>').join('') + '</div></div>';
   }
 
   function viewApp() {
     const titles = { list: 'The List', staples: 'Staples', meals: 'Meals', order: 'Order' };
-    const eyebrows = { list: 'Family Food', staples: 'We’re out of…', meals: 'Week of ' + fmtDate(D().weekOf), order: 'Order day' };
+    const eyebrows = { list: 'Poppy 2.0', staples: 'We’re out of…', meals: 'Week of ' + fmtDate(D().weekOf), order: 'Order day' };
     let top = '<header class="top"><div class="top-row"><div><div class="eyebrow">' + esc(eyebrows[S.tab]) + '</div><h1>' + titles[S.tab] + '</h1></div>' +
       '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button></div>';
     if (S.tab === 'list') top += viewAddBar();
