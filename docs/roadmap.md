@@ -46,3 +46,4 @@ _(Mike's findings from private testing go here)_
 | Oct 31 2026 | MVP live. Private testing; no family outreach until Mike says. |
 | Oct 31 2026 | Family logo is the app icon (full badge on cream background; maskable version for Android). |
 | Oct 31 2026 | App renamed **Poppy 2.0** (app title, home-screen name, Sheet title, docs). Repo/URL stay `family-food` so links keep working. New logo to follow. |
+| Oct 31 2026 | Poppy 2.0 logo (chef robot badge) is the app icon, replacing the placeholder. |
