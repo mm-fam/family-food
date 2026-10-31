@@ -12,10 +12,15 @@
   const STORES = {
     GE: { name: 'Giant Eagle', cls: 'ge' },
     WF: { name: 'Whole Foods', cls: 'wf' },
-    Either: { name: 'Either store', cls: 'either' },
+    TGT: { name: 'Target', cls: 'tgt' },
+    Either: { name: 'Either grocery store', cls: 'either' },
   };
-  const STORE_ORDER = ['GE', 'WF', 'Either'];
-  const GROUPS = ['Produce', 'Dairy', 'Cheese & deli', 'Meat', 'Bakery', 'Breakfast', 'Snacks', 'Pantry', 'Frozen', 'Other'];
+  const STORE_ORDER = ['GE', 'WF', 'TGT', 'Either'];
+  const CART_STORES = ['GE', 'WF', 'TGT'];
+  // "Either" means Giant Eagle or Whole Foods. Target is always picked on purpose.
+  const takesEither = (code) => code === 'GE' || code === 'WF';
+  const GROUPS = ['Produce', 'Dairy', 'Cheese & deli', 'Meat', 'Bakery', 'Breakfast', 'Snacks', 'Pantry', 'Frozen',
+    'Personal care', 'Household', 'Paper & cleaning', 'Other'];
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const POLL_MS = 20000;
 
@@ -207,8 +212,8 @@
   }
 
   function viewApp() {
-    const titles = { list: 'The List', staples: 'Staples', meals: 'Meals', order: 'Order' };
-    const eyebrows = { list: 'Poppy 2.0', staples: 'We’re out of…', meals: 'Week of ' + fmtDate(D().weekOf), order: 'Order day' };
+    const titles = { list: 'The List', staples: 'Staples', meals: 'Meals', ask: 'Ask', order: 'Order' };
+    const eyebrows = { list: 'Poppy 2.0', staples: 'We’re out of…', meals: 'Week of ' + fmtDate(D().weekOf), ask: 'Your say', order: 'Order day' };
     let top = '<header class="top"><div class="top-row"><div><div class="eyebrow">' + esc(eyebrows[S.tab]) + '</div><h1>' + titles[S.tab] + '</h1></div>' +
       '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button></div>';
     if (S.tab === 'list') top += viewAddBar();
@@ -219,6 +224,7 @@
     if (S.tab === 'list') body = viewList();
     if (S.tab === 'staples') body = viewStaples();
     if (S.tab === 'meals') body = viewMeals();
+    if (S.tab === 'ask') body = viewAsk();
     if (S.tab === 'order') body = viewOrder();
 
     return top + '<main>' + body + '</main>' + viewNav() + viewSheet() + viewToast();
@@ -226,11 +232,11 @@
 
   function viewNav() {
     const req = D().list.filter((r) => r.status === 'requested').length;
-    const review = D().review.length;
+    const review = myQuestions().length;
     const tab = (id, label, badge) => '<button data-act="tab" data-tab="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + label +
       (badge ? '<span class="dot">' + badge + '</span>' : '') + '</button>';
     return '<nav class="tabs" aria-label="Sections"><div class="inner">' +
-      tab('list', 'List', amParent() ? req : 0) + tab('staples', 'Staples') + tab('meals', 'Meals') + tab('order', 'Order', amParent() ? review : 0) +
+      tab('list', 'List', amParent() ? req : 0) + tab('staples', 'Staples') + tab('meals', 'Meals') + tab('ask', 'Ask', review) + tab('order', 'Order') +
       '</div></nav>';
   }
 
@@ -320,7 +326,7 @@
   /* ---------- staples ---------- */
   function viewStaplesFilters() {
     const pill = (v, label, cls) => '<button class="pill ' + (cls || '') + (S.storeFilter === v ? ' on' : '') + '" data-act="filter" data-v="' + v + '">' + label + '</button>';
-    return '<div class="chips-row">' + pill('all', 'All') + pill('GE', 'Giant Eagle', 'ge') + pill('WF', 'Whole Foods', 'wf') +
+    return '<div class="chips-row">' + pill('all', 'All') + pill('GE', 'Giant Eagle', 'ge') + pill('WF', 'Whole Foods', 'wf') + pill('TGT', 'Target', 'tgt') +
       (amParent() ? '<button class="pill edit' + (S.editMode ? ' on' : '') + '" data-act="edit-mode" style="margin-left:auto">' + (S.editMode ? 'Done' : 'Edit') + '</button>' : '') + '</div>' +
       '<div class="addbar"><label class="sr" for="sq">Find a staple</label><input id="sq" class="field" placeholder="Find a staple…" value="' + esc(S.staplesQuery) + '" data-input="staples-q"></div>';
   }
@@ -328,7 +334,7 @@
   function viewStaples() {
     const q = S.staplesQuery.trim().toLowerCase();
     let items = D().items.filter((i) => S.editMode || i.status !== 'Drop');
-    if (S.storeFilter !== 'all') items = items.filter((i) => i.store === S.storeFilter || i.store === 'Either');
+    if (S.storeFilter !== 'all') items = items.filter((i) => i.store === S.storeFilter || (i.store === 'Either' && takesEither(S.storeFilter)));
     if (q) items = items.filter((i) => String(i.name).toLowerCase().indexOf(q) >= 0);
     const groups = GROUPS.concat(Array.from(new Set(items.map((i) => i.group))).filter((g) => GROUPS.indexOf(g) < 0));
     let html = '';
@@ -345,7 +351,7 @@
     });
     if (!html) html = '<div class="empty">No staples match.</div>';
     html += '<p class="hint">' + (S.editMode ? 'Tap a staple to change its store, brand, or whether a swap is OK.' :
-      'Tap to add to the List, tap again to take it off. Orange edge = Giant Eagle, green edge = Whole Foods, gray = either.') + '</p>';
+      'Tap to add to the List, tap again to take it off. Orange edge = Giant Eagle, green = Whole Foods, red = Target, gray = either grocery store.') + '</p>';
     return html;
   }
 
@@ -392,34 +398,57 @@
       : '<div class="note">Everything for ' + esc(meal.name) + ' is covered.</div>') + '</div>';
   }
 
+  /* ---------- ask ---------- */
+  // Questions for the current person. Review rows have no audience column yet,
+  // so today every open question goes to the parents. Per-person questions come next.
+  function myQuestions() {
+    const review = D().review || [];
+    return review.filter((r) => {
+      const aud = String(r.audience || 'parents').trim();
+      if (aud === 'all') return true;
+      if (aud === 'parents') return amParent();
+      return aud.toLowerCase() === String(S.me).toLowerCase();
+    });
+  }
+
+  function viewAsk() {
+    const qs = myQuestions();
+    let html = '';
+    if (qs.length) {
+      html += '<section class="card requests"><div class="card-head">NEEDS AN ANSWER · ' + qs.length + '</div>' + qs.map((r) =>
+        '<form class="review" data-form="review" data-id="' + r.id + '"><div class="review-q">' + esc(r.detail) + '</div>' +
+        '<div class="addbar"><label class="sr" for="rv-' + r.id + '">Answer</label><input id="rv-' + r.id + '" class="field" placeholder="Type an answer…">' +
+        '<button class="btn btn-primary" type="submit">Save</button></div>' +
+        '<button class="btn btn-plain" type="button" data-act="review-skip" data-id="' + r.id + '">Don’t care / skip</button></form>').join('') + '</section>';
+    } else {
+      html += '<div class="empty">Nothing to answer right now.<br>Questions about favorites and dinner votes will show up here.</div>';
+    }
+    html += '<p class="hint">Answers teach Poppy what the family likes. Votes help pick dinners; a parent makes the final call.</p>';
+    return html;
+  }
+
   /* ---------- order ---------- */
   function viewOrder() {
     const list = D().list.filter((r) => r.status !== 'requested');
     const count = (code) => list.filter((r) => (r.store || 'Either') === code).length;
     const req = D().list.filter((r) => r.status === 'requested').length;
     const requested = D().settings.order_requested;
-    let html = '<div class="stats"><div class="stat"><b>' + count('GE') + '</b><span>Giant Eagle</span></div><div class="stat"><b>' + count('WF') + '</b><span>Whole Foods</span></div>' +
-      '<div class="stat"><b>' + count('Either') + '</b><span>either store</span></div></div>';
+    const stat = (n, label) => '<div class="stat"><b>' + n + '</b><span>' + label + '</span></div>';
+    let html = '<div class="stats">' + stat(count('GE'), 'Giant Eagle') + stat(count('WF'), 'Whole Foods') + stat(count('TGT'), 'Target') +
+      stat(count('Either'), 'either grocery') + '</div>';
     if (req) html += '<p class="note">' + req + ' request' + (req > 1 ? 's' : '') + ' still waiting on the List tab.</p>';
 
-    ['GE', 'WF'].forEach((code) => {
+    CART_STORES.forEach((code) => {
       const st = storeOf(code);
-      const day = code === 'GE' ? D().settings.ge_order_day : D().settings.wf_order_day;
-      html += '<section class="card store-card"><div class="store-title"><b class="head-' + st.cls + '">' + st.name + '</b><span class="note">' + count(code) + ' items' + (day ? ' · usually ' + esc(day) : '') + '</span></div>' +
-        (amParent() ? '<button class="btn ' + (code === 'GE' ? 'btn-primary' : 'btn-outline') + ' btn-block" data-act="request-order" data-store="' + code + '"' + (count(code) + count('Either') ? '' : ' disabled') + '>Ask Claude to build the ' + st.name + ' cart</button>' : '') +
+      const day = code === 'GE' ? D().settings.ge_order_day : code === 'WF' ? D().settings.wf_order_day : 'monthly Drive Up';
+      const n = count(code) + (takesEither(code) ? count('Either') : 0);
+      html += '<section class="card store-card"><div class="store-title"><b class="head-' + st.cls + '">' + st.name + '</b><span class="note">' + count(code) + (count(code) === 1 ? ' item' : ' items') + (day ? ' · usually ' + esc(day) : '') + '</span></div>' +
+        (amParent() ? '<button class="btn ' + (code === 'GE' ? 'btn-primary' : 'btn-outline') + ' btn-block" data-act="request-order" data-store="' + code + '"' + (n ? '' : ' disabled') + '>Ask Claude to build the ' + st.name + ' cart</button>' : '') +
         '</section>';
     });
     if (requested) {
-      html += '<section class="card store-card"><div class="note"><b>Cart requested:</b> ' + esc(requested) + '. Claude fills the cart on Mike’s computer, then any swaps show up below.</div>' +
+      html += '<section class="card store-card"><div class="note"><b>Cart requested:</b> ' + esc(requested) + '. Claude fills the cart on Mike’s computer, then any swaps show up in Ask.</div>' +
         (amParent() ? '<button class="btn btn-plain" data-act="clear-order">Clear</button>' : '') + '</section>';
-    }
-
-    const review = D().review;
-    if (review.length && amParent()) {
-      html += '<section class="card requests"><div class="card-head">NEEDS AN ANSWER · ' + review.length + '</div>' + review.map((r) =>
-        '<form class="review" data-form="review" data-id="' + r.id + '"><div class="review-q">' + esc(r.detail) + '</div>' +
-        '<div class="addbar"><label class="sr" for="rv-' + r.id + '">Answer</label><input id="rv-' + r.id + '" class="field" placeholder="Type an answer…">' +
-        '<button class="btn btn-primary" type="submit">Save</button></div></form>').join('') + '</section>';
     }
     html += '<p class="hint">Carts are filled for you to review. A person always taps checkout.</p>';
     return html;
@@ -431,7 +460,7 @@
     if (!sh) return '';
     let inner = '';
     const seg = (field, options, value) => '<div class="seg">' + options.map((o) => '<button type="button" data-act="seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(value) === String(o[0]) ? 'on' : '') + '">' + esc(o[1]) + '</button>').join('') + '</div>';
-    const storeOpts = [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['Either', 'Either']];
+    const storeOpts = [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['Either', 'Either']];
 
     if (sh.type === 'row') {
       inner = '<h2>' + esc(sh.name) + '</h2>' +
@@ -486,6 +515,10 @@
     'pick-me': (el) => { S.me = el.dataset.name; store.set('ff_me', S.me); render(); },
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
     tab: (el) => { S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
+    'review-skip': (el) => {
+      const id = el.dataset.id;
+      act('reviewAnswer', { id: id, answer: 'skip (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Skipped');
+    },
     undo: () => { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); else render(); },
 
     'add-item': (el) => { const it = itemById(el.dataset.id); S.query = ''; if (it) addItem(it); else render(); },
@@ -642,7 +675,7 @@
       const input = document.getElementById('rv-' + id);
       const answer = input ? input.value.trim() : '';
       if (!answer) return;
-      act('reviewAnswer', { id: id, answer: answer }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Thanks, saved');
+      act('reviewAnswer', { id: id, answer: answer + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Thanks, saved');
     }
   });
 

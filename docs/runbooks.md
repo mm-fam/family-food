@@ -12,6 +12,7 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 - Giant Eagle itemized: subject `"Your Digital Receipt from"`. Senders seen: `receipts@info.gianteagle.com`, `curbside@info.gianteagle.com`. Order *confirmation* emails usually have only an estimated total. Skip those and wait for the digital receipt.
 - Whole Foods: come from **Amazon**, not Whole Foods. Search Amazon order/receipt emails mentioning Whole Foods.
 - Forwards from Mom: `from:<Mom's address> newer_than:2d (Fwd OR receipt OR order)`.
+- Target: order emails from `orders@oe.target.com` / `orders@oe1.target.com` (Drive Up and shipped). In-store and app receipts don't email; a parent can share the Target app receipt (PDF/screenshot). order_ref = `TGT <receipt barcode number>`.
 - Dedupe on `order_ref`: if Receipts already has that order_ref, skip the whole email.
 
 **Write it.**
@@ -19,7 +20,7 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 2. Match `raw` against Items.aliases (case-insensitive, exact token match first, then close match). Set `item_id` and `match` = `alias` / `fuzzy` / `none`.
 3. On a fuzzy match you're confident in, append the raw text to that item's aliases.
 4. No match: if obviously a new product, create the Item (next free id, store, group, brand_size, status `Sometimes`, J:M formulas copied down) and set `match=new`. If unclear, leave item_id blank and file Review: type `unknown_code`, detail `"<raw>" on <store> <date>. What is it?`.
-5. For each matched item, set active List rows (`needed`/`carted`) with that item_id and same/Either store to `bought`, `updated_at` now.
+5. For each matched item, set active List rows (`needed`/`carted`) with that item_id and same store (or Either, for GE/WF only) to `bought`, `updated_at` now.
 6. Process answered Review rows: apply the answer (rename, alias, merge, drop), back-fill item_id on the matching Receipts rows, set Review status to `closed`.
 
 **Report:** "<store> <date>: N lines, N matched, N new items, N questions, N list items cleared." Nothing else unless something broke.
@@ -31,7 +32,7 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 **When:** `Settings.order_requested` is set (e.g. `GE` or `WF`) or Mom/Mike asks. Start with one store and get it reliable before doing both.
 
 1. Load the Chrome tools; check Mike's tabs; open a new tab. Confirm the store site is signed in. If not, stop and ask. Never enter credentials.
-2. Rows to fill: List rows with status `needed`, store = that store or `Either`. Skip `requested` (unapproved).
+2. Rows to fill: List rows with status `needed`, store = that store, plus `Either` for GE/WF (never for Target). Skip `requested` (unapproved).
 3. For each row: search by the Item's brand_size/name; prefer the exact past product (Amazon "Buy it again" / Giant Eagle past purchases are good shortcuts). Set qty.
 4. Out of stock or not found:
    - ok_swap `Y` → pick the closest equivalent, note it.

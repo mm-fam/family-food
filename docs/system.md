@@ -18,7 +18,8 @@ A shared phone app where anyone in the family adds what we need, picks dinners, 
 ## Stores
 - **Giant Eagle (GE):** kid lunches, snacks, everyday dinners. Curbside/delivery. myPerks rewards account.
 - **Whole Foods (WF):** ordered through Amazon. Premium items, produce, specialty (Nounos yogurt, Creminelli salami, brie bites, pizza dough).
-- `Either` = buy wherever the next order is.
+- **Target (TGT):** toiletries, personal care, paper and household. Drive Up / pickup about once a month (online orders also ship). Mostly non-food.
+- `Either` = either grocery store (GE or WF), whichever order is next. Never Target; Target items are always tagged TGT.
 
 ## Architecture
 ```
@@ -35,7 +36,8 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 | Data | Google Sheet "Poppy 2.0 (app data)" in Mike's Drive |
 
 ### App behavior
-- Four tabs: **List, Staples, Meals, Order.** First launch asks passcode + "Who's this?" (stored on the device).
+- Five tabs: **List, Staples, Meals, Ask, Order.** First launch asks passcode + "Who's this?" (stored on the device).
+- **Ask tab:** open Review questions for the person using the phone. Today every question goes to parents (no `audience` column yet); kids see an empty state. Each card has Save and "Don't care / skip". Answers are stored as `<answer> (<name>)`.
 - Polls state every 20 s. Every write returns fresh state.
 - Kids (names in Settings.kids) add as `requested`; parents approve.
 - "Ask Claude to build the cart" only sets `Settings.order_requested`. Nothing is automatic yet.
@@ -48,7 +50,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 **Nightly trigger** (`nightly`, ~3 am, installed by `setup()`): moves bought/skipped List rows older than 14 days to **List Archive**.
 
 ## Sheet tabs
-- **Items:** id | name | store (GE/WF/Either) | group | brand_size | ok_swap (Y/N/blank=ask) | status (Always/Sometimes/Drop) | aliases (receipt text, `;` separated) | notes | orders | first_bought | last_bought | avg_days. **J:M are formulas over Receipts; never type into them.** New rows need the formulas copied down.
+- **Items:** id | name | store (GE/WF/TGT/Either) | group | brand_size | ok_swap (Y/N/blank=ask) | status (Always/Sometimes/Drop) | aliases (receipt text, `;` separated) | notes | orders | first_bought | last_bought | avg_days. **J:M are formulas over Receipts; never type into them.** New rows need the formulas copied down.
 - **List:** id | item_id | name | store | qty | note | added_by | added_at | status | updated_at | meal_id. Status flow: `requested → needed → carted → bought | skipped`.
 - **List Archive:** same columns; written only by `nightly`.
 - **Meals:** id | name | item_ids (`;` separated) | notes. The 5 seeded dinners (Taco night, Pizza night, Chili, Meatloaf, Steak & fries) were Claude's guesses; Mom may replace them.
@@ -57,7 +59,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 - **Review:** id | created | type | detail | status (open/answered) | answer. Questions to Mom/Mike, answered in the app.
 - **Settings:** parents, kids, ge_order_day, wf_order_day, order_requested
 
-Groups used by the app: Produce, Dairy, Cheese & deli, Meat, Bakery, Breakfast, Snacks, Pantry, Frozen, Other.
+Groups used by the app: Produce, Dairy, Cheese & deli, Meat, Bakery, Breakfast, Snacks, Pantry, Frozen, Personal care, Household, Paper & cleaning, Other.
 
 ## Claude's jobs (details in runbooks)
 1. **Receipt ingest:** new GE/WF receipts → Receipts rows → match by aliases → active List rows to `bought` → unknowns to Review.

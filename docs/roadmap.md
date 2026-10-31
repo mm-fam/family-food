@@ -47,3 +47,5 @@ _(Mike's findings from private testing go here)_
 | Oct 31 2026 | Family logo is the app icon (full badge on cream background; maskable version for Android). |
 | Oct 31 2026 | App renamed **Poppy 2.0** (app title, home-screen name, Sheet title, docs). Repo/URL stay `family-food` so links keep working. New logo to follow. |
 | Oct 31 2026 | Poppy 2.0 logo (chef robot badge) is the app icon, replacing the placeholder. |
+| Oct 31 2026 | Target added as third store (`TGT`): toiletries, paper, household; monthly Drive Up. `Either` means either grocery store only. |
+| Oct 31 2026 | Questions moved to their own **Ask** tab (from the Order tab). Next: per-person questions (`audience`) so kids answer about their own things, quick-pick preferences, dinner voting. |
