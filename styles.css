@@ -315,3 +315,11 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .qcard-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--line-soft); padding-top: 6px; }
 .ask-done { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 48px 12px 12px; }
 .ask-done-mark { width: 64px; height: 64px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-deep); font-size: 32px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+
+.passed-note { align-self: flex-start; font-size: 12px; font-weight: 700; color: var(--accent-deep); background: var(--accent-soft); border-radius: 99px; padding: 4px 10px; margin-bottom: -6px; }
+.pass-pick { border-top: 1px solid var(--line-soft); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.pass-title { font-size: 13px; font-weight: 700; color: var(--muted); }
+.pass-people { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pass-person { min-height: 76px; border-radius: 14px; border: 1.5px solid var(--field); background: var(--card); font-weight: 600; font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.pass-person:active { transform: scale(0.97); }
+.pass-initial { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-deep); display: flex; align-items: center; justify-content: center; font-weight: 700; }

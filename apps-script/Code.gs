@@ -65,6 +65,7 @@ function handle(req) {
     mealSave: () => withLock(() => saveMeal(req)),
     itemSave: () => withLock(() => saveItem(req)),
     reviewAnswer: () => withLock(() => answerReview(req)),
+    reviewPass: () => withLock(() => passReview(req)),
     requestOrder: () => withLock(() => requestOrder(req)),
   };
   const fn = actions[req.action];
@@ -193,6 +194,7 @@ function getState() {
     .slice(-20);
 
   return {
+    api: 2, // bump when the app needs a newer backend; 2 = reviewPass + Review audience
     today: today,
     items: items.map(stripRow),
     list: active.map(stripRow),
@@ -353,6 +355,21 @@ function answerReview(req) {
   if (!r) throw new Error('Review item not found');
   setFields(TABS.review, r._row, { answer: req.answer || '', status: 'answered' });
   return { id: r.id };
+}
+
+// Hand a question to someone else: sets who sees it (a person's name, or 'parents' / 'all').
+function passReview(req) {
+  const r = readTab(TABS.review).find((x) => x.id === req.id);
+  if (!r) throw new Error('Review item not found');
+  const head = headers(TABS.review);
+  if (head.indexOf('audience') < 0) throw new Error('Review tab needs an audience column');
+  const to = String(req.to || '').trim();
+  const settings = settingsMap();
+  const people = String(settings.parents || '').split(',').concat(String(settings.kids || '').split(','))
+    .map((s) => s.trim().toLowerCase()).filter(String);
+  if (['parents', 'all'].indexOf(to.toLowerCase()) < 0 && people.indexOf(to.toLowerCase()) < 0) throw new Error('Unknown person: ' + to);
+  setFields(TABS.review, r._row, { audience: to, passed_by: req.by || '' });
+  return { id: r.id, to: to };
 }
 
 function requestOrder(req) {

@@ -43,7 +43,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 - "Ask Claude to build the cart" only sets `Settings.order_requested`. Nothing is automatic yet.
 
 ### Backend API (`action` in POST body, plus `pass`)
-`ping`, `state`, `add`, `update`, `addMeal`, `planSet`, `mealSave`, `itemSave`, `reviewAnswer`, `requestOrder`. Writes run under a script lock. GET works too for a quick browser check: `/exec?action=ping&pass=...`.
+`ping`, `state`, `add`, `update`, `addMeal`, `planSet`, `mealSave`, `itemSave`, `reviewAnswer`, `reviewPass`, `requestOrder`. `state` includes `api` (backend version; 2 = reviewPass + Review audience). The app hides features whose backend isn't deployed yet. Writes run under a script lock. GET works too for a quick browser check: `/exec?action=ping&pass=...`.
 
 **"Probably due"** (computed in `getState`): item not Drop, has `avg_days` and `last_bought`, not already on the list, and days since last buy ≥ `avg_days − 2`. Top 12 by how overdue.
 
@@ -56,7 +56,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 - **Meals:** id | name | item_ids (`;` separated) | notes. The 5 seeded dinners (Taco night, Pizza night, Chili, Meatloaf, Steak & fries) were Claude's guesses; Mom may replace them.
 - **Plan:** week_of (Sunday) | day | meal_id
 - **Receipts:** date | store | order_ref | raw | item_id | qty | price | match. One row per receipt line. Append-only.
-- **Review:** id | created | type | detail | status (open/answered) | answer. Questions to Mom/Mike, answered in the app.
+- **Review:** id | created | type | detail | status (open/answered/closed) | answer | audience | passed_by. `audience` = who sees it in Ask (a name, `parents` or `all`; blank = parents). **Pass ↗** on a card sets audience to another family member and `passed_by` to the passer; their card shows "<name> passed this to you". Options go at the end of `detail` as `Options: A; B; C` until an options column exists.
 - **Settings:** parents, kids, ge_order_day, wf_order_day, order_requested
 
 Groups used by the app: Produce, Dairy, Cheese & deli, Meat, Bakery, Breakfast, Snacks, Pantry, Frozen, Personal care, Household, Paper & cleaning, Other.

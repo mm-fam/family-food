@@ -483,16 +483,30 @@
 
     let html = '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
+      (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
       '<div class="qcard-q">' + esc(sp.q.replace(/\s*\(i\d{3,}\)/g, '')) + '</div>' + control + (typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
+      (S.askPassing === r.id ? viewPassPicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
-      (deck.length > 1 ? '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' : '') + '</div></section>';
+      (canPass() ? '<button type="button" class="btn btn-plain" data-act="ask-pass" data-id="' + r.id + '">Pass ↗</button>' : '') +
+      (deck.length > 1 ? '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' : '') + '</div>') + '</section>';
     if (deck.length > 1) html += '<div class="deck-edge"></div>';
     html += '<p class="hint">' + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
     return html;
   }
 
-  function resetAskCard() { S.askTyping = null; S.askDraft = ''; S.askSel = ''; }
+  function resetAskCard() { S.askTyping = null; S.askDraft = ''; S.askSel = ''; S.askPassing = null; }
+
+  // Passing needs backend api 2 (reviewPass + the Review audience column).
+  const canPass = () => Number(D().api || 0) >= 2;
+
+  function viewPassPicker(r) {
+    const people = D().settings.parents.concat(D().settings.kids).filter((p) => p.toLowerCase() !== String(S.me).toLowerCase());
+    return '<div class="pass-pick"><div class="pass-title">Who should answer this?</div><div class="pass-people">' +
+      people.map((p) => '<button type="button" class="pass-person" data-act="ask-pass-to" data-id="' + r.id + '" data-to="' + esc(p) + '">' +
+        '<span class="pass-initial">' + esc(p.charAt(0).toUpperCase()) + '</span>' + esc(p) + '</button>').join('') +
+      '</div><button type="button" class="btn btn-plain" data-act="ask-pass" data-id="' + r.id + '">Cancel</button></div>';
+  }
 
   // Slide the current card off screen, then run done().
   function flyCard(dir, done) {
@@ -606,6 +620,17 @@
     'ask-pick': (el) => answerQuestion(el.dataset.id, el.dataset.v, el.dataset.v === 'Yes' || /^yes/i.test(el.dataset.v) ? 'right' : 'left'),
     'ask-type': (el) => { S.askTyping = el.dataset.id; render(); const f = document.getElementById('ask-in'); if (f) f.focus(); },
     'ask-sel-save': (el) => { if (S.askSel) answerQuestion(el.dataset.id, S.askSel); },
+    'ask-pass': (el) => { S.askPassing = S.askPassing === el.dataset.id ? null : el.dataset.id; render(); },
+    'ask-pass-to': (el) => {
+      const id = el.dataset.id; const to = el.dataset.to;
+      flyCard('up', () => {
+        resetAskCard();
+        act('reviewPass', { id: id, to: to }, () => {
+          const q = D().review.find((x) => x.id === id);
+          if (q) { q.audience = to; q.passed_by = S.me; }
+        }, 'Passed to ' + to);
+      });
+    },
     'ask-later': (el) => { S.askLater = (S.askLater || []).filter((x) => x !== el.dataset.id).concat([el.dataset.id]); flyCard('left', () => { resetAskCard(); render(); }); },
     'review-skip': (el) => answerQuestion(el.dataset.id, 'skip', 'up', 'Skipped'),
     undo: () => { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); else render(); },
