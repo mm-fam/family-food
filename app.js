@@ -430,7 +430,7 @@
   function questionKind(opts) {
     const real = opts.filter((o) => !isSkipOpt(o));
     if (real.length === 2 && /^yes\b/i.test(real[0]) && /^no\b/i.test(real[1])) return 'yesno';
-    if (real.length >= 2 && real.every((o) => !/[a-z]/i.test(o) && o.length <= 4)) return 'emoji';
+    if (real.length >= 2 && real.every((o) => /\p{Extended_Pictographic}/u.test(o) && !/[a-z0-9]/i.test(o) && o.length <= 4)) return 'emoji';
     if (real.length >= 5) return 'dropdown';
     if (real.length) return 'pick';
     return 'text';
