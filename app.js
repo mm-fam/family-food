@@ -60,7 +60,7 @@
 
   async function refresh() {
     if (!S.pass || !apiUrl()) return;
-    try { await api('state'); render(); }
+    try { await api('state'); if (!S.dragging) render(); }
     catch (e) { handleError(e); }
   }
 
@@ -419,30 +419,100 @@
   }
   const isTypeOpt = (o) => /type it|^other$/i.test(o);
   const isSkipOpt = (o) => /^don.?t care$/i.test(o);
+  const cleanOpt = (o) => o.replace(/\s*\(type it\)/i, '');
+
+  // The card's control comes from its options, so Claude picks the interaction by how it words them:
+  //   Yes; No            -> yes/no (big buttons, swipe right = yes, left = no)
+  //   short emoji/labels -> emoji row (ratings, kid-friendly)
+  //   2-4 options        -> big tap buttons
+  //   5+ options         -> dropdown
+  //   no options         -> text box
+  function questionKind(opts) {
+    const real = opts.filter((o) => !isSkipOpt(o));
+    if (real.length === 2 && /^yes\b/i.test(real[0]) && /^no\b/i.test(real[1])) return 'yesno';
+    if (real.length >= 2 && real.every((o) => !/[a-z]/i.test(o) && o.length <= 4)) return 'emoji';
+    if (real.length >= 5) return 'dropdown';
+    if (real.length) return 'pick';
+    return 'text';
+  }
+
+  // Deck order: questions put off with "Later" go to the back for this session.
+  function askDeck() {
+    const later = S.askLater || [];
+    const qs = myQuestions();
+    return qs.filter((q) => later.indexOf(q.id) < 0).concat(later.map((id) => qs.find((q) => q.id === id)).filter(Boolean));
+  }
 
   function viewAsk() {
-    const qs = myQuestions();
-    let html = '';
-    if (qs.length) {
-      html += '<section class="card requests"><div class="card-head">NEEDS AN ANSWER · ' + qs.length + '</div>' + qs.map((r) => {
-        const sp = splitOptions(r.detail);
-        const picks = sp.opts.map((o) => {
-          if (isSkipOpt(o)) return '<button class="pill" type="button" data-act="review-skip" data-id="' + r.id + '">' + esc(o) + '</button>';
-          if (isTypeOpt(o)) return '<button class="pill" type="button" data-act="review-type" data-id="' + r.id + '">' + esc(o.replace(/\s*\(type it\)/i, '')) + '…</button>';
-          return '<button class="pill" type="button" data-act="review-pick" data-id="' + r.id + '" data-v="' + esc(o) + '">' + esc(o) + '</button>';
-        }).join('');
-        const hasSkip = sp.opts.some(isSkipOpt);
-        return '<form class="review" data-form="review" data-id="' + r.id + '"><div class="review-q">' + esc(sp.q) + '</div>' +
-          (picks ? '<div class="chips-row picks">' + picks + '</div>' : '') +
-          '<div class="addbar"><label class="sr" for="rv-' + r.id + '">Answer</label><input id="rv-' + r.id + '" class="field" placeholder="' + (picks ? 'Or type an answer…' : 'Type an answer…') + '">' +
-          '<button class="btn btn-primary" type="submit">Save</button></div>' +
-          (hasSkip ? '' : '<button class="btn btn-plain" type="button" data-act="review-skip" data-id="' + r.id + '">Don’t care / skip</button>') + '</form>';
-      }).join('') + '</section>';
-    } else {
-      html += '<div class="empty">Nothing to answer right now.<br>Questions about favorites and dinner votes will show up here.</div>';
+    const deck = askDeck();
+    if (!deck.length) {
+      return '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">Questions about favorites and dinner votes will show up here.</span></div>' +
+        '<p class="hint">Answers teach Poppy what the family likes. Votes help pick dinners; a parent makes the final call.</p>';
     }
-    html += '<p class="hint">Answers teach Poppy what the family likes. Votes help pick dinners; a parent makes the final call.</p>';
+    const r = deck[0];
+    const sp = splitOptions(r.detail);
+    const kind = questionKind(sp.opts);
+    const real = sp.opts.filter((o) => !isSkipOpt(o));
+    const typing = S.askTyping === r.id || kind === 'text';
+    const total = deck.length + (S.askAnswered || 0);
+    const pos = (S.askAnswered || 0) + 1;
+
+    let control = '';
+    if (kind === 'yesno') {
+      const noTypes = isTypeOpt(real[1]);
+      control = '<div class="yn">' +
+        '<button type="button" class="yn-btn yn-no" data-act="' + (noTypes ? 'ask-type' : 'ask-pick') + '" data-id="' + r.id + '" data-v="' + esc(cleanOpt(real[1])) + '">' +
+        '<span class="yn-icon">✕</span>' + esc(noTypes ? 'No…' : cleanOpt(real[1])) + '</button>' +
+        '<button type="button" class="yn-btn yn-yes" data-act="ask-pick" data-id="' + r.id + '" data-v="' + esc(real[0]) + '"><span class="yn-icon">✓</span>' + esc(real[0]) + '</button></div>' +
+        '<div class="swipe-hint">← swipe for no · swipe for yes →</div>';
+    } else if (kind === 'emoji') {
+      control = '<div class="emoji-row">' + real.map((o) => '<button type="button" class="emoji-btn" data-act="ask-pick" data-id="' + r.id + '" data-v="' + esc(o) + '">' + esc(o) + '</button>').join('') + '</div>';
+    } else if (kind === 'pick') {
+      control = '<div class="pick-list">' + real.map((o) => isTypeOpt(o)
+        ? '<button type="button" class="pick-btn pick-other" data-act="ask-type" data-id="' + r.id + '">' + esc(cleanOpt(o)) + '…</button>'
+        : '<button type="button" class="pick-btn" data-act="ask-pick" data-id="' + r.id + '" data-v="' + esc(o) + '">' + esc(o) + '</button>').join('') + '</div>';
+    } else if (kind === 'dropdown') {
+      control = '<div class="drop"><label class="sr" for="ask-sel">Choose</label><select id="ask-sel" class="field" data-input="ask-sel">' +
+        '<option value="">Choose one…</option>' + real.filter((o) => !isTypeOpt(o)).map((o) => '<option' + (S.askSel === o ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>' +
+        '<button type="button" class="btn btn-primary" data-act="ask-sel-save" data-id="' + r.id + '"' + (S.askSel ? '' : ' disabled') + '>Save</button></div>';
+    }
+
+    const textBox = '<form class="ask-text" data-form="ask-text" data-id="' + r.id + '"><label class="sr" for="ask-in">Answer</label>' +
+      '<input id="ask-in" class="field" data-input="ask-draft" value="' + esc(S.askDraft || '') + '" placeholder="' + (kind === 'text' ? 'Type an answer…' : 'Type your answer…') + '">' +
+      '<button class="btn btn-primary" type="submit">Save</button></form>';
+
+    let html = '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
+    html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
+      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\(i\d{3,}\)/g, '')) + '</div>' + control + (typing ? textBox :
+        (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
+      '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
+      (deck.length > 1 ? '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' : '') + '</div></section>';
+    if (deck.length > 1) html += '<div class="deck-edge"></div>';
+    html += '<p class="hint">' + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
     return html;
+  }
+
+  function resetAskCard() { S.askTyping = null; S.askDraft = ''; S.askSel = ''; }
+
+  // Slide the current card off screen, then run done().
+  function flyCard(dir, done) {
+    const card = document.querySelector('.qcard');
+    if (!card) { done(); return; }
+    const x = dir === 'right' ? 480 : dir === 'left' ? -480 : 0;
+    const y = dir === 'up' ? -420 : 0;
+    card.style.transition = 'transform 220ms ease-in, opacity 220ms ease-in';
+    card.style.transform = 'translate(' + x + 'px,' + y + 'px) rotate(' + (x / 24) + 'deg)';
+    card.style.opacity = '0';
+    setTimeout(done, 200);
+  }
+
+  function answerQuestion(id, value, dir, toastMsg) {
+    flyCard(dir || 'right', () => {
+      resetAskCard();
+      S.askAnswered = (S.askAnswered || 0) + 1;
+      S.askLater = (S.askLater || []).filter((x) => x !== id);
+      act('reviewAnswer', { id: id, answer: value + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, toastMsg || 'Got it');
+    });
   }
 
   /* ---------- order ---------- */
@@ -532,16 +602,12 @@
   const handlers = {
     'pick-me': (el) => { S.me = el.dataset.name; store.set('ff_me', S.me); render(); },
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
-    tab: (el) => { S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
-    'review-pick': (el) => {
-      const id = el.dataset.id;
-      act('reviewAnswer', { id: id, answer: el.dataset.v + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Thanks, saved');
-    },
-    'review-type': (el) => { const f = document.getElementById('rv-' + el.dataset.id); if (f) f.focus(); },
-    'review-skip': (el) => {
-      const id = el.dataset.id;
-      act('reviewAnswer', { id: id, answer: 'skip (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Skipped');
-    },
+    tab: (el) => { if (el.dataset.tab === 'ask' && S.tab !== 'ask') { S.askAnswered = 0; resetAskCard(); } S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
+    'ask-pick': (el) => answerQuestion(el.dataset.id, el.dataset.v, el.dataset.v === 'Yes' || /^yes/i.test(el.dataset.v) ? 'right' : 'left'),
+    'ask-type': (el) => { S.askTyping = el.dataset.id; render(); const f = document.getElementById('ask-in'); if (f) f.focus(); },
+    'ask-sel-save': (el) => { if (S.askSel) answerQuestion(el.dataset.id, S.askSel); },
+    'ask-later': (el) => { S.askLater = (S.askLater || []).filter((x) => x !== el.dataset.id).concat([el.dataset.id]); flyCard('left', () => { resetAskCard(); render(); }); },
+    'review-skip': (el) => answerQuestion(el.dataset.id, 'skip', 'up', 'Skipped'),
     undo: () => { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); else render(); },
 
     'add-item': (el) => { const it = itemById(el.dataset.id); S.query = ''; if (it) addItem(it); else render(); },
@@ -649,6 +715,7 @@
     if (el.id === 'add') { S.query = el.value; render(); return; }
     const kind = el.dataset && el.dataset.input;
     if (kind === 'staples-q') { S.staplesQuery = el.value; render(); }
+    if (kind === 'ask-draft') { S.askDraft = el.value; }
     if (kind === 'draft' && S.sheet) {
       S.sheet[el.dataset.field] = el.value;
       // Only the meal search and name-gated Save buttons need a redraw while typing.
@@ -667,6 +734,7 @@
         if (mealId) D().plan.push({ week_of: D().weekOf, day: day, meal_id: mealId });
       });
     }
+    if (el.dataset && el.dataset.input === 'ask-sel') { S.askSel = el.value; render(); }
     if (el.dataset && el.dataset.input === 'draft' && el.tagName === 'SELECT' && S.sheet) S.sheet[el.dataset.field] = el.value;
   });
 
@@ -693,14 +761,56 @@
       else addNew(q);
       const f = document.getElementById('add'); if (f) f.blur();
     }
-    if (form.dataset.form === 'review') {
-      const id = form.dataset.id;
-      const input = document.getElementById('rv-' + id);
-      const answer = input ? input.value.trim() : '';
+    if (form.dataset.form === 'ask-text') {
+      const answer = (S.askDraft || '').trim();
       if (!answer) return;
-      act('reviewAnswer', { id: id, answer: answer + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Thanks, saved');
+      const f = document.getElementById('ask-in'); if (f) f.blur();
+      answerQuestion(form.dataset.id, answer);
     }
   });
+
+  // Swipe on question cards: yes/no cards answer (right = yes, left = no); others go to "Later" on a left swipe.
+  let drag = null;
+  document.addEventListener('pointerdown', (ev) => {
+    const card = ev.target.closest('.qcard');
+    if (!card || ev.target.closest('button, input, select, a, label')) return;
+    drag = { card: card, x: ev.clientX, y: ev.clientY, dx: 0, moved: false };
+    S.dragging = true;
+  });
+  document.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    drag.dx = ev.clientX - drag.x;
+    const dy = ev.clientY - drag.y;
+    if (!drag.moved && Math.abs(drag.dx) < 8) return;
+    if (!drag.moved && Math.abs(dy) > Math.abs(drag.dx)) { drag = null; S.dragging = false; return; }
+    drag.moved = true;
+    drag.card.style.transition = 'none';
+    drag.card.style.transform = 'translateX(' + drag.dx + 'px) rotate(' + (drag.dx / 20) + 'deg)';
+    const yn = drag.card.dataset.swipe === 'yesno';
+    drag.card.classList.toggle('lean-yes', yn && drag.dx > 40);
+    drag.card.classList.toggle('lean-no', yn && drag.dx < -40);
+    drag.card.classList.toggle('lean-later', !yn && drag.dx < -40);
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    const d = drag; drag = null; S.dragging = false;
+    if (!d.moved) return;
+    const id = d.card.dataset.id;
+    const yn = d.card.dataset.swipe === 'yesno';
+    if (Math.abs(d.dx) > 90) {
+      if (yn) {
+        const yes = d.card.querySelector('.yn-yes'); const no = d.card.querySelector('.yn-no');
+        const btn = d.dx > 0 ? yes : no;
+        if (btn && btn.dataset.act === 'ask-type') { S.askTyping = id; render(); return; }
+        if (btn) { answerQuestion(id, btn.dataset.v, d.dx > 0 ? 'right' : 'left'); return; }
+      } else if (d.dx < 0 && askDeck().length > 1) { handlers['ask-later']({ dataset: { id: id } }); return; }
+    }
+    d.card.style.transition = 'transform 180ms ease-out';
+    d.card.style.transform = '';
+    d.card.classList.remove('lean-yes', 'lean-no', 'lean-later');
+  };
+  document.addEventListener('pointerup', endDrag);
+  document.addEventListener('pointercancel', endDrag);
 
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {

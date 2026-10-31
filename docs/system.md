@@ -37,7 +37,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 
 ### App behavior
 - Five tabs: **List, Staples, Meals, Ask, Order.** First launch asks passcode + "Who's this?" (stored on the device).
-- **Ask tab:** open Review questions for the person using the phone. Today every question goes to parents (no `audience` column yet); kids see an empty state. If the question ends with `Options: A; B; C`, each option is a tap button ("Other (type it)" focuses the text box; "Don't care" = skip). Each card also has a text answer and "Don't care / skip". Answers are stored as `<answer> (<name>)`.
+- **Ask tab:** a deck of cards, one question at a time, with progress. The control comes from the question's `Options:` text: `Yes; No` → big Yes/No buttons, swipe right = yes, left = no; 2–4 options → big tap buttons; 5+ → dropdown; short emoji-only options → emoji row; no options → text box. `Other (type it)` opens a text box; `Don't care` = skip. Every card has "Something else? Type it", "Don't care", and "Later" (moves it to the back; swipe left on non-yes/no cards). Item ids like (i108) are hidden on screen. Blank/absent `audience` = parents; kids see "All caught up" until per-person questions exist. Answers are saved as `<answer> (<name>)`.
 - Polls state every 20 s. Every write returns fresh state.
 - Kids (names in Settings.kids) add as `requested`; parents approve.
 - "Ask Claude to build the cart" only sets `Settings.order_requested`. Nothing is automatic yet.

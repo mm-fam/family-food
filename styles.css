@@ -273,3 +273,45 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
   .toast { background: #ECEFEC; color: #121513; }
   .toast button { color: var(--accent); }
 }
+
+/* ---------- ask deck ---------- */
+.ask-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+.ask-progress .bar { flex: 1; height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.ask-progress .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width 300ms ease; }
+.qcard {
+  position: relative; z-index: 1; background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+  padding: 22px 18px 12px; box-shadow: 0 6px 20px rgba(20, 30, 25, 0.08);
+  display: flex; flex-direction: column; gap: 16px; touch-action: pan-y; user-select: none; -webkit-user-select: none;
+  transition: box-shadow 150ms;
+}
+.qcard.lean-yes { box-shadow: 0 0 0 3px var(--accent); }
+.qcard.lean-no { box-shadow: 0 0 0 3px var(--danger); }
+.qcard.lean-later { box-shadow: 0 0 0 3px var(--field); }
+.deck-edge { height: 10px; margin: -22px 14px 0; border-radius: 0 0 16px 16px; background: var(--card); border: 1px solid var(--line); border-top: 0; }
+.qcard-q { font-size: 19px; font-weight: 600; line-height: 1.35; }
+.yn { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.yn-btn {
+  min-height: 84px; border-radius: 16px; border: 2px solid; font-size: 17px; font-weight: 700; background: var(--card);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.yn-icon { font-size: 26px; line-height: 1; }
+.yn-no { border-color: var(--danger); color: var(--danger); }
+.yn-yes { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.swipe-hint { text-align: center; font-size: 12px; color: var(--muted); margin-top: -6px; }
+.pick-list { display: flex; flex-direction: column; gap: 8px; }
+.pick-btn {
+  min-height: 52px; padding: 0 16px; border-radius: 14px; border: 1.5px solid var(--field); background: var(--card);
+  text-align: left; font-size: 16px; font-weight: 600;
+}
+.pick-btn:active, .emoji-btn:active, .yn-btn:active { transform: scale(0.97); }
+.pick-other { border-style: dashed; color: var(--muted); font-weight: 500; }
+.emoji-row { display: flex; justify-content: space-around; gap: 8px; }
+.emoji-btn { width: 72px; height: 72px; border-radius: 50%; border: 1.5px solid var(--field); background: var(--card); font-size: 34px; }
+.drop { display: flex; gap: 8px; }
+.drop select { flex: 1; min-height: 48px; font-size: 16px; }
+.ask-text { display: flex; gap: 8px; }
+.ask-text .field { flex: 1; font-size: 16px; }
+.link-btn { align-self: flex-start; background: none; border: 0; padding: 4px 0; color: var(--accent-deep); font-weight: 600; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+.qcard-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--line-soft); padding-top: 6px; }
+.ask-done { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 48px 12px 12px; }
+.ask-done-mark { width: 64px; height: 64px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-deep); font-size: 32px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
