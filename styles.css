@@ -205,6 +205,7 @@ main { flex: 1; padding: 14px 12px 110px; display: flex; flex-direction: column;
 .note { font-size: 13px; color: var(--muted); line-height: 1.45; }
 .review { padding: 12px 14px; border-top: 1px solid var(--req-line); display: flex; flex-direction: column; gap: 8px; }
 .review-q { font-size: 14px; line-height: 1.4; }
+.review .picks { flex-wrap: wrap; }
 
 /* ---------- nav ---------- */
 nav.tabs {

@@ -411,15 +411,33 @@
     });
   }
 
+  // Until Review has an options column, quick picks ride at the end of detail as "Options: A; B; C".
+  function splitOptions(detail) {
+    const m = String(detail || '').match(/^([\s\S]*?)\s*Options:\s*(.+)$/);
+    if (!m) return { q: String(detail || ''), opts: [] };
+    return { q: m[1], opts: m[2].split(';').map((o) => o.trim()).filter(String) };
+  }
+  const isTypeOpt = (o) => /type it|^other$/i.test(o);
+  const isSkipOpt = (o) => /^don.?t care$/i.test(o);
+
   function viewAsk() {
     const qs = myQuestions();
     let html = '';
     if (qs.length) {
-      html += '<section class="card requests"><div class="card-head">NEEDS AN ANSWER · ' + qs.length + '</div>' + qs.map((r) =>
-        '<form class="review" data-form="review" data-id="' + r.id + '"><div class="review-q">' + esc(r.detail) + '</div>' +
-        '<div class="addbar"><label class="sr" for="rv-' + r.id + '">Answer</label><input id="rv-' + r.id + '" class="field" placeholder="Type an answer…">' +
-        '<button class="btn btn-primary" type="submit">Save</button></div>' +
-        '<button class="btn btn-plain" type="button" data-act="review-skip" data-id="' + r.id + '">Don’t care / skip</button></form>').join('') + '</section>';
+      html += '<section class="card requests"><div class="card-head">NEEDS AN ANSWER · ' + qs.length + '</div>' + qs.map((r) => {
+        const sp = splitOptions(r.detail);
+        const picks = sp.opts.map((o) => {
+          if (isSkipOpt(o)) return '<button class="pill" type="button" data-act="review-skip" data-id="' + r.id + '">' + esc(o) + '</button>';
+          if (isTypeOpt(o)) return '<button class="pill" type="button" data-act="review-type" data-id="' + r.id + '">' + esc(o.replace(/\s*\(type it\)/i, '')) + '…</button>';
+          return '<button class="pill" type="button" data-act="review-pick" data-id="' + r.id + '" data-v="' + esc(o) + '">' + esc(o) + '</button>';
+        }).join('');
+        const hasSkip = sp.opts.some(isSkipOpt);
+        return '<form class="review" data-form="review" data-id="' + r.id + '"><div class="review-q">' + esc(sp.q) + '</div>' +
+          (picks ? '<div class="chips-row picks">' + picks + '</div>' : '') +
+          '<div class="addbar"><label class="sr" for="rv-' + r.id + '">Answer</label><input id="rv-' + r.id + '" class="field" placeholder="' + (picks ? 'Or type an answer…' : 'Type an answer…') + '">' +
+          '<button class="btn btn-primary" type="submit">Save</button></div>' +
+          (hasSkip ? '' : '<button class="btn btn-plain" type="button" data-act="review-skip" data-id="' + r.id + '">Don’t care / skip</button>') + '</form>';
+      }).join('') + '</section>';
     } else {
       html += '<div class="empty">Nothing to answer right now.<br>Questions about favorites and dinner votes will show up here.</div>';
     }
@@ -515,6 +533,11 @@
     'pick-me': (el) => { S.me = el.dataset.name; store.set('ff_me', S.me); render(); },
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
     tab: (el) => { S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
+    'review-pick': (el) => {
+      const id = el.dataset.id;
+      act('reviewAnswer', { id: id, answer: el.dataset.v + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Thanks, saved');
+    },
+    'review-type': (el) => { const f = document.getElementById('rv-' + el.dataset.id); if (f) f.focus(); },
     'review-skip': (el) => {
       const id = el.dataset.id;
       act('reviewAnswer', { id: id, answer: 'skip (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Skipped');
