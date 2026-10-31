@@ -52,3 +52,4 @@ _(Mike's findings from private testing go here)_
 | Oct 31 2026 | Ask questions are per person (`audience`: parents / all / a name). Kids vote on dinners and answer about their own things; changes to what's bought still need a parent. |
 | Oct 31 2026 | Ask is a one-at-a-time card deck. Card type comes from how the options are worded (Yes/No → swipe, 2–4 → tap, 5+ → dropdown, emoji → rating, none → text). |
 | Oct 31 2026 | Ask cards can be passed to another family member (Review `audience` + `passed_by` columns, `reviewPass` action, backend api 2). |
+| Oct 31 2026 | Ask decks are sized ~20–35 cards per person (one Review row per person per question), refilled below ~8 from a question bank (dinner votes, food profile, kid items, swap rules, schedule). Emoji cards only for true emoji options. |
