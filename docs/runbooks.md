@@ -33,7 +33,7 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 
 1. Load the Chrome tools; check Mike's tabs; open a new tab. Confirm the store site is signed in. If not, stop and ask. Never enter credentials.
 2. Rows to fill: List rows with status `needed`, store = that store, plus `Either` for GE/WF (never for Target). Skip `requested` (unapproved).
-3. For each row: search by the Item's brand_size/name; prefer the exact past product (Amazon "Buy it again" / Giant Eagle past purchases are good shortcuts). Set qty.
+3. For each row: search by the Item's brand_size/name; prefer the exact past product (Amazon "Buy it again" / Giant Eagle past purchases are good shortcuts). Target: choose Drive Up. Set qty.
 4. Out of stock or not found:
    - ok_swap `Y` → pick the closest equivalent, note it.
    - ok_swap `N` → skip.

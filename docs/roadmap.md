@@ -49,3 +49,4 @@ _(Mike's findings from private testing go here)_
 | Oct 31 2026 | Poppy 2.0 logo (chef robot badge) is the app icon, replacing the placeholder. |
 | Oct 31 2026 | Target added as third store (`TGT`): toiletries, paper, household; monthly Drive Up. `Either` means either grocery store only. |
 | Oct 31 2026 | Questions moved to their own **Ask** tab (from the Order tab). Next: per-person questions (`audience`) so kids answer about their own things, quick-pick preferences, dinner voting. |
+| Oct 31 2026 | Ask questions are per person (`audience`: parents / all / a name). Kids vote on dinners and answer about their own things; changes to what's bought still need a parent. |
