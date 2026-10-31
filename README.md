@@ -12,6 +12,13 @@ phones (GitHub Pages)  ──POST──▶  Apps Script web app  ──▶  "Fam
 - **Backend** (`apps-script/Code.gs`): lives inside the Sheet. Checks the family passcode, reads and writes the tabs, works out "probably due".
 - **Sheet tabs**: Items (catalog), List, Meals, Plan, Receipts, Review, Settings. Items stats (orders, last bought, average days between buys) are formulas over Receipts.
 
+## Docs
+
+- [docs/system.md](docs/system.md): how it's built, Sheet schema, API
+- [docs/runbooks.md](docs/runbooks.md): receipts, carts, deploying, troubleshooting
+- [docs/roadmap.md](docs/roadmap.md): what's next and decisions made
+- [CLAUDE.md](CLAUDE.md): guide for Claude
+
 ## One-time setup
 
 ### 1. Backend (about 5 minutes)
