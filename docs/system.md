@@ -26,7 +26,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "F
 ```
 | Piece | Where |
 |---|---|
-| App | `mm-fam/family-food` (public repo), served at https://mm-fam.github.io/family-food/. Plain HTML/JS/CSS, no build: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `icons/`. |
+| App | `mm-fam/family-food` (public repo), served at https://mm-fam.github.io/family-food/. Plain HTML/JS/CSS, no build: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `icons/` (family logo: 180 apple-touch, 192, 512, 512 maskable). |
 | Config | `config.js` holds `API_URL` (the Apps Script `/exec` URL). Not a secret. |
 | Backend | `apps-script/Code.gs` in the repo; the live copy is pasted into the Sheet's Apps Script. Deployed as Web app, Execute as Me, access Anyone. |
 | Passcode | Script Property `FAMILY_PASSCODE`. Checked on every request. Never put it in the repo or in project docs. |

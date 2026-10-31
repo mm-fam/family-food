@@ -44,3 +44,4 @@ _(Mike's findings from private testing go here)_
 | Oct 2026 | Claude fills carts but never checks out; a person always places the order. |
 | Oct 2026 | "Probably due" is a suggestion only; never auto-added. |
 | Oct 31 2026 | MVP live. Private testing; no family outreach until Mike says. |
+| Oct 31 2026 | Family logo is the app icon (full badge on cream background; maskable version for Android). |
