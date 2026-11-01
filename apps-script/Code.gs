@@ -26,6 +26,9 @@ const TABS = {
 const STOCK_HEAD = ['at', 'item_id', 'level', 'expires', 'who', 'source', 'list_id'];
 const LEVELS = ['plenty', 'some', 'low', 'out'];
 const HOLD_DAYS = 7;
+const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
+const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Statuses a List row moves through.
 const ACTIVE = ['requested', 'needed', 'carted'];
@@ -221,14 +224,17 @@ function getState() {
     .slice(-20);
 
   return {
-    api: 5, // 5 = itemInfo + stockLog + state.stock; bump when the app needs a newer backend; 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by
+    api: 6, // 6 = Plan by date (rolling planDays window, planSet {date}); 5 = itemInfo + stockLog + state.stock; bump when the app needs a newer backend; 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by
     today: today,
     items: items.map(stripRow),
     list: active.map(stripRow),
     held: held.map(stripRow),
     recent: recent.map(stripRow),
     meals: readTab(TABS.meals).map(stripRow),
-    plan: readTab(TABS.plan).filter((p) => String(p.week_of) === weekOf(today)).map(stripRow),
+    plan: readTab(TABS.plan)
+      .map((p) => Object.assign(stripRow(p), { date: planDate(p) }))
+      .filter((p) => p.date && daysBetween(today, p.date) >= 0 && daysBetween(today, p.date) < PLAN_DAYS),
+    planDays: PLAN_DAYS,
     weekOf: weekOf(today),
     review: readTab(TABS.review).filter((r) => r.status === 'open').map(stripRow),
     due: due,
@@ -255,6 +261,19 @@ function weekOf(iso) {
   const d = new Date(iso + 'T12:00:00');
   d.setDate(d.getDate() - d.getDay());
   return isoDate(d);
+}
+
+function addDays(iso, n) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+}
+
+// A Plan row's real date. Rows from before the date column fall back to week_of + day.
+function planDate(p) {
+  if (p.date) return String(p.date).slice(0, 10);
+  const idx = DAY_NAMES.indexOf(String(p.day));
+  return p.week_of && idx >= 0 ? addDays(String(p.week_of).slice(0, 10), idx) : '';
 }
 
 /* ---------------------------------------------------------------- writes */
@@ -360,17 +379,22 @@ function addMealToList(req) {
   return { added: ids.length };
 }
 
+// One dinner per date. Older apps send week_of + day instead of date.
 function setPlan(req) {
-  const week = req.week_of || weekOf(isoDate(new Date()));
+  const date = req.date
+    ? String(req.date).slice(0, 10)
+    : planDate({ week_of: req.week_of || weekOf(isoDate(new Date())), day: req.day });
+  if (!date) throw new Error('Plan needs a date');
   const plan = readTab(TABS.plan);
-  const existing = plan.find((p) => String(p.week_of) === week && p.day === req.day);
+  const existing = plan.find((p) => planDate(p) === date);
+  const fields = { week_of: "'" + weekOf(date), day: DAY_NAMES[new Date(date + 'T12:00:00').getDay()], date: "'" + date };
   if (existing) {
     if (!req.meal_id) sheet(TABS.plan).deleteRow(existing._row);
-    else setFields(TABS.plan, existing._row, { meal_id: req.meal_id });
+    else setFields(TABS.plan, existing._row, Object.assign(fields, { meal_id: req.meal_id }));
   } else if (req.meal_id) {
-    appendObj(TABS.plan, { week_of: "'" + week, day: req.day, meal_id: req.meal_id });
+    appendObj(TABS.plan, Object.assign(fields, { meal_id: req.meal_id }));
   }
-  return { day: req.day };
+  return { date: date, day: fields.day };
 }
 
 function saveMeal(req) {
@@ -524,9 +548,11 @@ function requestOrder(req) {
 
 /* ---------------------------------------------------------------- nightly + setup */
 
-// Runs nightly: moves bought/skipped rows older than 14 days to a List Archive tab.
+// Runs nightly: moves bought/skipped List rows older than 14 days to List Archive,
+// and past Plan rows older than PLAN_KEEP_DAYS to Plan Archive.
 function nightly() {
   withLock(() => {
+    archivePlan();
     const sh = sheet(TABS.list);
     const list = readTab(TABS.list);
     const today = isoDate(new Date());
@@ -546,6 +572,24 @@ function nightly() {
         sh.deleteRow(r._row);
       });
   });
+}
+
+function archivePlan() {
+  const sh = sheet(TABS.plan);
+  const head = headers(TABS.plan);
+  const today = isoDate(new Date());
+  let archive = SpreadsheetApp.getActive().getSheetByName('Plan Archive');
+  if (!archive) {
+    archive = SpreadsheetApp.getActive().insertSheet('Plan Archive');
+    archive.appendRow(head);
+  }
+  readTab(TABS.plan)
+    .filter((p) => planDate(p) && daysBetween(planDate(p), today) > PLAN_KEEP_DAYS)
+    .sort((a, b) => b._row - a._row)
+    .forEach((p) => {
+      archive.appendRow(head.map((h) => (h === 'date' ? "'" + planDate(p) : h === 'week_of' ? "'" + String(p.week_of) : p[h])));
+      sh.deleteRow(p._row);
+    });
 }
 
 function setup() {

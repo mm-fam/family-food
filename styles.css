@@ -177,8 +177,11 @@ main { flex: 1; padding: 14px 12px 110px; display: flex; flex-direction: column;
 .day { border-top: 1px solid var(--line-soft); }
 .day:first-of-type { border-top: 0; }
 .day-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-height: 54px; }
-.day-label { width: 38px; font-size: 13px; font-weight: 700; color: var(--muted); flex: none; }
+.day-label { width: 44px; font-size: 13px; font-weight: 700; color: var(--muted); flex: none; line-height: 1.2; }
+.day-label small { display: block; font-size: 11px; font-weight: 500; }
 .day-label.today { color: var(--accent); }
+.week-div { padding: 10px 14px 6px; border-top: 1px solid var(--line-soft); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.week-div + .day { border-top: 0; }
 .select {
   flex: 1; min-width: 0; height: 40px; padding: 0 10px; border-radius: 10px;
   border: 1px solid var(--field); background: var(--card); font-size: 15px;

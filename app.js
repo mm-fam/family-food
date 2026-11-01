@@ -37,7 +37,7 @@
     query: '',
     staplesQuery: '',
     openDay: null,
-    mealPick: {},      // day -> { itemId: true/false } (need it?)
+    mealPick: {},      // date -> { itemId: true/false } (need it?)
     sheet: null,       // bottom sheet { type, ...draft }
     toast: null,
     setupError: '',
@@ -124,6 +124,30 @@
       return as - bs || (Number(b.orders) || 0) - (Number(a.orders) || 0);
     });
     return hits.slice(0, limit || 6);
+  }
+
+  /* ---------- plan dates (rolling window; one dinner per date) ---------- */
+  function addDays(iso, n) {
+    const d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  const dayName = (iso) => DAYS[new Date(String(iso).slice(0, 10) + 'T12:00:00').getDay()];
+  const md = (iso) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return (d.getMonth() + 1) + '/' + d.getDate(); };
+  // Backend api 6 sends date; older backends send week_of + day.
+  function planDate(p) {
+    if (p.date) return String(p.date).slice(0, 10);
+    const idx = DAYS.indexOf(p.day);
+    return p.week_of && idx >= 0 ? addDays(p.week_of, idx) : '';
+  }
+  function planDates() {
+    const n = D().planDays || 14;
+    return Array.from({ length: n }, (_, i) => addDays(D().today, i));
+  }
+  function planByDate() {
+    const m = {};
+    D().plan.forEach((p) => { const d = planDate(p); if (d) m[d] = p.meal_id; });
+    return m;
   }
 
   function shortDay(iso) {
@@ -289,7 +313,7 @@
     const instore = S.tab === 'list' && S.instore;
     const n = D().list.filter((r) => r.status !== 'requested').length;
     const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Ask', admin: 'Behind the scenes' };
-    const eyebrows = { list: n + ' thing' + (n === 1 ? '' : 's') + ' we need', shop: 'Add to the List', meals: 'Week of ' + fmtDate(D().weekOf), ask: 'Your say', admin: 'Just for ' + S.me };
+    const eyebrows = { list: n + ' thing' + (n === 1 ? '' : 's') + ' we need', shop: 'Add to the List', meals: 'Next 2 weeks', ask: 'Your say', admin: 'Just for ' + S.me };
     const title = instore ? 'In store' : titles[S.tab];
     const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : eyebrows[S.tab];
     let right = '';
@@ -443,16 +467,16 @@
     return html;
   }
 
-  // This week's dinners at the top of the List, so meals and the list live together.
+  // Upcoming dinners at the top of the List, so meals and the list live together.
+  // Days within the next week show as "Tue"; later ones as "Tue 11/10".
   function viewDinnersStrip() {
-    const byDay = {};
-    D().plan.forEach((p) => (byDay[p.day] = p.meal_id));
-    const todayIdx = new Date(D().today + 'T12:00:00').getDay();
-    const days = DAYS.filter((d, i) => i >= todayIdx && byDay[d] && mealById(byDay[d]));
-    const body = days.length
-      ? days.map((d) => '<span class="dinner"><b>' + d + '</b> ' + esc(mealById(byDay[d]).name) + '</span>').join('')
+    const byDate = planByDate();
+    const dates = planDates().filter((d) => byDate[d] && mealById(byDate[d]));
+    const label = (d, i) => (planDates().indexOf(d) < 7 ? dayName(d) : dayName(d) + ' ' + md(d));
+    const body = dates.length
+      ? dates.map((d, i) => '<span class="dinner"><b>' + label(d, i) + '</b> ' + esc(mealById(byDate[d]).name) + '</span>').join('')
       : '<span class="dinner muted">None picked yet</span>';
-    return '<button class="dinners" data-act="tab" data-tab="meals"><span class="dinners-label">Dinners this week</span><span class="dinners-list">' + body + '</span><span class="dinners-go">Plan ›</span></button>';
+    return '<button class="dinners" data-act="tab" data-tab="meals"><span class="dinners-label">Dinners coming up</span><span class="dinners-list">' + body + '</span><span class="dinners-go">Plan ›</span></button>';
   }
 
   /* ---------- in-store mode (on the List) ---------- */
@@ -501,11 +525,9 @@
     D().list.concat(D().held || []).forEach((r) => (listed[r.item_id] = true));
     const today = D().today;
     const ago = (iso) => (iso ? Math.round((new Date(today + 'T12:00:00') - new Date(String(iso).slice(0, 10) + 'T12:00:00')) / 86400000) : 9999);
-    const byDay = {};
-    D().plan.forEach((p) => (byDay[p.day] = p.meal_id));
-    const todayIdx = new Date(today + 'T12:00:00').getDay();
+    const byDate = planByDate();
     const dinnerIds = [];
-    DAYS.forEach((d, i) => { if (i >= todayIdx && byDay[d]) mealItems(mealById(byDay[d])).forEach((id) => dinnerIds.indexOf(id) < 0 && dinnerIds.push(id)); });
+    planDates().forEach((d) => { if (byDate[d]) mealItems(mealById(byDate[d])).forEach((id) => dinnerIds.indexOf(id) < 0 && dinnerIds.push(id)); });
     const stock = D().stock || {};
     return {
       due: D().due.map((d) => d.id).filter((id) => !listed[id]),
@@ -673,17 +695,17 @@
   }
 
   /* ---------- meals ---------- */
+  // Rolling window: today + the next 13 days, with a divider at each new week (Sunday).
   function viewMeals() {
-    const plan = {};
-    D().plan.forEach((p) => (plan[p.day] = p.meal_id));
-    const todayIdx = new Date(D().today + 'T12:00:00').getDay();
+    const plan = planByDate();
     const meals = D().meals.slice().sort((a, b) => String(a.name).localeCompare(b.name));
-    let html = '<section class="card">' + DAYS.map((day, idx) => {
+    let html = '<section class="card">' + planDates().map((day, idx) => {
       const mealId = plan[day] || '';
       const meal = mealById(mealId);
       const open = S.openDay === day && meal;
-      let row = '<div class="day"><div class="day-row"><span class="day-label' + (idx === todayIdx ? ' today' : '') + '">' + day + '</span>' +
-        '<label class="sr" for="plan-' + day + '">Dinner on ' + day + '</label><select id="plan-' + day + '" class="select" data-input="plan" data-day="' + day + '">' +
+      const divider = idx > 0 && dayName(day) === 'Sun' ? '<div class="week-div">Week of ' + md(day) + '</div>' : '';
+      let row = divider + '<div class="day"><div class="day-row"><span class="day-label' + (idx === 0 ? ' today' : '') + '">' + (idx === 0 ? 'Today' : dayName(day)) + '<small>' + md(day) + '</small></span>' +
+        '<label class="sr" for="plan-' + day + '">Dinner on ' + dayName(day) + ' ' + md(day) + '</label><select id="plan-' + day + '" class="select" data-input="plan" data-day="' + day + '">' +
         '<option value="">—</option>' + meals.map((m) => '<option value="' + m.id + '"' + (m.id === mealId ? ' selected' : '') + '>' + esc(m.name) + '</option>').join('') +
         '</select>' + (meal ? '<button class="btn btn-plain" data-act="toggle-day" data-day="' + day + '">' + (open ? 'Hide' : 'Ingredients') + '</button>' : '') + '</div>';
       if (open) row += viewIngredients(day, meal);
@@ -694,7 +716,7 @@
       (meals.length ? meals.map((m) => '<div class="row"><button class="row-main" data-act="edit-meal" data-id="' + m.id + '"><span class="row-name">' + esc(m.name) + '</span>' +
         '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span></button></div>').join('')
         : '<div class="empty">No meals yet.</div>') + '</section>';
-    html += '<p class="hint">Pick dinners for the week, tap Ingredients to see what you need, and add the rest to the List in one tap.</p>';
+    html += '<p class="hint">Pick dinners for the next two weeks, tap Ingredients to see what you need, and add the rest to the List in one tap.</p>';
     return html;
   }
 
@@ -1095,9 +1117,11 @@
       const day = el.dataset.day; const mealId = el.value;
       S.openDay = mealId ? day : null;
       S.mealPick[day] = {};
-      act('planSet', { day: day, meal_id: mealId, week_of: D().weekOf }, () => {
-        D().plan = D().plan.filter((p) => p.day !== day);
-        if (mealId) D().plan.push({ week_of: D().weekOf, day: day, meal_id: mealId });
+      // day here is the ISO date. week_of + day ride along so an older backend files it correctly.
+      const wk = addDays(day, -DAYS.indexOf(dayName(day)));
+      act('planSet', { date: day, day: dayName(day), week_of: wk, meal_id: mealId }, () => {
+        D().plan = D().plan.filter((p) => planDate(p) !== day);
+        if (mealId) D().plan.push({ date: day, week_of: wk, day: dayName(day), meal_id: mealId });
       });
     }
     if (el.dataset && el.dataset.input === 'ask-sel') { S.askSel = el.value; render(); }
