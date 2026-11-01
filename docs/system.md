@@ -43,7 +43,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 - "Ask Claude to build the cart" only sets `Settings.order_requested`. Nothing is automatic yet.
 
 ### Backend API (`action` in POST body, plus `pass`)
-`ping`, `state`, `add`, `update`, `addMeal`, `planSet`, `mealSave`, `itemSave`, `reviewAnswer`, `reviewPass`, `requestOrder`. `state` includes `api` (backend version; 2 = reviewPass + Review audience). The app hides features whose backend isn't deployed yet. Writes run under a script lock. GET works too for a quick browser check: `/exec?action=ping&pass=...`.
+`ping`, `state`, `add`, `update`, `addMeal`, `planSet`, `mealSave`, `itemSave`, `reviewAnswer`, `reviewPass`, `listHave`, `listHold`, `requestOrder`. `state` includes `api` (backend version; 2 = reviewPass + Review audience; 3 = listHave/listHold + Stock) and `held` (rows moved to next week). The app hides features whose backend isn't deployed yet. Writes run under a script lock. GET works too for a quick browser check: `/exec?action=ping&pass=...`.
 
 **"Probably due"** (computed in `getState`): item not Drop, has `avg_days` and `last_bought`, not already on the list, and days since last buy ≥ `avg_days − 2`. Top 12 by how overdue.
 
@@ -51,7 +51,8 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 
 ## Sheet tabs
 - **Items:** id | name | store (GE/WF/TGT/Either) | group | brand_size | ok_swap (Y/N/blank=ask) | status (Always/Sometimes/Drop) | aliases (receipt text, `;` separated) | notes | orders | first_bought | last_bought | avg_days. **J:M are formulas over Receipts; never type into them.** New rows need the formulas copied down.
-- **List:** id | item_id | name | store | qty | note | added_by | added_at | status | updated_at | meal_id. Status flow: `requested → needed → carted → bought | skipped`.
+- **List:** id | item_id | name | store | qty | note | added_by | added_at | status | updated_at | meal_id | hold_until. Status flow: `requested → needed → carted → bought | skipped | have`. `have` = we already had it, nothing bought (item sheet: "We have it"). `hold_until` set = "Next week": the row stays `needed` but is hidden until that date; re-adding the item brings it back now.
+- **Stock:** at | item_id | level (plenty/some/low or a count) | expires | who | source | list_id. Append-only log of "we have it" sightings. A plenty/some/count sighting in the last 7 days holds the item out of "probably due". Design: light inventory, never counting sessions.
 - **List Archive:** same columns; written only by `nightly`.
 - **Meals:** id | name | item_ids (`;` separated) | notes. The 5 seeded dinners (Taco night, Pizza night, Chili, Meatloaf, Steak & fries) were Claude's guesses; Mom may replace them.
 - **Plan:** week_of (Sunday) | day | meal_id

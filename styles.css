@@ -323,3 +323,7 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .pass-person { min-height: 76px; border-radius: 14px; border: 1.5px solid var(--field); background: var(--card); font-weight: 600; font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .pass-person:active { transform: scale(0.97); }
 .pass-initial { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-deep); display: flex; align-items: center; justify-content: center; font-weight: 700; }
+
+/* "Already have some?" box on a List item */
+.have-box { border: 1px dashed var(--field); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.have-box .stepper .note { margin-left: 4px; }

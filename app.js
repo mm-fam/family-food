@@ -82,7 +82,7 @@
   }
 
   /* ------------------------------------------------------------ data helpers */
-  const D = () => S.data || { items: [], list: [], recent: [], meals: [], plan: [], review: [], due: [], settings: { parents: [], kids: [] } };
+  const D = () => S.data || { items: [], list: [], held: [], recent: [], meals: [], plan: [], review: [], due: [], settings: { parents: [], kids: [] } };
   const itemById = (id) => D().items.find((i) => i.id === id);
   const mealById = (id) => D().meals.find((m) => m.id === id);
   const listRowFor = (itemId) => D().list.find((r) => r.item_id === itemId);
@@ -106,6 +106,19 @@
       return as - bs || (Number(b.orders) || 0) - (Number(a.orders) || 0);
     });
     return hits.slice(0, limit || 6);
+  }
+
+  function shortDay(iso) {
+    const d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
+    return isNaN(d) ? '' : DAYS[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.getDate();
+  }
+
+  // Pulls the last "had …" from a row note, e.g. "had 6 (Joni)" → "6".
+  function haveLevel(r) {
+    const m = String(r.note || '').match(/had ([^;(]+?)\s*(\(|;|$)/g);
+    if (!m) return '';
+    const last = m[m.length - 1].replace(/^had\s*/, '').replace(/[\s(;]+$/, '');
+    return levelText(last.trim());
   }
 
   function daysAgo(iso) {
@@ -141,7 +154,7 @@
     const before = row.status;
     act('update', { id: row.id, fields: { status: status } }, () => {
       row.status = status;
-      if (status === 'bought' || status === 'skipped') {
+      if (status === 'bought' || status === 'skipped' || status === 'have') {
         D().list = D().list.filter((r) => r !== row);
         D().recent.push(Object.assign({}, row, { status: status, updated_at: D().today }));
       }
@@ -154,6 +167,33 @@
       D().recent = D().recent.filter((r) => r.id !== row.id);
       D().list = D().list.filter((r) => r.id !== row.id);
       D().list.push(Object.assign({}, row, { status: to }));
+    }, 'Back on the list');
+  }
+
+  const LEVEL_LABEL = { plenty: 'plenty', some: 'some', low: 'a little' };
+  const levelText = (lv) => (/^\d+$/.test(String(lv)) ? String(lv) : (LEVEL_LABEL[lv] || lv));
+
+  // We already have it at home: nothing bought, sighting logged.
+  function markHave(row, level) {
+    act('listHave', { id: row.id, level: level }, () => {
+      D().list = D().list.filter((r) => r !== row);
+      D().recent.push(Object.assign({}, row, { status: 'have', note: 'had ' + level, updated_at: D().today }));
+    }, 'Got it: we have ' + levelText(level), () => restore(row, row.status));
+  }
+
+  // Not needed this run: hide it for a week, then it comes back.
+  function holdRow(row, level) {
+    act('listHold', { id: row.id, level: level || '' }, () => {
+      D().list = D().list.filter((r) => r !== row);
+      (D().held = D().held || []).push(Object.assign({}, row));
+    }, row.name + ' moved to next week', () => unhold(row));
+  }
+
+  function unhold(row) {
+    act('update', { id: row.id, fields: { hold_until: '' } }, () => {
+      D().held = (D().held || []).filter((r) => r.id !== row.id);
+      D().list = D().list.filter((r) => r.id !== row.id);
+      D().list.push(Object.assign({}, row, { hold_until: '' }));
     }, 'Back on the list');
   }
 
@@ -314,10 +354,18 @@
         '<button class="btn btn-outline" data-act="add-item" data-id="' + d.id + '">+ Add</button></div>').join('') + '</section>';
     }
 
+    const held = D().held || [];
+    if (held.length) {
+      html += '<section class="card dashed"><div class="card-head head-either">NEXT WEEK · ' + held.length + '</div>' + held.map((r) =>
+        '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + esc(storeOf(r.store).name) +
+        (r.hold_until ? ' · back ' + esc(shortDay(r.hold_until)) : '') + '</span></div>' +
+        '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('') + '</section>';
+    }
+
     const recent = D().recent.slice().reverse().slice(0, 8);
     if (recent.length) {
       html += '<section class="card dashed"><div class="card-head head-either">RECENTLY DONE</div>' + recent.map((r) =>
-        '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + (r.status === 'bought' ? 'Bought' : 'Removed') + '</span></div>' +
+        '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + (r.status === 'bought' ? 'Bought' : r.status === 'have' ? 'Had it' + (haveLevel(r) ? ' (' + esc(haveLevel(r)) + ')' : '') + ', not bought' : 'Removed') + '</span></div>' +
         '<button class="btn btn-plain" data-act="restore" data-id="' + r.id + '">Put back</button></div>').join('') + '</section>';
     }
     return html;
@@ -499,6 +547,7 @@
 
   // Passing needs backend api 2 (reviewPass + the Review audience column).
   const canPass = () => Number(D().api || 0) >= 2;
+  const canStock = () => Number(D().api || 0) >= 3;
 
   function viewPassPicker(r) {
     const people = D().settings.parents.concat(D().settings.kids).filter((p) => p.toLowerCase() !== String(S.me).toLowerCase());
@@ -569,7 +618,14 @@
         '<div><label>How many</label><div class="stepper"><button type="button" data-act="qty" data-d="-1" aria-label="Fewer">−</button><b>' + sh.qty + '</b><button type="button" data-act="qty" data-d="1" aria-label="More">+</button></div></div>' +
         '<div><label for="sh-note">Note</label><input id="sh-note" class="field" style="width:100%" data-input="draft" data-field="note" value="' + esc(sh.note) + '" placeholder="Brand, size, flavor…"></div>' +
         '<div><label>Store</label>' + seg('store', storeOpts, sh.store) + '</div>' +
-        '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-row">Save</button><button class="btn btn-outline" data-act="row-bought">Got it</button></div>' +
+        (canStock()
+          ? '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-row">Save</button><button class="btn btn-outline" data-act="row-bought">Bought it</button></div>' +
+            '<div class="have-box"><label>Already have some at home?</label>' +
+            seg('level', [['plenty', 'Plenty'], ['some', 'Some'], ['low', 'A little'], ['count', 'Count…']], sh.level) +
+            (sh.level === 'count' ? '<div class="stepper" style="margin-top:8px"><button type="button" data-act="count" data-d="-1" aria-label="Fewer">−</button><b>' + sh.count + '</b><button type="button" data-act="count" data-d="1" aria-label="More">+</button><span class="note">at home</span></div>' : '') +
+            '<div class="sheet-actions" style="margin-top:10px"><button class="btn btn-outline" data-act="row-have"' + (sh.level ? '' : ' disabled') + '>We have it · done</button><button class="btn btn-outline" data-act="row-hold">Next week</button></div>' +
+            '<p class="note">“We have it” takes it off without buying. “Next week” hides it for 7 days, then it comes back.</p></div>'
+          : '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-row">Save</button><button class="btn btn-outline" data-act="row-bought">Got it</button></div>') +
         '<button class="btn btn-danger btn-block" data-act="row-remove">Take off the list</button>';
     }
 
@@ -643,7 +699,7 @@
     restore: (el) => { const r = rowById(el.dataset.id); if (r) restore(r); },
     'open-row': (el) => {
       const r = rowById(el.dataset.id);
-      if (r) { S.sheet = { type: 'row', id: r.id, name: r.name, qty: Number(r.qty) || 1, note: r.note || '', store: r.store || 'Either' }; render(); }
+      if (r) { S.sheet = { type: 'row', id: r.id, name: r.name, qty: Number(r.qty) || 1, note: r.note || '', store: r.store || 'Either', level: '', count: 1 }; render(); }
     },
 
     filter: (el) => { S.storeFilter = el.dataset.v; render(); },
@@ -699,7 +755,19 @@
       if (!r) { render(); return; }
       act('update', { id: r.id, fields: { qty: sh.qty, note: sh.note, store: sh.store } }, () => { r.qty = sh.qty; r.note = sh.note; r.store = sh.store; }, 'Saved');
     },
-    'row-bought': () => { const r = rowById(S.sheet.id); S.sheet = null; if (r) setStatus(r, 'bought', 'Got ' + r.name); else render(); },
+    'row-bought': () => { const r = rowById(S.sheet.id); S.sheet = null; if (r) setStatus(r, 'bought', 'Bought ' + r.name); else render(); },
+    count: (el) => { S.sheet.count = Math.max(1, Math.min(999, S.sheet.count + Number(el.dataset.d))); render(); },
+    'row-have': () => {
+      const sh = S.sheet; const r = rowById(sh.id);
+      if (!sh.level) return;
+      S.sheet = null;
+      if (r) markHave(r, sh.level === 'count' ? String(sh.count) : sh.level); else render();
+    },
+    'row-hold': () => {
+      const sh = S.sheet; const r = rowById(sh.id); S.sheet = null;
+      if (r) holdRow(r, sh.level === 'count' ? String(sh.count) : sh.level); else render();
+    },
+    unhold: (el) => { const r = (D().held || []).find((x) => x.id === el.dataset.id); if (r) unhold(r); },
     'row-remove': () => { const r = rowById(S.sheet.id); S.sheet = null; if (r) setStatus(r, 'skipped', 'Took ' + r.name + ' off'); else render(); },
     'save-item': () => {
       const sh = S.sheet;

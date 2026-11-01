@@ -19,11 +19,17 @@ const TABS = {
   receipts: 'Receipts',
   review: 'Review',
   settings: 'Settings',
+  stock: 'Stock',
 };
+
+// Stock is an append-only log of "we have it" sightings (created on first use).
+const STOCK_HEAD = ['at', 'item_id', 'level', 'expires', 'who', 'source', 'list_id'];
+const LEVELS = ['plenty', 'some', 'low', 'out'];
+const HOLD_DAYS = 7;
 
 // Statuses a List row moves through.
 const ACTIVE = ['requested', 'needed', 'carted'];
-const DONE = ['bought', 'skipped'];
+const DONE = ['bought', 'skipped', 'have']; // have = we already had it, nothing bought
 
 // Items stats columns (J:M) are formulas over Receipts; new item rows get them too.
 const ITEM_FORMULAS_R1C1 = [
@@ -66,6 +72,8 @@ function handle(req) {
     itemSave: () => withLock(() => saveItem(req)),
     reviewAnswer: () => withLock(() => answerReview(req)),
     reviewPass: () => withLock(() => passReview(req)),
+    listHave: () => withLock(() => listHave(req)),
+    listHold: () => withLock(() => listHold(req)),
     requestOrder: () => withLock(() => requestOrder(req)),
   };
   const fn = actions[req.action];
@@ -175,13 +183,27 @@ function getState() {
   const items = readTab(TABS.items);
   const list = readTab(TABS.list);
   const today = isoDate(new Date());
-  const active = list.filter((r) => ACTIVE.indexOf(r.status) >= 0);
+  const open = list.filter((r) => ACTIVE.indexOf(r.status) >= 0);
   const onList = {};
-  active.forEach((r) => r.item_id && (onList[r.item_id] = true));
+  open.forEach((r) => r.item_id && (onList[r.item_id] = true));
+  // "Next run" rows stay needed but are hidden until hold_until passes.
+  const isHeld = (r) => r.hold_until && String(r.hold_until).slice(0, 10) > today;
+  const active = open.filter((r) => !isHeld(r));
+  const held = open.filter(isHeld);
+
+  // A fresh "we have plenty/some/a count" sighting (last 7 days) holds back "probably due".
+  const stocked = {};
+  if (SpreadsheetApp.getActive().getSheetByName(TABS.stock)) {
+    readTab(TABS.stock).forEach((s) => {
+      const lvl = String(s.level).toLowerCase();
+      const fresh = s.at && daysBetween(String(s.at).slice(0, 10), today) <= 7;
+      if (s.item_id && fresh && (lvl === 'plenty' || lvl === 'some' || Number(lvl) > 0)) stocked[s.item_id] = true;
+    });
+  }
 
   // "Probably due": we have a buying rhythm for it, it's about that time, and it isn't listed.
   const due = items
-    .filter((it) => it.status !== 'Drop' && it.avg_days && it.last_bought && !onList[it.id])
+    .filter((it) => it.status !== 'Drop' && it.avg_days && it.last_bought && !onList[it.id] && !stocked[it.id])
     .map((it) => ({ id: it.id, since: daysBetween(it.last_bought, today), every: Number(it.avg_days) }))
     .filter((d) => d.since >= d.every - 2)
     .sort((a, b) => b.since / b.every - a.since / a.every)
@@ -194,10 +216,11 @@ function getState() {
     .slice(-20);
 
   return {
-    api: 2, // bump when the app needs a newer backend; 2 = reviewPass + Review audience
+    api: 3, // bump when the app needs a newer backend; 2 = reviewPass + Review audience; 3 = listHave/listHold
     today: today,
     items: items.map(stripRow),
     list: active.map(stripRow),
+    held: held.map(stripRow),
     recent: recent.map(stripRow),
     meals: readTab(TABS.meals).map(stripRow),
     plan: readTab(TABS.plan).filter((p) => String(p.week_of) === weekOf(today)).map(stripRow),
@@ -268,6 +291,12 @@ function addToList(req) {
   const existing = list.find((r) => r.item_id === itemId && ACTIVE.indexOf(r.status) >= 0);
   if (existing) {
     // Already on the list: bump the quantity instead of adding a duplicate row.
+    const today = isoDate(new Date());
+    if (existing.hold_until && String(existing.hold_until).slice(0, 10) > today) {
+      // Someone needs it now after all: bring it back instead of bumping the quantity.
+      setFields(TABS.list, existing._row, { hold_until: '', updated_at: nowStamp() });
+      return { id: existing.id, merged: true, unheld: true };
+    }
     setFields(TABS.list, existing._row, { qty: (Number(existing.qty) || 1) + (req.bump === false ? 0 : qty), updated_at: nowStamp() });
     return { id: existing.id, merged: true };
   }
@@ -292,7 +321,7 @@ function addToList(req) {
 function updateListRow(req) {
   const row = readTab(TABS.list).find((r) => r.id === req.id);
   if (!row) throw new Error('List row not found');
-  const allowed = ['qty', 'note', 'status', 'store'];
+  const allowed = ['qty', 'note', 'status', 'store', 'hold_until'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
   if (f.status && ACTIVE.concat(DONE).indexOf(f.status) < 0) throw new Error('Bad status');
@@ -370,6 +399,69 @@ function passReview(req) {
   if (['parents', 'all'].indexOf(to.toLowerCase()) < 0 && people.indexOf(to.toLowerCase()) < 0) throw new Error('Unknown person: ' + to);
   setFields(TABS.review, r._row, { audience: to, passed_by: req.by || '' });
   return { id: r.id, to: to };
+}
+
+/* ---------------------------------------------------------------- stock ("we have it") */
+
+function stockSheet() {
+  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.stock);
+  if (!sh) {
+    sh = SpreadsheetApp.getActive().insertSheet(TABS.stock);
+    sh.appendRow(STOCK_HEAD);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+// level: plenty / some / low / out, or a count like "6".
+function cleanLevel(level) {
+  const v = String(level || '').trim().toLowerCase();
+  if (!v) return '';
+  if (LEVELS.indexOf(v) >= 0) return v;
+  if (/^\d{1,3}$/.test(v)) return v;
+  throw new Error('Bad amount: ' + level);
+}
+
+function logStock(o) {
+  stockSheet();
+  appendObj(TABS.stock, {
+    at: nowStamp(),
+    item_id: o.item_id || '',
+    level: o.level,
+    expires: o.expires ? "'" + o.expires : '',
+    who: o.who || '',
+    source: o.source || 'list',
+    list_id: o.list_id || '',
+  });
+}
+
+function listNote(row, text) {
+  return row.note ? row.note + '; ' + text : text;
+}
+
+// "We have it": nothing bought. The row is done (status have) and the sighting is logged.
+function listHave(req) {
+  const row = readTab(TABS.list).find((r) => r.id === req.id);
+  if (!row) throw new Error('List row not found');
+  const level = cleanLevel(req.level) || 'some';
+  setFields(TABS.list, row._row, { status: 'have', hold_until: '', note: listNote(row, 'had ' + level + ' (' + (req.by || '?') + ')'), updated_at: nowStamp() });
+  logStock({ item_id: row.item_id, level: level, expires: req.expires, who: req.by, source: 'list', list_id: row.id });
+  return { id: row.id, level: level };
+}
+
+// "Next run": keep it on the list but hide it until hold_until (default a week out).
+function listHold(req) {
+  const row = readTab(TABS.list).find((r) => r.id === req.id);
+  if (!row) throw new Error('List row not found');
+  const d = new Date();
+  d.setDate(d.getDate() + (Number(req.days) || HOLD_DAYS));
+  const until = req.until || isoDate(d);
+  const level = cleanLevel(req.level);
+  const f = { hold_until: "'" + until, updated_at: nowStamp() };
+  if (level) f.note = listNote(row, 'had ' + level + ' (' + (req.by || '?') + ')');
+  setFields(TABS.list, row._row, f);
+  if (level) logStock({ item_id: row.item_id, level: level, who: req.by, source: 'list', list_id: row.id });
+  return { id: row.id, hold_until: until };
 }
 
 function requestOrder(req) {
