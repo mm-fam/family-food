@@ -21,7 +21,22 @@ const TABS = {
   settings: 'Settings',
   stock: 'Stock',
   ideas: 'Meal Ideas',
+  feedback: 'App Feedback',
 };
+
+// App Feedback: anything anyone says about the app from the 💡 button in the header (created on first use).
+const FEEDBACK_HEAD = ['id', 'at', 'who', 'tab', 'text', 'status', 'notes'];
+// Automatic Q&A cards (api 9), made once a day the first time anyone opens the app.
+const RATE_OPTIONS = '😍; 🙂; 😐; 👎';
+const RATE_BACK_DAYS = 3;      // catch up at most this many days if nobody opened the app
+const RATE_NEW_TIMES = 2;      // a meal counts as "new" for its first 3 times (made before ≤ 2)
+const RATE_EXPIRE_DAYS = 5;
+const RATE_SLOTS = ['dinner', 'breakfast']; // "after breakfast or dinners, if we try something new" (family demo, Nov 1)
+const RATE_PER_DAY = 2;    // unanswered "How was it?" cards close after this
+const STILL_PER_PERSON = 2;    // "Still eating …?" cards per person per week
+const STILL_EVERY_DAYS = 7;
+const STILL_REASK_DAYS = 90;
+const NON_FOOD = ['Personal care', 'Household', 'Paper & cleaning', 'Other'];
 
 // Stock is an append-only log of "we have it" sightings (created on first use).
 const STOCK_HEAD = ['at', 'item_id', 'level', 'expires', 'who', 'source', 'list_id'];
@@ -36,7 +51,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by; 5 = itemInfo + stockLog + state.stock;
 // 6 = Plan by date (rolling planDays window, planSet {date}); 7 = mealIdea + state.ideas + state.mealStats;
 // 8 = meal slots: Plan slot (breakfast/lunch/snack/dinner) + note (e.g. leftovers), Meals kind, planSet {slot, note}.
-const API_VERSION = 8;
+// 9 = Items store_only, mealRequest (kids ask for a meal; Review type meal_request + asked_by), feedback (App Feedback tab),
+//     daily "How was it?" (type rate) and weekly "Still eating?" (type still) cards; kids can't planSet / mealSave.
+const API_VERSION = 9;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -95,6 +112,8 @@ function handle(req) {
     itemInfo: () => itemInfo(req),
     stockLog: () => withLock(() => stockLogAction(req)),
     mealIdea: () => withLock(() => addMealIdea(req)),
+    mealRequest: () => withLock(() => addMealRequest(req)),
+    feedback: () => withLock(() => addFeedback(req)),
   };
   const fn = actions[req.action];
   if (!fn) return reply({ ok: false, error: 'unknown_action' });
@@ -164,6 +183,24 @@ function setFields(name, rowNum, fields) {
   });
 }
 
+// Adds a header at the end of a tab if it isn't there yet (new columns always go at the end).
+function ensureColumn(name, col) {
+  const head = headers(name);
+  if (head.indexOf(col) >= 0) return;
+  sheet(name).getRange(1, head.length + 1).setValue(col);
+}
+
+function setSetting(key, value) {
+  const s = readTab(TABS.settings).find((r) => r.key === key);
+  if (s) setFields(TABS.settings, s._row, { value: value });
+  else appendObj(TABS.settings, { key: key, value: value });
+}
+
+function people() {
+  const st = settingsMap();
+  return String(st.parents || '').split(',').concat(String(st.kids || '').split(',')).map((x) => x.trim()).filter(String);
+}
+
 function nextId(rows, key, prefix, width) {
   let max = 0;
   rows.forEach((r) => {
@@ -201,6 +238,7 @@ function isKid(name) {
 /* ---------------------------------------------------------------- reads */
 
 function getState() {
+  dailyCards();
   const items = readTab(TABS.items);
   const list = readTab(TABS.list);
   const today = isoDate(new Date());
@@ -412,6 +450,7 @@ function addMealToList(req) {
 // One meal per date and slot (slot defaults to dinner). Older apps send week_of + day instead of date.
 // A row can carry a note ("Leftover wraps") with or without a meal.
 function setPlan(req) {
+  if (isKid(req.by)) throw new Error('Ask a parent to plan it');
   const date = req.date
     ? String(req.date).slice(0, 10)
     : planDate({ week_of: req.week_of || weekOf(isoDate(new Date())), day: req.day });
@@ -434,6 +473,7 @@ function setPlan(req) {
 }
 
 function saveMeal(req) {
+  if (isKid(req.by)) throw new Error('Only parents can edit meals');
   const meals = readTab(TABS.meals);
   const ids = (req.item_ids || []).join(';');
   const existing = req.id ? meals.find((m) => m.id === req.id) : null;
@@ -457,9 +497,10 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
+  if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
   setFields(TABS.items, item._row, f);
   return { id: item.id };
 }
@@ -527,7 +568,7 @@ function mealStats(meals, today) {
   const byName = {};
   meals.forEach((m) => (byName[String(m.name).toLowerCase()] = m.id));
   readTab(TABS.review).forEach((r) => {
-    if (String(r.type) !== 'vote' || !r.answer) return;
+    if ((String(r.type) !== 'vote' && String(r.type) !== 'rate') || !r.answer) return;
     const d = String(r.detail);
     let id = (d.match(/\((m\d{2,})\)/) || [])[1];
     if (!id) { const n = (d.match(/about (.+?)\?/) || [])[1]; id = n && byName[n.toLowerCase()]; }
@@ -568,6 +609,125 @@ function mealStats(meals, today) {
     st.score = vs.length ? Math.round((vs.reduce((t, e) => t + VOTE_SCORE[e], 0) / vs.length) * 10) / 10 : 0;
   });
   return out;
+}
+
+/* ---------------------------------------------------------------- kids' meal requests, app feedback */
+
+// A kid asks for a meal; a parent picks the day (Meals tab → Plan it / Not now).
+function addMealRequest(req) {
+  const meal = readTab(TABS.meals).find((m) => m.id === req.meal_id);
+  if (!meal) throw new Error('Meal not found');
+  const slot = SLOTS.indexOf(String(req.slot || '').toLowerCase()) >= 0 ? String(req.slot).toLowerCase() : 'dinner';
+  const when = ['this week', 'next week', 'anytime'].indexOf(String(req.when || '').toLowerCase()) >= 0 ? String(req.when).toLowerCase() : 'anytime';
+  ensureColumn(TABS.review, 'asked_by');
+  const review = readTab(TABS.review);
+  const dup = review.find((r) => r.type === 'meal_request' && r.status === 'open' && String(r.asked_by) === String(req.by) && String(r.detail).indexOf('(' + meal.id + ')') >= 0);
+  if (dup) return { id: dup.id, already: true };
+  const id = nextId(review, 'id', 'r', 3);
+  appendObj(TABS.review, {
+    id: id, created: nowStamp(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: req.by || '',
+    detail: (req.by || 'Someone') + ' wants ' + meal.name + ' for ' + slot + ', ' + when + '. (' + meal.id + ') Options: Plan it; Not now',
+  });
+  return { id: id };
+}
+
+function addFeedback(req) {
+  const text = String(req.text || '').trim().slice(0, IDEA_MAX);
+  if (!text) throw new Error('Type something first');
+  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.feedback);
+  if (!sh) { sh = SpreadsheetApp.getActive().insertSheet(TABS.feedback); sh.appendRow(FEEDBACK_HEAD); sh.setFrozenRows(1); }
+  const id = nextId(readTab(TABS.feedback), 'id', 'f', 3);
+  appendObj(TABS.feedback, { id: id, at: nowStamp(), who: req.by || '', tab: req.tab || '', text: text, status: 'new', notes: '' });
+  return { id: id };
+}
+
+/* ---------------------------------------------------------------- automatic Q&A cards */
+
+// Once a day, the first time anyone opens the app (no trigger needed):
+//  - "How was <meal>?" for each person, the day after a meal that's still new to us (first 3 times),
+//  - unanswered ones older than RATE_EXPIRE_DAYS are closed,
+//  - once a week, a couple of "Still eating <item>?" cards per person.
+function dailyCards() {
+  const today = isoDate(new Date());
+  const st = settingsMap();
+  if (String(st.cards_through || '') >= today) return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    if (String(settingsMap().cards_through || '') >= today) return;
+    ensureColumn(TABS.review, 'asked_by');
+    const everyone = people();
+    let review = readTab(TABS.review);
+    let n = nextIdNum(review);
+    const add = (o) => { appendObj(TABS.review, Object.assign({ id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), status: 'open', answer: '' }, o)); };
+
+    // Close stale, unanswered "How was it?" cards.
+    review.forEach((r) => {
+      if (r.type === 'rate' && r.status === 'open' && r.created && daysBetween(String(r.created).slice(0, 10), today) > RATE_EXPIRE_DAYS) {
+        setFields(TABS.review, r._row, { status: 'closed' });
+      }
+    });
+
+    // How was it?
+    const meals = readTab(TABS.meals);
+    const mealOf = {}; meals.forEach((m) => (mealOf[m.id] = m));
+    let plan = readTab(TABS.plan);
+    if (SpreadsheetApp.getActive().getSheetByName('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
+    const madeBefore = (id, d) => plan.filter((p) => p.meal_id === id && !isLeftover(p) && planDate(p) && planDate(p) < d).length;
+    const from = st.cards_through ? addDays(String(st.cards_through).slice(0, 10), 1) : addDays(today, -1);
+    const start = from < addDays(today, -RATE_BACK_DAYS) ? addDays(today, -RATE_BACK_DAYS) : from;
+    // Dinners first, then breakfast; at most RATE_PER_DAY cards per person per day so the deck stays fun.
+    for (let d = start; d < today; d = addDays(d, 1)) {
+      const when = d === addDays(today, -1) ? 'yesterday' : 'on ' + DAY_NAMES[new Date(d + 'T12:00:00').getDay()];
+      const rows = plan.filter((p) => planDate(p) === d && p.meal_id && mealOf[p.meal_id] && !isLeftover(p) && RATE_SLOTS.indexOf(planSlot(p)) >= 0)
+        .filter((p) => madeBefore(p.meal_id, d) <= RATE_NEW_TIMES) // only meals still new to us
+        .sort((a, b) => RATE_SLOTS.indexOf(planSlot(a)) - RATE_SLOTS.indexOf(planSlot(b)));
+      everyone.forEach((who) => {
+        let given = 0;
+        rows.forEach((p) => {
+          if (given >= RATE_PER_DAY) return;
+          const open = review.some((r) => r.type === 'rate' && r.status === 'open' && String(r.audience) === who && String(r.detail).indexOf('(' + p.meal_id + ')') >= 0);
+          if (open) return;
+          const slot = planSlot(p);
+          add({ type: 'rate', audience: who, detail: 'How was ' + mealOf[p.meal_id].name + ' ' + when + (slot === 'dinner' ? '' : ' (' + slot + ')') + '? (' + p.meal_id + ') Options: ' + RATE_OPTIONS });
+          review.push({ type: 'rate', status: 'open', audience: who, detail: '(' + p.meal_id + ')' });
+          given++;
+        });
+      });
+    }
+
+    // Still eating? Weekly, a couple per person, from things we buy regularly.
+    if (!st.still_through || daysBetween(String(st.still_through).slice(0, 10), today) >= STILL_EVERY_DAYS) {
+      const items = readTab(TABS.items).filter((i) => i.status !== 'Drop' && Number(i.orders) >= 2 && NON_FOOD.indexOf(String(i.group)) < 0);
+      everyone.forEach((who, k) => {
+        const recent = {};
+        review.forEach((r) => {
+          if (r.type === 'still' && String(r.audience) === who && r.created && daysBetween(String(r.created).slice(0, 10), today) <= STILL_REASK_DAYS) {
+            const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) recent[m[1]] = true;
+          }
+        });
+        const pool = items.filter((i) => !recent[i.id]);
+        // Rotate through the pool by week and person, so each person gets different ones.
+        const wk = Math.floor(new Date(today + 'T12:00:00').getTime() / (7 * 86400000));
+        for (let j = 0; j < Math.min(STILL_PER_PERSON, pool.length); j++) {
+          const it = pool[(wk * 7 + k * 3 + j * 11) % pool.length];
+          if (recent[it.id]) continue;
+          recent[it.id] = true;
+          add({ type: 'still', audience: who, detail: 'Still eating ' + it.name + '? (' + it.id + ') Options: Yes; No' });
+        }
+      });
+      setSetting('still_through', "'" + today);
+    }
+    setSetting('cards_through', "'" + today);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function nextIdNum(rows) {
+  let max = 0;
+  rows.forEach((r) => { const v = parseInt(String(r.id).replace(/^r/, ''), 10); if (!isNaN(v) && v > max) max = v; });
+  return max + 1;
 }
 
 /* ---------------------------------------------------------------- stock ("we have it") */

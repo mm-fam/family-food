@@ -23,6 +23,8 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 5. For each matched item, set active List rows (`needed`/`carted`) with that item_id and same store (or Either, for GE/WF only) to `bought`, `updated_at` now.
 6. Process answered Review rows: apply the answer (rename, alias, merge, drop), back-fill item_id on the matching Receipts rows, set Review status to `closed`.
 
+7. **New food items** from a receipt (match `new`, not Personal care / Household / Paper & cleaning): add up to 3 per receipt as "How was it?" cards, one per person: `We got <name>. How was it? (iNNN) Options: 😍; 🙂; 😐; 👎` (type `rate`, audience = that person, status `open`). Answers show on the item screen under What we know.
+
 **Report:** "<store> <date>: N lines, N matched, N new items, N questions, N list items cleared." Nothing else unless something broke.
 
 ---
@@ -118,3 +120,11 @@ Design and the full steps: `docs/hearth.md`.
 
 - **Hearth → Poppy** (a screenshot of the Hearth Meal Plan): read every day × Breakfast / Lunch / Snack / Dinner cell; match to Meals or add new ones (kind = the row; link only catalog items the name clearly names; never complete cut-off names or create Items); write Plan rows with slot (and note `Leftovers` for leftover cells). Hearth wins for that date + slot. Back up first above ~20 rows.
 - **Poppy → Hearth:** Meals → THIS WEEK → **→ Hearth** → week → Copy → paste into Hearth Helper → approve its preview.
+
+## 10. Family feedback and automatic cards (api 9)
+
+**When:** the daily morning check.
+1. **App Feedback** rows with status `new`: quote each (who, tab, text) in the report to the owner, then set `seen`. Don't change the app from them without the owner's go-ahead.
+2. **Still eating? = No** (answered `still` rows): add one card to the parents: `<who> isn't eating <item> anymore. Stop buying it? (iNNN) Options: Yes; No, others eat it` (type `preference`, audience `parents`), then close the `still` row. A parent's Yes → Items status `Drop`. Never change Items from a kid's answer alone.
+3. **How was it?** (`rate`) answers need nothing: they count as votes in meal tags (they're read like `vote` rows; never edit their answers).
+4. **Meal requests** (`meal_request`) are handled by parents in the app. Report any open longer than 3 days.

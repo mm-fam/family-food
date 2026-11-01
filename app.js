@@ -53,15 +53,26 @@
   /* ------------------------------------------------------------ api */
   function apiUrl() { return (window.FF_CONFIG && window.FF_CONFIG.API_URL) || ''; }
 
+  // Writes in flight. A plain state read that started before (or during) a write can come back
+  // with the old data and flash it for a second (Nov 1 demo: an approved request popped back up),
+  // so reads are ignored while a write is pending and anything older than the last write is dropped.
+  let writing = 0;
+  let lastWrite = 0;
+  const READS = { state: 1, ping: 1, itemInfo: 1 };
   async function api(action, payload) {
     const mine = ++seq;
+    const isWrite = !READS[action];
+    if (isWrite) { writing++; lastWrite = mine; }
     const body = Object.assign({ action: action, pass: S.pass, by: S.me }, payload || {});
-    // text/plain keeps this a "simple" request, so Apps Script needs no CORS preflight.
-    const res = await fetch(apiUrl(), { method: 'POST', body: JSON.stringify(body) });
-    const j = await res.json();
-    if (!j.ok) throw new Error(j.error || 'Something went wrong');
-    if (j.state && mine >= applied) { applied = mine; S.data = j.state; }
-    return j;
+    try {
+      // text/plain keeps this a "simple" request, so Apps Script needs no CORS preflight.
+      const res = await fetch(apiUrl(), { method: 'POST', body: JSON.stringify(body) });
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || 'Something went wrong');
+      const stale = mine < lastWrite || (!isWrite && writing > 0);
+      if (j.state && mine >= applied && !(stale && S.data)) { applied = mine; S.data = j.state; }
+      return j;
+    } finally { if (isWrite) writing--; }
   }
 
   async function refresh() {
@@ -81,8 +92,9 @@
 
   // Apply a change locally right away, then send it. Server state replaces ours when it answers.
   async function act(action, payload, optimistic, toastMsg, undo) {
-    if (optimistic) { optimistic(); render(); }
     if (toastMsg) showToast(toastMsg, undo);
+    if (optimistic) optimistic();
+    render();
     try { await api(action, payload); render(); }
     catch (e) { handleError(e); refresh(); }
   }
@@ -117,10 +129,34 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  /* ---------- search: every word, across name, brand, aisle and receipt aliases ---------- */
+  // "breakfast sandwiches" finds things in the Breakfast aisle and anything called a sandwich.
+  const stem = (w) => w.replace(/(ies)$/, 'y').replace(/(sses|shes|ches|xes)$/, (m) => m.slice(0, -2)).replace(/([^s])s$/, '$1');
+  const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9&' ]+/g, ' ').split(/\s+/).filter(Boolean).map(stem);
+  function itemWords(i) {
+    return words([i.name, i.brand_size, i.group, String(i.aliases || '').replace(/;/g, ' ')].join(' '));
+  }
+  // Score = how many query words an item matches (word starts, so "turk" finds turkey). 0 = no match.
+  function matchScore(i, qw) {
+    if (!qw.length) return 0;
+    const iw = itemWords(i);
+    return qw.filter((w) => iw.some((x) => x.indexOf(w) === 0 || (w.length >= 4 && x.indexOf(w) >= 0))).length;
+  }
+  // Items that match every word; if none do, the closest ones (most words matched).
+  function findItems(q, pool) {
+    const qw = words(q);
+    if (!qw.length) return { all: true, hits: pool };
+    const scored = pool.map((i) => ({ i: i, s: matchScore(i, qw) })).filter((x) => x.s > 0);
+    const full = scored.filter((x) => x.s === qw.length);
+    const use = full.length ? full : scored;
+    const best = use.length ? Math.max.apply(null, use.map((x) => x.s)) : 0;
+    return { all: !!full.length, hits: use.filter((x) => full.length || x.s === best).map((x) => x.i) };
+  }
+
   function searchItems(q, limit) {
     const n = q.trim().toLowerCase();
     if (!n) return [];
-    const hits = D().items.filter((i) => i.status !== 'Drop' && String(i.name).toLowerCase().indexOf(n) >= 0);
+    const hits = findItems(n, D().items.filter((i) => i.status !== 'Drop')).hits.slice();
     hits.sort((a, b) => {
       const as = String(a.name).toLowerCase().indexOf(n) === 0 ? 0 : 1;
       const bs = String(b.name).toLowerCase().indexOf(n) === 0 ? 0 : 1;
@@ -235,12 +271,14 @@
       if (status === 'bought' || status === 'skipped' || status === 'have') {
         D().list = D().list.filter((r) => r !== row);
         D().recent.push(Object.assign({}, row, { status: status, updated_at: nowIso() }));
+        if (msg && !S.instore) fadeRow(row, status === 'bought' ? 'Bought (' + S.me + ')' : before === 'requested' ? 'Skipped' : 'Taken off', before);
       }
     }, msg, msg && (status === 'bought' || status === 'skipped') ? () => restore(row, before) : null);
   }
 
   function restore(row, status) {
     const to = status || 'needed';
+    delete S.fading[row.id];
     act('update', { id: row.id, fields: { status: to } }, () => {
       D().recent = D().recent.filter((r) => r.id !== row.id);
       D().list = D().list.filter((r) => r.id !== row.id);
@@ -253,11 +291,22 @@
 
   // We already have it at home: nothing bought, sighting logged.
   function markHave(row, level) {
+    const before = row.status;
     act('listHave', { id: row.id, level: level }, () => {
       D().list = D().list.filter((r) => r !== row);
       D().recent.push(Object.assign({}, row, { status: 'have', note: 'had ' + level, updated_at: D().today }));
-    }, 'Got it: we have ' + levelText(level), () => restore(row, row.status));
+      fadeRow(row, 'We have ' + levelText(level) + ' (' + S.me + ')', before);
+    }, 'Off the list: we have ' + levelText(level), () => restore(row, before));
   }
+
+  // A row that just left the List stays in place for a few seconds, crossed out, with Undo,
+  // so nobody wonders where it went (Nov 1 family demo: it "just disappeared").
+  S.fading = {};
+  function fadeRow(row, label, before) {
+    S.fading[row.id] = { row: Object.assign({}, row), label: label, before: before || 'needed', until: Date.now() + 6000 };
+    setTimeout(() => { if (S.fading[row.id] && S.fading[row.id].until <= Date.now()) { delete S.fading[row.id]; render(); } }, 6100);
+  }
+  const fadingRows = () => Object.keys(S.fading).map((k) => S.fading[k]).filter((f) => f.until > Date.now() && !D().list.some((r) => r.id === f.row.id));
 
   // Not needed this run: hide it for a week, then it comes back.
   function holdRow(row, level) {
@@ -373,13 +422,14 @@
     const instore = S.tab === 'list' && S.instore;
     const n = D().list.filter((r) => r.status !== 'requested').length;
     const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Q&A', admin: 'Behind the scenes' };
-    const eyebrows = { list: n + ' thing' + (n === 1 ? '' : 's') + ' we need', shop: 'Add to the List', meals: 'Next 2 weeks', ask: 'Your say', admin: 'Just for ' + S.me };
+    const eyebrows = { list: n + ' on the list', shop: 'Add to the List', meals: 'Next 2 weeks', ask: 'Your say', admin: 'Just for ' + S.me };
     const title = instore ? 'In store' : titles[S.tab];
     const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : eyebrows[S.tab];
     let right = '';
     if (instore) right = '<button class="btn btn-primary shop-done" data-act="store-done">Done</button>';
     else {
       if (S.tab === 'list') right += '<button class="btn btn-outline shop-btn" data-act="store-start">🛒 In store</button>';
+      if (canV9()) right += '<button class="gear idea-btn" data-act="open-feedback" aria-label="Idea or feedback about the app">💡</button>';
       if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'list' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
       right += '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button>';
     }
@@ -451,12 +501,29 @@
     return meta;
   }
 
+  // Store-only items (Items.store_only = Y): the one thing about stores the List still shows loudly.
+  const storeOnly = (r) => { const it = itemById(r.item_id); return !!(it && /^y/i.test(String(it.store_only || '')) && it.store && it.store !== 'Either'); };
+  const onlyAt = (r) => (storeOnly(r) ? itemById(r.item_id).store : '');
+  function storeMark(r) {
+    const code = onlyAt(r);
+    if (code) return '<span class="only-tag ' + storeOf(code).cls + '">Only at ' + esc(storeOf(code).name) + '</span>';
+    const s = r.store || 'Either';
+    return s === 'Either' ? '' : '<span class="store-dot ' + storeOf(s).cls + '" title="Usually from ' + esc(storeOf(s).name) + '"></span>';
+  }
+
   // At home a tap opens the item screen. Only In-store mode checks things off.
   function listRow(r) {
     const meta = rowMeta(r);
     const tag = mealTag(r);
-    return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span>' +
-      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag ? '<span class="tags">' + tag + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
+    const only = onlyAt(r) ? storeMark(r) : '';
+    return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + (only ? '' : storeMark(r)) + esc(r.name) + '</span>' +
+      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag || only ? '<span class="tags">' + only + tag + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
+  }
+
+  // Just taken off: crossed out for a few seconds with Undo.
+  function fadedRow(f) {
+    return '<div class="row faded"><span class="row-main"><span class="row-name">' + esc(f.row.name) + '</span><span class="row-meta">' + esc(f.label) + '</span></span>' +
+      '<button class="btn btn-plain" data-act="unfade" data-id="' + esc(f.row.id) + '">Undo</button></div>';
   }
 
   function requestRow(r) {
@@ -468,6 +535,20 @@
       (mealTag(r) ? '<span class="tags">' + mealTag(r) + '</span>' : '') + '</button>' + btns + '</div>';
   }
 
+  // Opened from a link in a browser (not the home-screen app): show how to add it, once, dismissible.
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; render(); });
+  function viewInstallTip() {
+    let standalone = false;
+    try { standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { /* old browser */ }
+    if (standalone || store.get('ff_tip_off')) return '';
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const how = installEvt ? '<button class="btn btn-primary" data-act="install">Add to Home Screen</button>'
+      : ios ? '<ol class="tip-steps"><li>Tap <b>Share</b> <span class="share-ico" aria-hidden="true">⬆︎</span> at the bottom of Safari (in Chrome, at the top right)</li><li>Scroll down, tap <b>Add to Home Screen</b></li><li>Tap <b>Add</b>. Open Poppy from the robot icon from now on.</li></ol>'
+        : '<p class="note">Open the browser menu (⋮) and tap <b>Add to Home screen</b> or <b>Install app</b>.</p>';
+    return '<section class="card tip"><div class="tip-head"><b>Put Poppy on your Home Screen</b><button class="x-btn" data-act="tip-off" aria-label="Hide this tip">✕</button></div>' + how + '</section>';
+  }
+
   const chev = (closed) => '<span class="chev" aria-hidden="true">' + (closed ? '▸' : '▾') + '</span>';
 
   function viewList() {
@@ -476,42 +557,42 @@
     const active = list.filter((r) => r.status !== 'requested');
     let html = '';
 
+    html += viewInstallTip();
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
         requests.map(requestRow).join('') + '</section>';
     }
 
-    const codes = STORE_ORDER.filter((code) => active.some((r) => (r.store || 'Either') === code));
-    if (codes.length) {
-      const allClosed = codes.every((c) => isClosed('s:' + c));
-      html += '<div class="list-tools"><span>' + active.length + ' item' + (active.length === 1 ? '' : 's') + '</span>' +
+    // One living list, by aisle (Nov 1 family demo: timing matters more than the store; whatever store
+    // we're at, grab what we can). Only store-only items say so; others carry a small store dot.
+    const faded = fadingRows();
+    const fadedIds = {};
+    faded.forEach((f) => (fadedIds[f.row.id] = f));
+    const all = active.concat(faded.map((f) => f.row));
+    const aisles = groupsIn(all);
+    if (active.length || faded.length) {
+      const allClosed = aisles.every((g) => isClosed('a:' + g));
+      const only = active.filter(storeOnly).length;
+      html += '<div class="list-tools"><span>' + active.length + ' item' + (active.length === 1 ? '' : 's') + (only ? ' · ' + only + ' store-only' : '') + '</span>' +
         '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
     }
-    codes.forEach((code) => {
-      const rows = active.filter((r) => (r.store || 'Either') === code);
-      const st = storeOf(code);
-      const key = 's:' + code;
-      const closed = isClosed(key);
-      html += '<section class="card acc"><button class="card-head acc-head head-' + st.cls + '" data-act="fold" data-key="' + key + '" aria-expanded="' + !closed + '">' +
-        '<span>' + st.name.toUpperCase() + ' · ' + rows.length + '</span>' + chev(closed) + '</button>';
+    aisles.forEach((g) => {
+      const rows = all.filter((r) => groupOf(r) === g);
+      const live = rows.filter((r) => !fadedIds[r.id]);
+      const key = 'a:' + g;
+      // An aisle with a row that just left stays open so the Undo is visible.
+      const closed = isClosed(key) && !rows.some((r) => fadedIds[r.id]);
+      html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="' + esc(key) + '" aria-expanded="' + !closed + '">' +
+        '<span>' + esc(g.toUpperCase()) + ' · ' + live.length + '</span>' + chev(closed) + '</button>';
       if (closed) {
-        html += '<button class="peek" data-act="fold" data-key="' + key + '">' + esc(rows.slice(0, 6).map((r) => r.name).join(', ')) + (rows.length > 6 ? '…' : '') + '</button>';
-      } else if (rows.length <= 4) {
-        html += rows.map(listRow).join('');
+        html += '<button class="peek" data-act="fold" data-key="' + esc(key) + '">' + esc(live.slice(0, 6).map((r) => r.name).join(', ')) + (live.length > 6 ? '…' : '') + '</button>';
       } else {
-        groupsIn(rows).forEach((g) => {
-          const inG = rows.filter((r) => groupOf(r) === g);
-          const gk = 'g:' + code + ':' + g;
-          const gc = isClosed(gk);
-          html += '<button class="sub-head" data-act="fold" data-key="' + gk + '" aria-expanded="' + !gc + '"><span class="sub-title">' + esc(g) + ' <b>' + inG.length + '</b></span>' +
-            (gc ? '<span class="sub-peek">' + esc(inG.map((r) => r.name).join(', ')) + '</span>' : '<span class="sub-peek"></span>') + chev(gc) + '</button>';
-          if (!gc) html += inG.map(listRow).join('');
-        });
+        html += rows.map((r) => (fadedIds[r.id] ? fadedRow(fadedIds[r.id]) : listRow(r))).join('');
       }
       html += '</section>';
     });
 
-    if (!list.length) html += '<div class="empty">The list is empty.<br><button class="btn btn-outline" style="margin-top:12px" data-act="tab" data-tab="shop">Add things in Shop</button></div>';
+    if (!list.length && !faded.length) html += '<div class="empty">The list is empty.<br><button class="btn btn-outline" style="margin-top:12px" data-act="tab" data-tab="shop">Add things in Shop</button></div>';
 
     const held = D().held || [];
     if (held.length) {
@@ -522,7 +603,7 @@
           '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    html += '<p class="hint">Tap a store or aisle to open it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
+    html += '<p class="hint">One list for every store: wherever you shop, grab what you can. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
     return html;
   }
 
@@ -532,9 +613,11 @@
     return '<div class="chips-row">' + pill('GE', 'Giant Eagle', 'ge') + pill('WF', 'Whole Foods', 'wf') + pill('TGT', 'Target', 'tgt') + pill('all', 'All') + '</div>';
   }
 
+  // Wherever we are, grab what we can: every row shows, except ones only another store carries.
   const inStore = (r) => {
-    const code = r.store || 'Either';
-    return S.instore === 'all' || code === S.instore || (code === 'Either' && takesEither(S.instore));
+    if (S.instore === 'all') return true;
+    const only = onlyAt(r);
+    return !only || only === S.instore;
   };
   // Bought today counts as "in the cart", so a shared trip shows everyone's checks.
   const boughtToday = (r) => r.status === 'bought' && String(r.updated_at || '').slice(0, 10) === D().today;
@@ -551,7 +634,8 @@
       html += '<section class="card"><div class="card-head"><span>' + esc(g.toUpperCase()) + '</span><span class="sub">' + (left ? left + ' left' : 'done') + '</span></div>' + inG.map((x) => {
         const r = x.r;
         const meta = rowMeta(r);
-        if (S.instore === 'all' || (r.store || 'Either') !== S.instore) meta.unshift(esc(storeOf(r.store).name));
+        if (onlyAt(r)) meta.unshift('only at ' + esc(storeOf(onlyAt(r)).name));
+        else if ((r.store || 'Either') !== 'Either' && (S.instore === 'all' || r.store !== S.instore)) meta.unshift('usually ' + esc(storeOf(r.store).name));
         if (r.status === 'requested') meta.unshift('asked by ' + esc(wantedBy(r).join(' + ')));
         return '<button class="row shop-row' + (x.done ? ' done' : '') + '" data-act="' + (x.done ? 'store-uncheck' : 'store-check') + '" data-id="' + r.id + '" aria-pressed="' + x.done + '">' +
           '<span class="check' + (x.done ? ' on' : '') + '" aria-hidden="true">' + (x.done ? '✓' : '') + '</span>' +
@@ -610,12 +694,14 @@
     let items = D().items.filter((i) => i.status !== 'Drop' || f === 'onlist');
     if (f !== 'all') { const ids = sets[f]; items = ids.map(itemById).filter(Boolean); }
     if (st !== 'all') items = items.filter((i) => i.store === st || (i.store === 'Either' && takesEither(st)));
-    if (q) items = items.filter((i) => String(i.name).toLowerCase().indexOf(q) >= 0 || String(i.brand_size || '').toLowerCase().indexOf(q) >= 0);
+    let close = false;
+    if (q) { const fr = findItems(q, items); items = fr.hits; close = !fr.all && items.length > 0; }
 
     let html = '';
     if (q && !D().items.some((i) => String(i.name).toLowerCase() === q)) {
-      html += '<button class="new-item" data-act="add-new"><span class="add-btn" aria-hidden="true">+</span><span>Add “' + esc(S.query.trim()) + '” as something new</span></button>';
+      html += '<button class="new-item" data-act="add-new"><span class="add-btn" aria-hidden="true">+</span><span>Add “' + esc(S.query.trim()) + '” as ' + (isKid(S.me) ? 'a request' : 'something new') + '</span></button>';
     }
+    if (close) html += '<p class="note search-close">Nothing matches every word. Closest matches:</p>';
     const row = (i) => {
       const on = !!sets.listed[i.id];
       const meta = ['<span class="store-dot ' + storeOf(i.store).cls + '"></span>' + esc(storeOf(i.store).name)];
@@ -654,12 +740,14 @@
 
   /* ---------- item screen (from the List or Shop) ---------- */
   const canInfo = () => Number(D().api || 0) >= 5;
+  // api 9: store_only, kids' meal requests, app feedback, "How was it?" / "Still eating?" cards.
+  const canV9 = () => Number(D().api || 0) >= 9;
 
   function openItemSheet(itemId, rowId, name) {
     const it = itemById(itemId);
     S.sheet = {
       type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
-      d: it ? { store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' } : null,
+      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}) : null,
     };
     render();
     if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
@@ -701,7 +789,7 @@
       h += '<div class="is-block"><div class="is-label">' + (row ? 'Have some at home already?' : 'How much is at home?') + '</div><div class="seg">' +
         lv('plenty', 'Plenty') + lv('some', 'Some') + lv('low', 'A little') + lv('count', 'Count…') + '</div>' +
         (sh.level === 'count' ? '<div class="is-line"><div class="stepper small"><button type="button" data-act="have-count" data-d="-1" aria-label="Fewer">−</button><b>' + sh.count + '</b><button type="button" data-act="have-count" data-d="1" aria-label="More">+</button></div><button class="btn btn-outline" data-act="have-count-save">Save</button></div>' : '') +
-        '<p class="note">' + (row ? 'Takes it off the list, nothing bought.' : 'Logged so Poppy knows; it isn’t added to the list.') + '</p></div>';
+        '<p class="note">' + (row ? 'Plenty, Some or a count takes it off the List (nothing bought). A little keeps it on.' : 'Logged so Poppy knows; it isn’t added to the list.') + '</p></div>';
     }
 
     // Quiet actions
@@ -743,6 +831,7 @@
         const seg = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         h += '<div class="is-details">' +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['Either', 'Either']]) + '</div>' +
+          (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
           '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
           '<div><label for="d-brand">Brand / size</label><input id="d-brand" class="field" style="width:100%" data-input="d" data-field="brand_size" value="' + esc(sh.d.brand_size) + '"' + (kid ? ' disabled' : '') + '></div>' +
@@ -773,10 +862,20 @@
     const isToday = day === D().today;
     const open = S.openDay === day && meal;
     const rows = canSlots() ? planDay(day) : {};
-    const others = canSlots() ? SLOTS.slice(0, 3).map((x) => {
-      const t = planText(rows[x[0]]);
-      return '<span class="dt-slot' + (t ? '' : ' none') + '"><i aria-hidden="true">' + x[2] + '</i>' + esc(t || x[1]) + '</span>';
-    }).join('') : '';
+    if (canSlots()) {
+      // All four meals, top to bottom, same size (Nov 1 family demo): breakfast, lunch, snack, dinner.
+      const any = SLOTS.some((x) => planText(rows[x[0]]));
+      const lines = SLOTS.map((x) => {
+        const t = planText(rows[x[0]]);
+        return '<span class="dt-line' + (t ? '' : ' none') + '"><span class="dt-k"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</span><span class="dt-v">' + esc(t || '—') + '</span></span>';
+      }).join('');
+      return '<div class="day-tile slots4' + (any ? ' set' : '') + (isToday ? ' today' : '') + (open ? ' open' : '') + '">' +
+        '<button class="dt-all" data-act="open-day" data-day="' + day + '" aria-label="' + esc((isToday ? 'Today, ' : '') + dayName(day) + ' ' + md(day)) + '">' +
+        '<span class="dt-head"><b>' + (isToday ? 'Today' : dayName(day)) + '</b><small>' + (isToday ? dayName(day) + ' ' : '') + md(day) + ' ›</small></span>' + lines + '</button>' +
+        (meal ? '<button class="dt-ing" data-act="toggle-day" data-day="' + day + '" aria-expanded="' + !!open + '">' + (open ? 'Hide' : 'Dinner ingredients') + '</button>' : '<span class="dt-ing ghost"></span>') +
+        '</div>';
+    }
+    const others = '';
     return '<div class="day-tile' + (meal ? ' set' : '') + (isToday ? ' today' : '') + (open ? ' open' : '') + '">' +
       (canSlots()
         ? '<button class="dt-head dt-day" data-act="open-day" data-day="' + day + '" aria-label="Whole day: ' + dayName(day) + ' ' + md(day) + '"><b>' + (isToday ? 'Today' : dayName(day)) + '</b><small>' + md(day) + ' ›</small></button>'
@@ -803,19 +902,25 @@
   function viewDaySheet(sh) {
     const rows = planDay(sh.day);
     const meals = D().meals.slice().sort((a, b) => String(a.name).localeCompare(b.name));
+    const readOnly = canV9() && isKid(S.me); // kids ask for meals from the meal card; parents plan
     return '<div class="is-head"><div><h2>' + esc((sh.day === D().today ? 'Today · ' : '') + dayName(sh.day) + ' ' + md(sh.day)) + '</h2></div>' +
       '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
       SLOTS.map((x) => {
         const p = rows[x[0]];
         const m = p && mealById(p.meal_id || '');
         const t = planText(p);
+        if (readOnly) {
+          return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
+            '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '—') + '</span></div>' +
+            (m ? '<button class="btn btn-plain slot-open" data-act="open-meal" data-id="' + m.id + '" aria-label="Open ' + esc(m.name) + '">↗</button>' : '<span class="slot-open"></span>') + '</div>';
+        }
         return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
           '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '+ Pick ' + x[1].toLowerCase()) + '</span>' +
           '<label class="sr" for="slot-' + x[0] + '">' + x[1] + '</label><select id="slot-' + x[0] + '" data-input="slot-plan" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
           mealOptions(meals, x[0], m ? m.id : '') + '</select></div>' +
           (m ? '<button class="btn btn-plain slot-open" data-act="open-meal" data-id="' + m.id + '" aria-label="Open ' + esc(m.name) + '">↗</button>' : '<span class="slot-open"></span>') + '</div>';
       }).join('') +
-      '<p class="note">Picking a meal replaces what was there. Leftovers come over from Hearth as they are.</p>';
+      '<p class="note">' + (readOnly ? 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.' : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.') + '</p>';
   }
 
   // Text for Hearth Helper: one block per day, Breakfast / Lunch / Snack / Dinner.
@@ -868,9 +973,10 @@
     const plan = planByDate();
     const meals = D().meals.slice().sort((a, b) => String(a.name).localeCompare(b.name));
     const w = planWeeks();
-    const planned = (days) => days.filter((d) => mealById(plan[d] || ''));
+    const planned = (days) => days.filter((d) => (canSlots() ? SLOTS.some((x) => planText(planDay(d)[x[0]])) : mealById(plan[d] || '')));
     const hearthBtn = canSlots() && amParent() ? '<button class="btn btn-outline btn-sm" data-act="open-hearth">→ Hearth</button>' : '';
-    let html = '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="head-btns"><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + ' dinners</span>' + hearthBtn + '</span></div>' +
+    let html = viewMealRequests();
+    html += '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="head-btns"><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + (canSlots() ? ' days' : ' dinners') + '</span>' + hearthBtn + '</span></div>' +
       weekStrip('this', w.thisWeek, plan, meals) + '</section>';
 
     if (w.nextWeek.length) {
@@ -879,7 +985,7 @@
       html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="w:next" aria-expanded="' + !closed + '">' +
         '<span>NEXT WEEK · ' + md(w.nextSun) + '–' + md(addDays(w.nextSun, 6)) + '</span><span class="head-btns"><span class="sub">' + pn.length + ' planned</span>' + chev(closed) + '</span></button>';
       html += closed
-        ? '<button class="peek" data-act="fold" data-key="w:next">' + (pn.length ? esc(pn.map((d) => dayName(d) + ' ' + mealById(plan[d]).name).join(', ')) : 'Nothing planned yet. Tap to plan.') + '</button>'
+        ? '<button class="peek" data-act="fold" data-key="w:next">' + (pn.length ? esc(pn.map((d) => dayName(d) + ' ' + (mealById(plan[d] || '') ? mealById(plan[d]).name : SLOTS.map((x) => planText(planDay(d)[x[0]])).filter(String)[0])).join(', ')) : 'Nothing planned yet. Tap to plan.') + '</button>'
         : weekStrip('next', w.nextWeek, plan, meals);
       html += '</section>';
     }
@@ -895,8 +1001,8 @@
       kinds.slice(-1).concat(kinds.slice(0, -1).filter((x) => x[0] !== 'dinner')).filter((x, i, arr) => arr.indexOf(x) === i).map((x) => kindPill(x[0], x[1] === 'Lunch' ? 'Lunches' : x[1] + 's', meals.filter((m) => kindOf(m) === x[0]).length)).join('') + '</div>' : '';
     const sortPill = (v, label) => '<button class="pill small' + (S.mealSort === v ? ' on' : '') + '" data-act="meal-sort" data-v="' + v + '">' + label + '</button>';
     html += '<section class="card"><div class="card-head"><span>OUR MEALS · ' + meals.length + '</span><span class="head-btns">' +
-      (canIdeas() ? '<button class="btn btn-outline" data-act="new-idea">💡 Idea</button>' : '') +
-      '<button class="btn btn-outline" data-act="new-meal">+ New</button></span></div>' + kindRow +
+      // 💡 Idea covers new meals (Nov 1); + New stays only for backends without meal ideas.
+      (canIdeas() ? '<button class="btn btn-outline" data-act="new-idea">💡 Meal idea</button>' : '<button class="btn btn-outline" data-act="new-meal">+ New</button>') + '</span></div>' + kindRow +
       (canStats() && meals.length > 3 ? '<div class="chips-row meal-sorts">' + sortPill('az', 'A–Z') + sortPill('top', 'Favorites') + sortPill('cost', 'Cheapest') + sortPill('stale', 'Not lately') + '</div>' : '') +
       (sorted.length ? sorted.map((m) => '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (canSlots() && kindOf(m) !== 'dinner' ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
         '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span>' +
@@ -926,7 +1032,7 @@
       const fav = voters.length >= 2 && st.score >= 3.5;
       tags.push('<span class="stat-tag' + (fav ? ' fav' : st.score && st.score < 2 ? ' meh' : '') + '" title="' + esc(voters.map((w) => w + ' ' + st.voters[w]).join(', ')) + '">' + (fav ? 'Favorite · ' : '') + counts + '</span>');
     }
-    if (st.next) tags.push('<span class="stat-tag next">' + (st.next === D().today ? 'Tonight' : 'Next ' + esc(shortDay(st.next))) + '</span>');
+    if (st.next) tags.push('<span class="stat-tag next">' + (st.next === D().today ? (kindOf(m) === 'dinner' ? 'Tonight' : 'Today') : 'Next ' + esc(shortDay(st.next))) + '</span>');
     if (st.made) tags.push('<span class="stat-tag">Made ' + st.made + '× · last ' + esc(md(st.last)) + '</span>');
     if (costKnown(st)) tags.push('<span class="stat-tag" title="Latest receipt prices of ' + st.priced + ' of ' + st.linked + ' ingredients">' + tierOf(st.cost) + ' · ~$' + Math.round(st.cost) + (st.priced < st.linked ? '+' : '') + '</span>');
     if (!voters.length && !st.made && !st.next) tags.push('<span class="stat-tag new">New</span>');
@@ -943,6 +1049,28 @@
       stale: (a, b) => String(st(a).last || '0000') < String(st(b).last || '0000') ? -1 : String(st(a).last || '0000') > String(st(b).last || '0000') ? 1 : 0,
     }[k] || (() => 0);
     return meals.slice().sort((a, b) => by(a, b) || String(a.name).localeCompare(b.name));
+  }
+
+  /* ---------- kids' meal requests (api 9) ---------- */
+  // Review rows of type meal_request: "<who> wants <meal> for <slot>, <when>. (mNN) Options: Plan it; Not now".
+  function mealRequests() {
+    return (D().review || []).filter((r) => r.type === 'meal_request').map((r) => {
+      const d = String(r.detail || '');
+      const m = mealById((d.match(/\((m\d{2,})\)/) || [])[1] || '');
+      const w = d.match(/ for (breakfast|lunch|snack|dinner), (this week|next week|anytime)/i) || [];
+      return { r: r, meal: m, who: r.asked_by || (d.match(/^(\S+) wants/) || [])[1] || '?', slot: (w[1] || '').toLowerCase(), when: w[2] || '' };
+    }).filter((x) => x.meal);
+  }
+  function viewMealRequests() {
+    if (!canV9()) return '';
+    const all = mealRequests();
+    const mine = amParent() ? all : all.filter((x) => String(x.who).toLowerCase() === String(S.me).toLowerCase());
+    if (!mine.length) return '';
+    return '<section class="card requests"><div class="card-head">' + (amParent() ? 'MEAL REQUESTS · ' : 'WAITING FOR A PARENT · ') + mine.length + '</div>' + mine.map((x) =>
+      '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + x.meal.id + '" data-req="' + esc(x.r.id) + '"><span class="row-name">' + esc(x.meal.name) + '</span>' +
+      '<span class="row-meta">' + esc([amParent() ? x.who + ' asked' : 'You asked', x.slot ? slotLabel(x.slot).toLowerCase() : '', x.when].filter(String).join(' · ')) + '</span></button>' +
+      (amParent() ? '<button class="btn btn-primary" data-act="open-meal" data-id="' + x.meal.id + '" data-req="' + esc(x.r.id) + '">Plan it</button><button class="btn btn-quiet" data-act="req-no" data-id="' + esc(x.r.id) + '">Not now</button>'
+        : '<button class="btn btn-quiet" data-act="req-cancel" data-id="' + esc(x.r.id) + '">Cancel</button>') + '</div>').join('') + '</section>';
   }
 
   // Ideas people pasted, with where they stand. Done ones link to the new meal.
@@ -975,7 +1103,21 @@
     const wkLabel = (wk) => (wk === thisWk ? 'This week' : wk === addDays(thisWk, 7) ? 'Next week' : 'Week of ' + md(wk));
     let h = '<div class="is-head"><div><h2>' + esc(m.name) + '</h2>' + (mealTags(m).length ? '<div class="tags">' + mealTags(m).join('') + '</div>' : '') + '</div>' +
       '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
-    h += '<div class="is-block first"><div class="is-label">' + (slot === 'dinner' ? 'Put it on a night' : 'Put it on a day · ' + slotLabel(slot)) + '</div>' + weeks.map((w) =>
+    const kidAsks = canV9() && isKid(S.me);
+    if (kidAsks) {
+      const pending = mealRequests().find((x) => x.meal.id === m.id && String(x.who).toLowerCase() === String(S.me).toLowerCase());
+      const ask = sh.ask || (sh.ask = { slot: slot, when: 'next week' });
+      const seg2 = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="ask-meal-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (ask[field] === o[0] ? 'on' : '') + '">' + esc(o[1]) + '</button>').join('') + '</div>';
+      h += '<div class="is-block first"><div class="is-label">Want this?</div>' + (pending
+        ? '<p class="is-fact">You asked for it (' + esc([slotLabel(pending.slot || slot).toLowerCase(), pending.when].filter(String).join(', ')) + '). Waiting for a parent.</p>'
+        : seg2('slot', SLOTS.map((x) => [x[0], x[1]])) + seg2('when', [['this week', 'This week'], ['next week', 'Next week'], ['anytime', 'Anytime']]) +
+          '<button class="btn btn-primary btn-block" data-act="ask-meal">Ask for it</button><p class="note">A parent picks the day.</p>') + '</div>';
+    }
+    if (sh.req && amParent()) {
+      const rq = mealRequests().find((x) => x.r.id === sh.req);
+      if (rq) h += '<div class="is-status on"><b>' + esc(rq.who) + ' asked</b> · ' + esc([slotLabel(rq.slot || slot).toLowerCase(), rq.when].filter(String).join(', ')) + '. Pick a day below.</div>';
+    }
+    if (!kidAsks) h += '<div class="is-block first"><div class="is-label">' + (slot === 'dinner' ? 'Put it on a night' : 'Put it on a day · ' + slotLabel(slot)) + '</div>' + weeks.map((w) =>
       '<div class="wk"><div class="wk-label">' + wkLabel(w.wk) + '</div><div class="day-chips">' + w.days.map((d) => {
         const other = plan[d] && plan[d] !== m.id && mealById(plan[d]);
         const mine = plan[d] === m.id;
@@ -992,7 +1134,7 @@
         (need.length ? '<button class="btn btn-outline btn-block" data-act="meal-add-all" data-id="' + m.id + '">Add ' + need.length + ' to the List</button>' : '<p class="note">Everything is on the List already.</p>')
       : '<p class="note">No ingredients linked yet.</p>') + '</div>';
     if (m.notes) h += '<div class="is-block"><div class="is-label">Notes</div><p class="is-fact">' + esc(m.notes) + '</p></div>';
-    h += '<div class="is-actions"><button class="btn btn-plain" data-act="edit-meal" data-id="' + m.id + '">Edit meal</button></div>';
+    if (!kidAsks) h += '<div class="is-actions"><button class="btn btn-plain" data-act="edit-meal" data-id="' + m.id + '">Edit meal</button></div>';
     return h;
   }
 
@@ -1050,6 +1192,7 @@
   function myQuestions() {
     const review = D().review || [];
     return review.filter((r) => {
+      if (r.type === 'meal_request') return false; // shown on the Meals tab instead
       const aud = String(r.audience || 'parents').trim();
       if (aud === 'all') return true;
       if (aud === 'parents') return amParent();
@@ -1217,6 +1360,12 @@
     if (sh.type === 'ideaview') inner = viewIdeaView(sh);
     if (sh.type === 'day') inner = viewDaySheet(sh);
     if (sh.type === 'hearth') inner = viewHearthSheet(sh);
+    if (sh.type === 'feedback') {
+      inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
+        '<label class="sr" for="fb-text">Your idea or feedback</label><textarea id="fb-text" class="field idea-text" data-input="draft" data-field="text" rows="6" placeholder="e.g. I wish I could see what’s for lunch tomorrow on the List">' + esc(sh.text || '') + '</textarea>' +
+        '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-feedback"' + (String(sh.text || '').trim() ? '' : ' disabled') + '>Send</button></div>' +
+        (canIdeas() ? '<button class="link-btn" data-act="feedback-to-meal">Got a meal idea instead? Share it here →</button>' : '');
+    }
 
     if (sh.type === 'meal') {
       const hits = searchItems(sh.q || '', 5).filter((i) => sh.item_ids.indexOf(i.id) < 0);
@@ -1248,6 +1397,8 @@
 
   const handlers = {
     'boot-retry': () => { firstLoad(); },
+    'tip-off': () => { store.set('ff_tip_off', '1'); render(); },
+    install: async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch (e) { /* dismissed */ } installEvt = null; store.set('ff_tip_off', '1'); render(); },
     'pick-me': (el) => { S.me = el.dataset.name; store.set('ff_me', S.me); render(); },
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
     tab: (el) => { if (el.dataset.tab === 'ask' && S.tab !== 'ask') { S.askAnswered = 0; resetAskCard(); } S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
@@ -1285,8 +1436,30 @@
         ids.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, status: status, meal_id: meal.id }); });
       }, 'Added ' + ids.length + ' for ' + meal.name);
     },
-    'open-meal': (el) => { if (mealById(el.dataset.id)) { S.sheet = { type: 'mealcard', id: el.dataset.id }; render(); } },
-    'plan-meal': (el) => { const sh = S.sheet; if (sh && sh.type === 'mealcard') planMeal(el.dataset.day, sh.id); },
+    'open-meal': (el) => { if (mealById(el.dataset.id)) { S.sheet = { type: 'mealcard', id: el.dataset.id, req: el.dataset.req || '' }; render(); } },
+    'plan-meal': (el) => {
+      const sh = S.sheet; if (!sh || sh.type !== 'mealcard') return;
+      planMeal(el.dataset.day, sh.id);
+      // Planning it from a kid's request answers the request.
+      if (sh.req) { const id = sh.req; sh.req = ''; act('reviewAnswer', { id: id, answer: 'Yes, ' + shortDay(el.dataset.day) + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }); }
+    },
+    'ask-meal-seg': (el) => { S.sheet.ask[el.dataset.field] = el.dataset.v; render(); },
+    'ask-meal': () => {
+      const sh = S.sheet; const m = mealById(sh.id); if (!m) return;
+      const a = sh.ask;
+      act('mealRequest', { meal_id: m.id, slot: a.slot, when: a.when }, () => {
+        D().review.push({ id: tmpId(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: S.me, detail: S.me + ' wants ' + m.name + ' for ' + a.slot + ', ' + a.when + '. (' + m.id + ') Options: Plan it; Not now' });
+      }, 'Asked for ' + m.name);
+    },
+    'req-no': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Not now (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Said not now'); },
+    'req-cancel': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Cancelled (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Cancelled'); },
+    'open-feedback': () => { S.sheet = { type: 'feedback', text: '' }; render(); const f = document.getElementById('fb-text'); if (f) f.focus(); },
+    'save-feedback': () => {
+      const text = String((S.sheet && S.sheet.text) || '').trim(); if (!text) return;
+      S.sheet = null;
+      act('feedback', { text: text, tab: S.tab }, null, 'Thanks! Sent.');
+    },
+    'feedback-to-meal': () => { S.sheet = { type: 'idea', text: (S.sheet && S.sheet.text) || '' }; render(); },
     'meal-add-all': (el) => {
       const meal = mealById(el.dataset.id);
       const ids = mealItems(meal).filter((id) => itemById(id) && !listRowFor(id));
@@ -1382,10 +1555,16 @@
     },
     fold: (el) => { const k = el.dataset.key; setClosed(k, !isClosed(k)); render(); },
     'fold-all': () => {
-      const codes = STORE_ORDER.filter((c) => D().list.some((r) => r.status !== 'requested' && (r.store || 'Either') === c));
-      const close = !codes.every((c) => isClosed('s:' + c));
-      codes.forEach((c) => setClosed('s:' + c, close));
+      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested')).map((g) => 'a:' + g);
+      const close = !keys.every((k) => isClosed(k));
+      keys.forEach((k) => setClosed(k, close));
       render();
+    },
+    unfade: (el) => {
+      const f = S.fading[el.dataset.id];
+      if (!f) return;
+      S.toast = null;
+      restore(f.row, f.before);
     },
     'shop-fold-all': (el) => {
       const keys = String(el.dataset.keys || '').split('|').filter(String);
@@ -1425,8 +1604,15 @@
   function haveDone(level) {
     const sh = S.sheet; const r = sheetRow();
     S.sheet = null;
-    if (r) { markHave(r, level); return; }
+    // "A little" means we still need it: log the sighting, keep it on the List.
+    if (r && level !== 'low') { markHave(r, level); return; }
     const it = itemById(sh.item_id);
+    if (r) {
+      act('stockLog', { item_id: sh.item_id, level: level }, () => {
+        (D().stock = D().stock || {})[sh.item_id] = { level: level, at: D().today, who: S.me };
+      }, 'Noted: a little left. ' + (it ? it.name : 'It') + ' stays on the List.');
+      return;
+    }
     act('stockLog', { item_id: sh.item_id, level: level }, () => {
       (D().stock = D().stock || {})[sh.item_id] = { level: level, at: D().today, who: S.me };
     }, 'Noted: ' + levelText(level) + ' at home' + (it ? ' (' + it.name + ')' : ''));
@@ -1463,7 +1649,7 @@
       S.sheet[el.dataset.field] = el.value;
       // Only the meal search and name-gated Save buttons need a redraw while typing.
       if (el.dataset.field === 'q' || el.dataset.field === 'name') render();
-      if (el.dataset.field === 'text') { const b = document.querySelector('[data-act="save-idea"]'); if (b) b.disabled = !el.value.trim(); }
+      if (el.dataset.field === 'text') { const b = document.querySelector('[data-act="save-idea"], [data-act="save-feedback"]'); if (b) b.disabled = !el.value.trim(); }
     }
   });
 
