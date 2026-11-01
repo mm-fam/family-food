@@ -59,7 +59,7 @@
   // so reads are ignored while a write is pending and anything older than the last write is dropped.
   let writing = 0;
   let lastWrite = 0;
-  const READS = { state: 1, ping: 1, itemInfo: 1 };
+  const READS = { state: 1, ping: 1, itemInfo: 1, pointsLog: 1 };
   async function api(action, payload) {
     const mine = ++seq;
     const isWrite = !READS[action];
@@ -1318,16 +1318,29 @@
 
   /* Inbox points (api 13). Mirrors cardPoints() in Code.gs; the backend is the one that counts. */
   const canPoints = () => Number(D().api || 0) >= 13 && D().points;
+  // The scoring rules. The backend sends them from api 14 (state.points.rules); these are the same numbers for api 13.
+  const DEFAULT_RULES = [
+    { key: 'task', icon: '⏰', label: 'Due soon, answered on time', pts: 5, to: 'you' },
+    { key: 'task_late', icon: '⏰', label: 'Due soon, answered after it was due', pts: 2, to: 'you' },
+    { key: 'check', icon: '🔎', label: 'Mission (go check something)', pts: 3, to: 'you' },
+    { key: 'rate', icon: '🍽', label: 'How was it?', pts: 2, to: 'you' },
+    { key: 'still', icon: '🍽', label: 'Still eating it?', pts: 2, to: 'you' },
+    { key: 'other', icon: '💬', label: 'Any other card: questions, dinner votes, decisions', pts: 1, to: 'you' },
+    { key: 'helped_cooked', icon: '🧑‍🍳', label: 'Kitchen help: Cooked it', pts: 10, to: 'kid' },
+    { key: 'helped_helped', icon: '🧑‍🍳', label: 'Kitchen help: Helped', pts: 5, to: 'kid' },
+  ];
+  const pointRules = () => (D().points && D().points.rules) || DEFAULT_RULES;
+  const rulePts = (k) => { const x = pointRules().find((y) => y.key === k); return x ? Number(x.pts) || 0 : 0; };
   function cardPoints(r, answer) {
     const a = String(answer || '').trim().toLowerCase();
     const t = String(r.type || '').toLowerCase();
     if (a === 'skip' || t === 'meal_request') return 0;
-    if (t === 'helped') return answer === undefined ? 10 : /^cooked/.test(a) ? 10 : /^helped/.test(a) ? 5 : 0;
+    if (t === 'helped') return answer === undefined ? rulePts('helped_cooked') : /^cooked/.test(a) ? rulePts('helped_cooked') : /^helped/.test(a) ? rulePts('helped_helped') : 0;
     const sec = sectionOf(r);
-    if (sec === 'due') return r.due_at && new Date() > new Date(String(r.due_at)) ? 2 : 5;
-    if (sec === 'mission') return 3;
-    if (t === 'rate' || t === 'still') return 2;
-    return 1;
+    if (sec === 'due') return rulePts(r.due_at && new Date() > new Date(String(r.due_at)) ? 'task_late' : 'task');
+    if (sec === 'mission') return rulePts('check');
+    if (t === 'rate' || t === 'still') return rulePts(t);
+    return rulePts('other');
   }
   function viewScoreboard() {
     if (!canPoints()) return '';
@@ -1342,7 +1355,88 @@
       '<span class="note">' + (streak ? '🔥 ' + streak + '-day streak' : 'Hit ' + goal + ' today to start a streak') + '</span></div></div>' +
       '<div class="board">' + people.map((p, i) => '<div class="board-p' + (p === me ? ' me' : '') + '"><span class="board-n">' + (winners.indexOf(p) >= 0 ? '👑 ' : '') + esc(p) + '</span><b>' + (P.week[p] || 0) + '</b>' +
         ((P.streak[p] || 0) ? '<span class="board-s">🔥' + P.streak[p] + '</span>' : '') + '</div>').join('') + '</div>' +
-      '<div class="note board-foot">This week’s points' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div></section>';
+      '<div class="note board-foot">This week’s points (Mon–Sun)' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div>' +
+      '<div class="score-links"><button type="button" class="link-btn" data-act="points-open" data-tab="rules">ⓘ How points work</button>' +
+      '<button type="button" class="link-btn" data-act="points-open" data-tab="history">📜 Points history</button></div></section>';
+  }
+
+  /* How points work + Points history (one sheet, two tabs). History needs api 14 (pointsLog). */
+  function viewPointsSheet(sh) {
+    const head = '<div class="is-head"><div><h2>' + (sh.tab === 'history' ? '📜 Points history' : 'ⓘ How points work') + '</h2></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      '<div class="seg"><button type="button" data-act="points-tab" data-tab="rules" class="' + (sh.tab === 'rules' ? 'on' : '') + '">How it works</button>' +
+      '<button type="button" data-act="points-tab" data-tab="history" class="' + (sh.tab === 'history' ? 'on' : '') + '">History</button></div>';
+    return head + '<div class="pts-body">' + (sh.tab === 'history' ? viewPointsHistory(sh) : viewPointsRules()) + '</div>';
+  }
+  function viewPointsRules() {
+    const P = D().points || {}, goal = P.goal || 10;
+    const row = (x) => '<div class="pr-row"><span class="pr-what">' + x.icon + ' ' + esc(x.label) + '</span><b class="pr-pts">+' + x.pts + '</b></div>';
+    const rules = pointRules();
+    return '<h3 class="pr-h">How you earn points</h3>' +
+      '<p class="note">Answer a card in your Inbox and you get its points. Every card shows what it’s worth in its top corner.</p>' +
+      '<div class="pr-table">' + rules.filter((x) => x.to !== 'kid').map(row).join('') + '</div>' +
+      '<h3 class="pr-h">🧑‍🍳 Kitchen help</h3>' +
+      '<p class="note">The day after a planned dinner, a parent gets a card for each kid: “Did <i>kid</i> help cook <i>dinner</i>?” The points go to the <b>kid</b>, not to the parent who answers.</p>' +
+      '<div class="pr-table">' + rules.filter((x) => x.to === 'kid').map(row).join('') + '<div class="pr-row"><span class="pr-what">🧑‍🍳 Kitchen help: Not this time</span><b class="pr-pts zero">0</b></div></div>' +
+      '<h3 class="pr-h">What earns nothing</h3>' +
+      '<ul class="pr-list"><li><b>Don’t care</b>, <b>Pass ↗</b> and <b>Later</b>: 0 (a Later card still pays when you answer it).</li>' +
+      '<li>Asking for a meal, approving the kids’ requests, adding to the List.</li>' +
+      '<li>Kitchen help cards nobody answers close after 3 days with no points.</li></ul>' +
+      '<h3 class="pr-h">Good to know</h3>' +
+      '<ul class="pr-list"><li>Typing your own answer (“Something else? Type it”) counts the same as tapping one.</li>' +
+      '<li>Each card pays once, to whoever answered it. A card someone passed to you is yours to score.</li>' +
+      '<li>Due soon cards pay ' + rulePts('task') + ' until their deadline, then ' + rulePts('task_late') + '.</li>' +
+      '<li>The “+5” on your phone is a preview; Poppy’s server does the real count, so the numbers can shift a little on the next refresh.</li></ul>' +
+      '<h3 class="pr-h">🎯 Daily goal</h3>' +
+      '<p class="note">' + goal + ' points in one day (midnight to midnight). The ring on top of the Inbox fills as you go.</p>' +
+      '<h3 class="pr-h">🔥 Streaks</h3>' +
+      '<p class="note">Days in a row you hit the daily goal. Today joins your streak once you reach ' + goal + '. Not there yet today? Your streak is safe until midnight. Miss a whole day and it starts over.</p>' +
+      '<h3 class="pr-h">🏆 Leaderboard and 👑</h3>' +
+      '<p class="note">The leaderboard adds up points from Monday to Sunday and starts over every Monday. Whoever had the most points last week wears the 👑 all this week; a tie crowns everyone tied. Any prize is up to Mom and Dad.</p>' +
+      '<h3 class="pr-h">📜 The record</h3>' +
+      '<p class="note">Every answer that scores is saved with the time, who got the points, how many, and why. See it in <button type="button" class="link-btn inline" data-act="points-tab" data-tab="history">History</button>. Points started Nov 1, 2026; answers before that have none.</p>';
+  }
+  function viewPointsHistory(sh) {
+    if (Number(D().api || 0) < 14) return '<p class="note">History shows once the latest server update is live.</p>';
+    if (!sh.log) return '<p class="note">Loading the record…</p>';
+    if (sh.log.failed) return '<p class="note">Couldn’t load the history.</p><button class="btn btn-plain btn-block" data-act="points-reload">Try again</button>';
+    const L = sh.log, who = sh.who || '';
+    const names = D().settings.parents.concat(D().settings.kids).filter((p) => L.weeks.some((w) => w.totals[p]) || p === S.me);
+    const pills = '<div class="pill-scroll">' + [['', 'Everyone']].concat(names.map((p) => [p, p])).map((x) =>
+      '<button type="button" class="pill small' + (who === x[0] ? ' on' : '') + '" data-act="points-who" data-v="' + esc(x[0]) + '">' + esc(x[1]) + '</button>').join('') + '</div>';
+    const weekLabel = (mon) => mon === (D().points || {}).weekStart ? 'This week' : 'Week of ' + fmtDate(mon);
+    const weeks = L.weeks.slice(0, 8).map((w) => {
+      const ppl = Object.keys(w.totals).filter((p) => !who || p === who).sort((a, b) => w.totals[b] - w.totals[a]);
+      if (!ppl.length) return '';
+      const live = w.weekStart === (D().points || {}).weekStart;
+      return '<div class="ph-week"><div class="ph-wk">' + weekLabel(w.weekStart) + '</div>' + ppl.map((p) =>
+        '<div class="ph-wrow"><span>' + (!live && w.winners.indexOf(p) >= 0 ? '👑 ' : '') + esc(p) + '</span><span class="note">' +
+        (w.goalDays[p] ? '🎯 ' + w.goalDays[p] + (w.goalDays[p] === 1 ? ' goal day' : ' goal days') : '') + '</span><b>' + w.totals[p] + '</b></div>').join('') + '</div>';
+    }).join('');
+    const rows = L.entries.filter((e) => !who || e.to === who);
+    let day = '', list = '';
+    rows.slice(0, 200).forEach((e) => {
+      const d = e.at.slice(0, 10);
+      if (d !== day) { day = d; list += '<div class="ph-day">' + (d === D().today ? 'Today' : fmtDate(d)) + '</div>'; }
+      const t = e.at.slice(11, 16);
+      const hh = Number(t.slice(0, 2)), time = t ? ((hh % 12) || 12) + ':' + t.slice(3) + (hh < 12 ? ' am' : ' pm') : '';
+      const forOther = e.by && e.by !== e.to;
+      list += '<div class="ph-row"><b class="ph-pts">+' + e.pts + '</b><div class="ph-body"><div><b>' + esc(e.to) + '</b> · ' + esc(e.label) + '</div>' +
+        '<div class="note">' + esc(e.q) + (e.answer ? ' → <i>' + esc(e.answer) + '</i>' : '') + '</div>' +
+        '<div class="note ph-meta">' + time + (forOther ? ' · answered by ' + esc(e.by) : '') + '</div></div></div>';
+    });
+    return pills +
+      (weeks ? '<h3 class="pr-h">Weekly totals</h3>' + weeks : '') +
+      '<h3 class="pr-h">Every point</h3>' +
+      (list || '<p class="note">No points yet' + (who ? ' for ' + esc(who) : '') + '. Answer a card in the Inbox to start.</p>') +
+      (rows.length > 200 ? '<p class="note">Showing the latest 200.</p>' : '') +
+      '<p class="note">The full record lives in the Review tab of the family Sheet (answered_at, points, points_to, points_why).</p>';
+  }
+  function loadPointsLog() {
+    const mine = S.sheet;
+    if (!mine || mine.type !== 'points' || Number(D().api || 0) < 14) return;
+    mine.log = null;
+    api('pointsLog', {}).then((j) => { mine.log = j.result || { entries: [], weeks: [] }; if (S.sheet === mine) render(); })
+      .catch(() => { mine.log = { failed: true }; if (S.sheet === mine) render(); });
   }
   // Count the points right away on this phone so the ring moves; the next state from the backend wins.
   function bumpPoints(r, value) {
@@ -1573,6 +1667,7 @@
     if (sh.type === 'ideaview') inner = viewIdeaView(sh);
     if (sh.type === 'day') inner = viewDaySheet(sh);
     if (sh.type === 'hearth') inner = viewHearthSheet(sh);
+    if (sh.type === 'points') inner = viewPointsSheet(sh);
     if (sh.type === 'feedback') {
       inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
         '<label class="sr" for="fb-text">Your idea or feedback</label><textarea id="fb-text" class="field idea-text" data-input="draft" data-field="text" rows="6" placeholder="e.g. I wish I could see what’s for lunch tomorrow on the List">' + esc(sh.text || '') + '</textarea>' +
@@ -1594,7 +1689,7 @@
         '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-meal"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
     }
 
-    const hasX = ['item', 'mealcard', 'ideaview', 'day', 'hearth'].indexOf(sh.type) >= 0;
+    const hasX = ['item', 'mealcard', 'ideaview', 'day', 'hearth', 'points'].indexOf(sh.type) >= 0;
     return '<div class="scrim" data-act="close-sheet"><div class="sheet' + (hasX ? ' item-sheet' : '') + '" role="dialog" aria-modal="true">' + inner +
       (hasX ? '' : '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button>') + '</div></div>';
   }
@@ -1711,6 +1806,10 @@
     'edit-meal': (el) => { const m = mealById(el.dataset.id); if (m) { S.sheet = { type: 'meal', id: m.id, name: m.name, item_ids: mealItems(m), q: '', kind: kindOf(m) }; render(); } },
     'meal-kind': (el) => { S.mealKind = el.dataset.v; render(); },
     'open-day': (el) => { S.sheet = { type: 'day', day: el.dataset.day }; render(); },
+    'points-open': (el) => { S.sheet = { type: 'points', tab: el.dataset.tab || 'rules', who: '' }; if (S.sheet.tab === 'history') loadPointsLog(); render(); },
+    'points-tab': (el) => { const sh = S.sheet; if (!sh || sh.type !== 'points') return; sh.tab = el.dataset.tab; if (sh.tab === 'history' && !sh.log) loadPointsLog(); render(); const b = document.querySelector('.sheet'); if (b) b.scrollTop = 0; },
+    'points-who': (el) => { if (S.sheet && S.sheet.type === 'points') { S.sheet.who = el.dataset.v; render(); } },
+    'points-reload': () => { loadPointsLog(); render(); },
     'open-hearth': () => { S.sheet = { type: 'hearth', week: 'this' }; render(); },
     'hearth-week': (el) => { S.sheet.week = el.dataset.v; render(); },
     'hearth-copy': async () => {

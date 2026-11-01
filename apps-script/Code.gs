@@ -51,6 +51,19 @@ const STILL_REASK_DAYS = 90;
 // dinner?" card (type helped) earns points for the kid it's about (Review points_to). Skips earn nothing.
 const POINTS = { task: 5, task_late: 2, check: 3, rate: 2, still: 2, helped_cooked: 10, helped_helped: 5, other: 1 };
 const POINTS_GOAL = 10; // daily goal; Settings points_goal overrides
+// The scoring rules as the family reads them (Inbox → How points work). One line per way to score, in the
+// order shown; `key` is what Review points_why stores. Keep in step with POINTS and cardPoints().
+const POINT_RULES = [
+  { key: 'task', icon: '⏰', label: 'Due soon, answered on time', pts: POINTS.task, to: 'you' },
+  { key: 'task_late', icon: '⏰', label: 'Due soon, answered after it was due', pts: POINTS.task_late, to: 'you' },
+  { key: 'check', icon: '🔎', label: 'Mission (go check something)', pts: POINTS.check, to: 'you' },
+  { key: 'rate', icon: '🍽', label: 'How was it?', pts: POINTS.rate, to: 'you' },
+  { key: 'still', icon: '🍽', label: 'Still eating it?', pts: POINTS.still, to: 'you' },
+  { key: 'other', icon: '💬', label: 'Any other card: questions, dinner votes, decisions', pts: POINTS.other, to: 'you' },
+  { key: 'helped_cooked', icon: '🧑‍🍳', label: 'Kitchen help: Cooked it', pts: POINTS.helped_cooked, to: 'kid' },
+  { key: 'helped_helped', icon: '🧑‍🍳', label: 'Kitchen help: Helped', pts: POINTS.helped_helped, to: 'kid' },
+];
+const POINTS_LOG_DAYS = 120; // pointsLog sends answers from this many days back
 const HELPED_OPTIONS = 'Cooked it; Helped; Not this time';
 const HELPED_EXPIRE_DAYS = 3;
 const NON_FOOD = ['Personal care', 'Household', 'Paper & cleaning', 'Other'];
@@ -78,9 +91,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 13 = Inbox points: reviewAnswer stamps Review answered_at + points + points_to; state.points = today / this week
 //      per person, streaks, daily goal, last week's winner; daily "Did <kid> help with dinner?" cards (type helped,
 //      audience parents) whose answer gives that kid points.
+// 14 = points rules + history: reviewAnswer also stamps Review points_why (which rule scored it);
+//      state.points.rules = the scoring rules; pointsLog {} (read-only) = every scored answer + weekly totals.
 // 12 = cart jobs: cartJob {store, kind: build|check} queues a job in the Cart Jobs tab for Claude's cart runner,
 //      cartJobCancel {id} cancels a queued one; state.cartJobs = recent jobs with status + result.
-const API_VERSION = 13;
+const API_VERSION = 14;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -140,6 +155,7 @@ function handle(req) {
     cartJob: () => withLock(() => addCartJob(req)),
     cartJobCancel: () => withLock(() => cancelCartJob(req)),
     itemInfo: () => itemInfo(req),
+    pointsLog: () => pointsLog(req),
     stockLog: () => withLock(() => stockLogAction(req)),
     mealIdea: () => withLock(() => addMealIdea(req)),
     mealRequest: () => withLock(() => addMealRequest(req)),
@@ -151,7 +167,7 @@ function handle(req) {
     const out = fn();
     // Every write returns fresh state so the app never has to guess.
     // Reads that don't change anything skip the full state.
-    const state = req.action === 'state' || req.action === 'ping' ? out : req.action === 'itemInfo' ? undefined : getState();
+    const state = req.action === 'state' || req.action === 'ping' ? out : (req.action === 'itemInfo' || req.action === 'pointsLog') ? undefined : getState();
     return reply({ ok: true, result: req.action === 'state' ? undefined : out, state: state });
   } catch (err) {
     return reply({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -567,29 +583,93 @@ function answerReview(req) {
   if (!r) throw new Error('Review item not found');
   const answer = String(req.answer || '');
   const who = (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || String(req.by || '');
-  const pts = cardPoints(r, answer);
-  ['answered_at', 'points', 'points_to'].forEach((c) => ensureColumn(TABS.review, c));
+  const why = pointsWhy(r, answer);
+  const pts = why ? ruleByKey(why).pts : 0;
+  ['answered_at', 'points', 'points_to', 'points_why'].forEach((c) => ensureColumn(TABS.review, c));
   setFields(TABS.review, r._row, {
     answer: answer, status: 'answered', answered_at: "'" + nowStamp(),
-    points: pts, points_to: r.type === 'helped' ? String(r.points_to || '') : who,
+    points: pts, points_to: r.type === 'helped' ? String(r.points_to || '') : who, points_why: why,
   });
-  return { id: r.id, points: pts };
+  return { id: r.id, points: pts, why: why };
 }
 
-// Points a card earns when answered (see POINTS). "skip" (Don't care) and meal requests earn nothing.
-function cardPoints(r, answer) {
+// Which rule (POINT_RULES key) a card scores under when answered, or '' for no points: "skip" (Don't care),
+// meal requests, and Kitchen help "Not this time". Due soon matches the app's section rule (type task, a due_at,
+// "due <day>" in the text, or the school-lunch card).
+function pointsWhy(r, answer) {
   const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
   const t = String(r.type || '').toLowerCase();
-  if (!a || a === 'skip' || t === 'meal_request') return 0;
-  if (t === 'helped') return /^cooked/.test(a) ? POINTS.helped_cooked : /^helped/.test(a) ? POINTS.helped_helped : 0;
-  if (t === 'task' || r.due_at || /^school lunches for next week/i.test(String(r.detail || ''))) {
-    const late = r.due_at && nowStamp() > String(r.due_at);
-    return late ? POINTS.task_late : POINTS.task;
+  const d = String(r.detail || '');
+  if (!a || a === 'skip' || t === 'meal_request') return '';
+  if (t === 'helped') return /^cooked/.test(a) ? 'helped_cooked' : /^helped/.test(a) ? 'helped_helped' : '';
+  if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) {
+    const due = stampOf(r.due_at);
+    return due && nowStamp() > due ? 'task_late' : 'task';
   }
-  if (t === 'check' || t === 'mission') return POINTS.check;
-  if (t === 'rate') return POINTS.rate;
-  if (t === 'still') return POINTS.still;
-  return POINTS.other;
+  if (t === 'check' || t === 'mission') return 'check';
+  if (t === 'rate') return 'rate';
+  if (t === 'still') return 'still';
+  return 'other';
+}
+function cardPoints(r, answer) { const k = pointsWhy(r, answer); return k ? ruleByKey(k).pts : 0; }
+function ruleByKey(k) { return POINT_RULES.find((x) => x.key === k) || { key: k, label: k, pts: 0 }; }
+// A Sheet cell that may hold a Date or text, as "yyyy-MM-ddTHH:mm:ss" text.
+function stampOf(v) {
+  if (!v) return '';
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
+  return String(v);
+}
+
+// Points history (Inbox → Points history): every scored answer from the last POINTS_LOG_DAYS days, newest first,
+// with who got the points, who answered, how many, why, and the card; plus each week's totals and winner.
+// Rows answered before api 14 have no points_why, so the reason is worked out from the card (marked guessed).
+function pointsLog(req) {
+  const everyone = people();
+  const nameOf = (x) => everyone.find((p) => p.toLowerCase() === String(x || '').trim().toLowerCase()) || '';
+  const since = addDays(isoDate(new Date()), -POINTS_LOG_DAYS);
+  const entries = [];
+  const weeks = {}; // monday -> { name: pts }
+  const goalDays = {}; // name -> { day: pts }
+  readTab(TABS.review).forEach((r) => {
+    const pts = Number(r.points) || 0;
+    const to = nameOf(r.points_to);
+    const at = stampOf(r.answered_at);
+    if (!pts || !to || !at) return;
+    const day = at.slice(0, 10);
+    const dow = new Date(day + 'T12:00:00').getDay();
+    const mon = addDays(day, -((dow + 6) % 7));
+    weeks[mon] = weeks[mon] || {};
+    weeks[mon][to] = (weeks[mon][to] || 0) + pts;
+    goalDays[to] = goalDays[to] || {};
+    goalDays[to][day] = (goalDays[to][day] || 0) + pts;
+    if (day < since) return;
+    let why = String(r.points_why || '');
+    const guessed = !why;
+    if (guessed) {
+      why = pointsWhy(Object.assign({}, r, { due_at: '' }), r.answer) || 'other';
+      if (why === 'task' && pts === POINTS.task_late) why = 'task_late';
+    }
+    const answer = String(r.answer || '');
+    entries.push({
+      id: r.id, at: at, to: to, by: (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || '', pts: pts,
+      why: why, label: ruleByKey(why).label, guessed: guessed,
+      q: String(r.detail || '').replace(/\s*Options:[\s\S]*$/, '').replace(/\s*\((i|m|x|r|f|c)\d{2,}\)|\s*\(\d{4}-\d\d-\d\d\)/g, '').trim(),
+      answer: answer.replace(/\s*\([^()]*\)\s*$/, '').trim(),
+    });
+  });
+  entries.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  const goal = Number(settingsMap().points_goal) || POINTS_GOAL;
+  const weekList = Object.keys(weeks).sort().reverse().map((mon) => {
+    const totals = weeks[mon];
+    const best = Math.max.apply(null, Object.keys(totals).map((p) => totals[p]).concat([0]));
+    const end = addDays(mon, 6);
+    const goals = {};
+    Object.keys(goalDays).forEach((p) => {
+      goals[p] = Object.keys(goalDays[p]).filter((d) => d >= mon && d <= end && goalDays[p][d] >= goal).length;
+    });
+    return { weekStart: mon, totals: totals, goalDays: goals, winners: best ? Object.keys(totals).filter((p) => totals[p] === best) : [] };
+  });
+  return { goal: goal, rules: POINT_RULES, days: POINTS_LOG_DAYS, entries: entries.slice(0, 400), weeks: weekList };
 }
 
 // The Inbox scoreboard: points today and this week (Mon–Sun) per person, streaks (days in a row at the
@@ -605,14 +685,14 @@ function pointsSummary(today) {
     if (!pts || !to || !r.answered_at) return;
     const key = everyone.find((p) => p.toLowerCase() === to.toLowerCase());
     if (!key) return;
-    const d = String(r.answered_at).slice(0, 10);
+    const d = stampOf(r.answered_at).slice(0, 10);
     byDay[key][d] = (byDay[key][d] || 0) + pts;
   });
   const dow = new Date(today + 'T12:00:00').getDay();
   const monday = addDays(today, -((dow + 6) % 7));
   const lastMonday = addDays(monday, -7);
   const sum = (m, a, b) => Object.keys(m).reduce((t, d) => t + (d >= a && d <= b ? m[d] : 0), 0);
-  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '' };
+  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: POINT_RULES };
   let best = 0;
   everyone.forEach((p) => {
     const m = byDay[p];
