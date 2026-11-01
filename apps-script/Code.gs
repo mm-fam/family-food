@@ -133,7 +133,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 17 = settling the List: daily "Did we get it?" cards (type settle, a List id in the text) for stale needed rows,
 //      rows someone saw at home, and carted rows; one "Did the <store> order come?" card (type settle_order) per
 //      filled cart. Answers set the List row bought / have / skipped or keep it; 3 points.
-const API_VERSION = 17;
+// 18 = points_start (Settings, yyyy-mm-dd): nothing scored before that day counts anywhere (scoreboard, streaks,
+//      leaderboard, 👑, History); state.points.start. Set to 2026-11-02 so everyone starts even.
+const API_VERSION = 18;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -880,8 +882,14 @@ function ledgerRows() {
   return SpreadsheetApp.getActive().getSheetByName(TABS.points) ? readTab(TABS.points) : [];
 }
 // Every scored event: answered Inbox cards (Review) plus the Points ledger.
+// The first day that counts (Settings points_start, yyyy-mm-dd); blank = everything counts.
+function pointsStart() {
+  const v = settingsMap().points_start;
+  return v ? stampOf(v).slice(0, 10) : '';
+}
 function scoredEvents() {
   const out = [];
+  const start = pointsStart();
   readTab(TABS.review).forEach((r) => {
     const pts = Number(r.points) || 0, at = stampOf(r.answered_at);
     if (pts && r.points_to && at) out.push({ src: 'review', r: r, at: at, to: String(r.points_to), pts: pts });
@@ -890,7 +898,7 @@ function scoredEvents() {
     const pts = Number(r.pts) || 0, at = stampOf(r.at);
     if (pts && r.to && at) out.push({ src: 'ledger', r: r, at: at, to: String(r.to), pts: pts });
   });
-  return out;
+  return start ? out.filter((e) => e.at.slice(0, 10) >= start) : out;
 }
 
 // Points history (Inbox → Points history): every scored answer from the last POINTS_LOG_DAYS days, newest first,
@@ -966,7 +974,7 @@ function pointsSummary(today) {
   const monday = addDays(today, -((dow + 6) % 7));
   const lastMonday = addDays(monday, -7);
   const sum = (m, a, b) => Object.keys(m).reduce((t, d) => t + (d >= a && d <= b ? m[d] : 0), 0);
-  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: POINT_RULES };
+  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: POINT_RULES, start: pointsStart() };
   let best = 0;
   everyone.forEach((p) => {
     const m = byDay[p];

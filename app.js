@@ -1369,7 +1369,7 @@
   ];
   const ruleGroup = (x) => x.group || (x.to === 'kid' ? 'kitchen' : 'inbox');
   // " · +1" on a toast for points earned outside the Inbox (api 16: List adds, meal asks, handling kids' requests).
-  const ptsTag = (k) => (Number(D().api || 0) >= 16 && rulePts(k) ? ' · +' + rulePts(k) : '');
+  const ptsTag = (k) => (Number(D().api || 0) >= 16 && !preStart() && rulePts(k) ? ' · +' + rulePts(k) : '');
   const pointRules = () => (D().points && D().points.rules) || DEFAULT_RULES;
   const rulePts = (k) => { const x = pointRules().find((y) => y.key === k); return x ? Number(x.pts) || 0 : 0; };
   function cardPoints(r, answer) {
@@ -1385,8 +1385,19 @@
     if (t === 'rate' || t === 'still') return rulePts(t);
     return rulePts('other');
   }
+  // Scoring starts on Settings points_start (api 18). Before that day the scoreboard says so and nothing shows points.
+  const preStart = () => { const st = D().points && D().points.start; return !!(st && D().today && D().today < st); };
+  function pointsStartLine() {
+    const st = D().points && D().points.start;
+    return st ? 'Scoring started ' + fmtDate(st) + '; everyone began at 0 and nothing before that day counts.' : 'Points started Nov 1, 2026; answers before that have none.';
+  }
   function viewScoreboard() {
     if (!canPoints()) return '';
+    if (preStart()) {
+      return '<section class="card score"><div class="score-me"><div class="ring" style="--p:0"><b>0</b><span>/' + (D().points.goal || 10) + '</span></div>' +
+        '<div><b>🏁 Scoring starts ' + (addDays(D().today, 1) === D().points.start ? 'tomorrow' : fmtDate(D().points.start)) + '</b><span class="note">Everyone starts at 0. Read the rules now so you’re ready.</span></div></div>' +
+        '<div class="score-links"><button type="button" class="link-btn" data-act="points-open" data-tab="rules">ⓘ How points work</button></div></section>';
+    }
     const P = D().points, me = S.me;
     const mine = P.today[me] || 0, goal = P.goal || 10, streak = P.streak[me] || 0;
     const pct = Math.min(100, Math.round(100 * mine / goal));
@@ -1444,7 +1455,7 @@
       '<h3 class="pr-h">🏆 Leaderboard and 👑</h3>' +
       '<p class="note">The leaderboard adds up points from Monday to Sunday and starts over every Monday. Whoever had the most points last week wears the 👑 all this week; a tie crowns everyone tied. Any prize is up to Mom and Dad.</p>' +
       '<h3 class="pr-h">📜 The record</h3>' +
-      '<p class="note">Everything that scores is saved with the time, who got the points, how many, and why. See it in <button type="button" class="link-btn inline" data-act="points-tab" data-tab="history">History</button>. Points started Nov 1, 2026; answers before that have none.</p>';
+      '<p class="note">Everything that scores is saved with the time, who got the points, how many, and why. See it in <button type="button" class="link-btn inline" data-act="points-tab" data-tab="history">History</button>. ' + pointsStartLine() + '</p>';
   }
   function viewPointsHistory(sh) {
     if (Number(D().api || 0) < 14) return '<p class="note">History shows once the latest server update is live.</p>';
@@ -1491,7 +1502,7 @@
   }
   // Count the points right away on this phone so the ring moves; the next state from the backend wins.
   function bumpPoints(r, value) {
-    if (!canPoints()) return '';
+    if (!canPoints() || preStart()) return '';
     const pts = cardPoints(r, value);
     if (!pts) return '';
     const to = r.type === 'helped' ? String(r.points_to || '') : S.me;
@@ -1573,7 +1584,7 @@
     let html = top + viewSectionChips() + '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
-      '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : '+' + cardPoints(r)) + '</span>' : '') + '</div>' +
+      '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() && !preStart() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : '+' + cardPoints(r)) + '</span>' : '') + '</div>' +
       '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) :
