@@ -673,11 +673,15 @@
   const boughtToday = (r) => r.status === 'bought' && String(r.updated_at || '').slice(0, 10) === D().today;
 
   function viewInStore() {
+    // A virtual cart (Mike, Nov 1): tapping a row puts it in the cart, and it leaves the List for good (status
+    // bought, logged). No crossed-out rows, no taking it back out here; to get it back, add it again from Shop,
+    // where the item shows what happened to it ("in the cart today").
     const open = D().list.filter(inStore);
-    const done = D().recent.filter((r) => boughtToday(r) && inStore(r));
-    const rows = open.map((r) => ({ r: r, done: false })).concat(done.map((r) => ({ r: r, done: true })));
-    if (!rows.length) return '<div class="empty">Nothing on the list for ' + esc(S.instore === 'all' ? 'any store' : storeOf(S.instore).name) + '.</div>';
-    let html = '<div class="shop-progress"><span>' + done.length + ' of ' + rows.length + ' in the cart</span><div class="bar"><i style="width:' + Math.round(100 * done.length / rows.length) + '%"></i></div></div>';
+    const cart = D().recent.filter((r) => boughtToday(r) && inStore(r));
+    const rows = open.map((r) => ({ r: r, done: false }));
+    const total = open.length + cart.length;
+    let html = total ? '<div class="shop-progress"><span>🛒 ' + cart.length + ' in the cart · ' + open.length + ' to go</span><div class="bar"><i style="width:' + Math.round(100 * cart.length / total) + '%"></i></div></div>' : '';
+    if (!open.length) html += '<div class="empty">' + (cart.length ? 'Everything’s in the cart. Tap Done when you check out.' : 'Nothing on the list for ' + esc(S.instore === 'all' ? 'any store' : storeOf(S.instore).name) + '.') + '</div>';
     // At a store we know aisles for (Products.aisle, api 11): walk the store in aisle order; the rest by group.
     const aisleOf = (r) => {
       if (!S.instore || S.instore === 'all') return '';
@@ -705,11 +709,32 @@
           (wantedBy(r).length > 1 && !x.done ? whoHtml(r) : '') + '</button>';
       }).join('') + '</section>';
     });
-    html += '<p class="hint">Tap to put it in the cart, tap again to take it out. Everyone in the store sees the same checks. Tap Done when you check out.</p>';
+    if (cart.length) {
+      const c = isClosed('cart');
+      html += '<section class="card in-cart"><button class="card-head acc-head" data-act="fold" data-key="cart" aria-expanded="' + !c + '"><span>🛒 IN THE CART · ' + cart.length + '</span>' + chev(c) + '</button>' +
+        (c ? '<button class="peek" data-act="fold" data-key="cart">' + esc(cart.slice(-8).reverse().map((r) => r.name).join(', ')) + (cart.length > 8 ? '…' : '') + '</button>'
+          : cart.slice().reverse().map((r) => '<div class="row"><button class="row-main" data-act="open-item" data-id="' + esc(r.item_id) + '"><span class="row-name">' + esc(r.name) + '</span>' +
+            (Number(r.qty) > 1 ? '<span class="row-meta">×' + esc(r.qty) + '</span>' : '') + '</button></div>').join('')) + '</section>';
+    }
+    html += '<p class="hint">Tap an item to put it in the cart; it comes off the List. Everyone shopping sees the same cart. Put something in by mistake? Add it back from Shop. Tap Done when you check out.</p>';
     return html;
   }
 
   /* ---------- shop tab (add things) ---------- */
+  // Why something left the List lately (the last finished List row for it, past week): shown on its Shop row,
+  // so "where did it go?" has an answer. e.g. "In the cart today (Joni)", "We had some · yesterday", "Taken off · Sun".
+  function lastOutcome(itemId) {
+    const rows = (D().recent || []).filter((r) => r.item_id === itemId).sort((a, b) => String(a.updated_at) < String(b.updated_at) ? 1 : -1);
+    const r = rows[0];
+    if (!r) return null;
+    const when = daysAgo(r.updated_at);
+    const who = (String(r.note || '').match(/\(([A-Z][a-z]+)\)\s*$/) || [])[1];
+    const by = who ? ' (' + who + ')' : '';
+    if (r.status === 'bought') return { cls: 'bought', text: (/in the cart in store/.test(r.note || '') ? '🛒 In the cart ' : '✓ Bought ') + when + by };
+    if (r.status === 'have') return { cls: 'have', text: '🏠 We had some · ' + when + by };
+    return { cls: 'off', text: 'Taken off the List · ' + when + by };
+  }
+
   // Smart filters. Each returns item ids; pills with nothing in them are hidden.
   function smartSets() {
     const items = D().items.filter((i) => i.status !== 'Drop');
@@ -766,7 +791,9 @@
     const row = (i) => {
       const on = !!sets.listed[i.id];
       const meta = ['<span class="store-dot ' + storeOf(i.store).cls + '"></span>' + esc(storeOf(i.store).name)];
-      if (i.last_bought) meta.push('bought ' + esc(daysAgo(i.last_bought)));
+      const last = !on && lastOutcome(i.id);
+      if (last) meta.unshift('<span class="outcome ' + last.cls + '">' + esc(last.text) + '</span>');
+      else if (i.last_bought) meta.push('bought ' + esc(daysAgo(i.last_bought)));
       const stk = (D().stock || {})[i.id];
       if (stk) meta.push('at home: ' + esc(levelText(stk.level)) + ' (' + esc(daysAgo(stk.at)) + ')');
       return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + i.id + '"><span class="row-name">' + esc(i.name) + '</span><span class="row-meta">' + meta.join(' · ') + '</span></button>' +
@@ -2006,7 +2033,15 @@
       store.set('ff_instore_last', S.instore); S.instore = ''; store.del('ff_instore');
       showToast(n ? n + ' bought' : 'Back home'); render(); window.scrollTo(0, 0);
     },
-    'store-check': (el) => { const r = D().list.find((x) => x.id === el.dataset.id); if (r) setStatus(r, 'bought'); },
+    'store-check': (el) => {
+      const r = D().list.find((x) => x.id === el.dataset.id);
+      if (!r) return;
+      const note = (r.note ? r.note + '; ' : '') + 'in the cart in store (' + S.me + ')';
+      act('update', { id: r.id, fields: { status: 'bought', note: note } }, () => {
+        D().list = D().list.filter((x) => x !== r);
+        D().recent.push(Object.assign({}, r, { status: 'bought', note: note, updated_at: nowIso() }));
+      }, '🛒 ' + r.name + ' is in the cart');
+    },
     'store-uncheck': (el) => {
       const r = D().recent.find((x) => x.id === el.dataset.id);
       if (!r) return;

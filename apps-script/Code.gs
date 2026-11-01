@@ -363,8 +363,8 @@ function getState() {
   const settings = settingsMap();
   // Recently finished rows so the app can show "cleared by receipt" and allow undo.
   const recent = list
-    .filter((r) => DONE.indexOf(r.status) >= 0 && r.updated_at && daysBetween(String(r.updated_at).slice(0, 10), today) <= 3)
-    .slice(-20);
+    .filter((r) => DONE.indexOf(r.status) >= 0 && r.updated_at && daysBetween(String(r.updated_at).slice(0, 10), today) <= 7)
+    .slice(-80); // a week back: In store's cart (bought today) and Shop's "why it left the List" line
 
   const meals = readTab(TABS.meals);
 
