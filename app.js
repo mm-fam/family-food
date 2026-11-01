@@ -293,11 +293,18 @@
   // We already have it at home: nothing bought, sighting logged.
   function markHave(row, level) {
     const before = row.status;
+    // api 20: a kid's "we have it" asks a parent first; the row stays until a parent agrees.
+    if (isKid(S.me) && Number(D().api || 0) >= 20) {
+      act('listHave', { id: row.id, level: level }, () => {
+        (D().stock = D().stock || {})[row.item_id] = { level: level, at: D().today, who: S.me };
+      }, 'Asked a parent to take ' + row.name + ' off' + (ptsTag('reconcile') ? ' · +' + rulePts('reconcile') + ' when they agree' : ''));
+      return;
+    }
     act('listHave', { id: row.id, level: level }, () => {
       D().list = D().list.filter((r) => r !== row);
       D().recent.push(Object.assign({}, row, { status: 'have', note: 'had ' + level, updated_at: D().today }));
       fadeRow(row, 'We have ' + levelText(level) + ' (' + S.me + ')', before);
-    }, 'Off the list: we have ' + levelText(level), () => restore(row, before));
+    }, 'Off the list: we have ' + levelText(level) + ptsTag('reconcile'), () => restore(row, before));
   }
 
   // A row that just left the List stays in place for a few seconds, crossed out, with Undo,
@@ -314,7 +321,7 @@
     act('listHold', { id: row.id, level: level || '' }, () => {
       D().list = D().list.filter((r) => r !== row);
       (D().held = D().held || []).push(Object.assign({}, row));
-    }, row.name + ' moved to next week', () => unhold(row));
+    }, row.name + ' moved to next week' + (level ? ptsTag('reconcile') : ''), () => unhold(row));
   }
 
   function unhold(row) {
@@ -1292,6 +1299,10 @@
     const review = D().review || [];
     return review.filter((r) => {
       if (r.type === 'meal_request') return false; // shown on the Meals tab instead
+      if (r.type === 'have_check') { // a kid's "we have it": gone once the row left the List some other way
+        const m = String(r.detail).match(/\((L\d{4,})\)/);
+        if (m && !D().list.some((x) => x.id === m[1])) return false;
+      }
       if (r.type === 'settle') { // "Did we get it?": gone once the row is settled some other way (receipt, In store)
         const m = String(r.detail).match(/\((L\d{4,})\)/);
         if (m && !D().list.some((x) => x.id === m[1])) return false;
@@ -1351,6 +1362,7 @@
     if (SECTIONS[sec]) return sec;
     const t = String(r.type || '').toLowerCase(), d = String(r.detail || '');
     if (t === 'helped') return 'helped';
+    if (t === 'have_check') return 'decision';
     if (t === 'settle' || t === 'settle_order' || t === 'settle_meal') return 'settle';
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
@@ -1415,6 +1427,7 @@
     const t = String(r.type || '').toLowerCase();
     if (a === 'skip') return 0;
     if (t === 'meal_request') return /^cancel/.test(a) ? 0 : rulePts('approve');
+    if (t === 'have_check') return rulePts('approve');
     if (t === 'helped') return answer === undefined ? rulePts('helped_cooked') : /^cooked/.test(a) ? rulePts('helped_cooked') : /^helped/.test(a) ? rulePts('helped_helped') : 0;
     const sec = sectionOf(r);
     if (sec === 'due') return rulePts(r.due_at && new Date() > new Date(String(r.due_at)) ? 'task_late' : 'task');
@@ -1472,7 +1485,8 @@
         '<div class="pr-table">' + family.map(row).join('') + '</div>' +
         '<ul class="pr-list"><li>A kid’s add is a request: it earns its point when a parent approves it. A skipped request earns nothing.</li>' +
         '<li>Adding something that’s already on the List counts if you weren’t on it yet (you show up as “asked by … + you”).</li>' +
-        '<li>Approve and Skip both count for the parent: saying no is a decision too.</li></ul>' : '') +
+        (rulePts('reconcile') ? '<li>🏠 On the List, tap an item → “Have some at home already?” → Plenty, Some, A little or a count. A kid’s Plenty or Some goes to a parent first (“Take it off the List?”) and scores when the parent says yes. A little, a count, or Next week with an amount scores right away. One score per item per person.</li>' : '') +
+        '<li>Approve and Skip both count for the parent: saying no is a decision too (that includes answering a kid’s “we have it”).</li></ul>' : '') +
       '<h3 class="pr-h">🧑‍🍳 Kitchen help</h3>' +
       '<p class="note">The day after a planned dinner, a parent gets a card for each kid: “Did <i>kid</i> help cook <i>dinner</i>?” The points go to the <b>kid</b>, not to the parent who answers.</p>' +
       '<div class="pr-table">' + rules.filter((x) => ruleGroup(x) === 'kitchen').map(row).join('') + '<div class="pr-row"><span class="pr-what">🧑‍🍳 Kitchen help: Not this time</span><b class="pr-pts zero">0</b></div></div>' +
@@ -2068,9 +2082,9 @@
     if (r && level !== 'low') { markHave(r, level); return; }
     const it = itemById(sh.item_id);
     if (r) {
-      act('stockLog', { item_id: sh.item_id, level: level }, () => {
+      act('stockLog', { item_id: sh.item_id, level: level, list_id: r.id }, () => {
         (D().stock = D().stock || {})[sh.item_id] = { level: level, at: D().today, who: S.me };
-      }, 'Noted: a little left. ' + (it ? it.name : 'It') + ' stays on the List.');
+      }, 'Noted: a little left. ' + (it ? it.name : 'It') + ' stays on the List.' + ptsTag('reconcile'));
       return;
     }
     act('stockLog', { item_id: sh.item_id, level: level }, () => {

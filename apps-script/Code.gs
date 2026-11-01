@@ -69,6 +69,7 @@ const POINT_RULES = [
   { key: 'other', icon: '💬', label: 'Any other card: questions, dinner votes, decisions', pts: POINTS.other, to: 'you' },
   { key: 'list_add', icon: '🛒', label: 'Adding something to the List (kids: once a parent approves it)', pts: 1, to: 'you', group: 'family', cap: 5 },
   { key: 'meal_ask', icon: '🙋', label: 'Asking for a meal', pts: 2, to: 'you', group: 'family', cap: 2 },
+  { key: 'reconcile', icon: '🏠', label: 'Saying how much we have of something on the List (Plenty, Some, A little, or a count). Kids: once a parent agrees', pts: 2, to: 'you', group: 'family', cap: 5 },
   { key: 'approve', icon: '✅', label: 'Handling a kid’s request: Approve or Skip, Plan it or Not now', pts: 1, to: 'you', group: 'family' },
   { key: 'helped_cooked', icon: '🧑‍🍳', label: 'Kitchen help: Cooked it', pts: POINTS.helped_cooked, to: 'kid', group: 'kitchen' },
   { key: 'helped_helped', icon: '🧑‍🍳', label: 'Kitchen help: Helped', pts: POINTS.helped_helped, to: 'kid', group: 'kitchen' },
@@ -139,7 +140,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      leaderboard, 👑, History); state.points.start. Set to 2026-11-02 so everyone starts even.
 // 19 = meals that left the plan: List rows still tied to a meal that isn't planned anymore get one parents' card
 //      per meal ("<meal> isn't on the plan anymore… Take them off / Keep them", type settle_meal).
-const API_VERSION = 19;
+// 20 = reconciling the List scores (rule reconcile, 2 points, up to 5 a day): a parent's "We have plenty / some"
+//      on a List row scores right away; a kid's becomes a parents' card (type have_check, "Take it off the List?")
+//      and the row stays until a parent says yes, then the kid scores. "A little" / a count (stockLog with list_id)
+//      and Next week with a level score too. Handling a have_check card scores the parent `approve`.
+const API_VERSION = 20;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -684,6 +689,19 @@ function missionAnswer(r, answer, who) {
   return { level: level };
 }
 
+// A parent answers a kid's "we have it" (have_check): Yes takes the row off (status have) and the kid scores.
+function haveCheckAnswer(r, answer, who) {
+  const listId = (String(r.detail).match(/\((L\d{4,})\)/) || [])[1];
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!listId || !/^yes/.test(a)) return null;
+  const row = readTab(TABS.list).find((x) => x.id === listId);
+  const level = (String(r.detail).match(/we have (plenty|some|a little|\d{1,3}) of/) || [])[1] || 'some';
+  const lv = level === 'a little' ? 'low' : level;
+  if (row && ACTIVE.indexOf(row.status) >= 0) listHave({ id: listId, level: lv, by: String(r.asked_by || who), _approved: true });
+  if (r.asked_by) awardPoints(String(r.asked_by), 'reconcile', listId, who, 'We have ' + level + ': ' + (row ? row.name : listId) + ' (a parent agreed)');
+  return { list: listId };
+}
+
 /* ---------------------------------------------------------------- settling the List (api 17) */
 
 const LIST_ID_RE = /\((L\d{4,})\)/;
@@ -887,6 +905,7 @@ function answerReview(req) {
     points: pts, points_to: r.type === 'helped' ? String(r.points_to || '') : who, points_why: why,
   });
   const mission = r.type === 'check' ? missionAnswer(r, answer, who) : null;
+  if (r.type === 'have_check') haveCheckAnswer(r, answer, who);
   const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : r.type === 'settle_meal' ? settleMealAnswer(r, answer, who) : null;
   return { id: r.id, points: pts, why: why, mission: mission, settled: settled };
 }
@@ -899,7 +918,8 @@ function pointsWhy(r, answer) {
   const t = String(r.type || '').toLowerCase();
   const d = String(r.detail || '');
   if (!a || a === 'skip') return '';
-  if (t === 'meal_request') return /^cancel/.test(a) ? '' : 'approve'; // a parent's Plan it / Not now; a kid cancelling scores nothing
+  if (t === 'meal_request') return /^cancel/.test(a) ? '' : 'approve';
+  if (t === 'have_check') return 'approve'; // a parent's Plan it / Not now; a kid cancelling scores nothing
   if (t === 'helped') return /^cooked/.test(a) ? 'helped_cooked' : /^helped/.test(a) ? 'helped_helped' : '';
   if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) {
     const due = stampOf(r.due_at);
@@ -1336,12 +1356,28 @@ function listNote(row, text) {
 }
 
 // "We have it": nothing bought. The row is done (status have) and the sighting is logged.
+const HAVE_TEXT = { plenty: 'plenty', some: 'some', low: 'a little' };
 function listHave(req) {
   const row = readTab(TABS.list).find((r) => r.id === req.id);
   if (!row) throw new Error('List row not found');
   const level = cleanLevel(req.level) || 'some';
+  // A kid's "we have it" asks a parent first: the sighting is logged, the row stays until a parent agrees.
+  if (isKid(req.by) && !req._approved) {
+    logStock({ item_id: row.item_id, level: level, expires: req.expires, who: req.by, source: 'list', list_id: row.id });
+    const review = readTab(TABS.review);
+    const open = review.find((r) => r.type === 'have_check' && r.status === 'open' && String(r.detail).indexOf('(' + row.id + ')') >= 0);
+    if (open) return { id: row.id, level: level, pending: open.id, already: true };
+    ensureColumn(TABS.review, 'asked_by');
+    const id = nextId(review, 'id', 'r', 3);
+    appendObj(TABS.review, {
+      id: id, created: nowStamp(), type: 'have_check', status: 'open', audience: 'parents', asked_by: req.by,
+      detail: req.by + ' says we have ' + (HAVE_TEXT[level] || level) + ' of ' + row.name + ' at home. Take it off the List? (' + row.id + ') Options: Yes, take it off; No, keep it',
+    });
+    return { id: row.id, level: level, pending: id };
+  }
+  if (!req._approved) awardPoints(req.by, 'reconcile', row.id, req.by, 'We have ' + (HAVE_TEXT[level] || level) + ': ' + row.name);
   setFields(TABS.list, row._row, { status: 'have', hold_until: '', note: listNote(row, 'had ' + level + ' (' + (req.by || '?') + ')'), updated_at: nowStamp() });
-  logStock({ item_id: row.item_id, level: level, expires: req.expires, who: req.by, source: 'list', list_id: row.id });
+  if (!req._approved) logStock({ item_id: row.item_id, level: level, expires: req.expires, who: req.by, source: 'list', list_id: row.id }); // a kid's was logged when they said it
   return { id: row.id, level: level };
 }
 
@@ -1356,7 +1392,10 @@ function listHold(req) {
   const f = { hold_until: "'" + until, updated_at: nowStamp() };
   if (level) f.note = listNote(row, 'had ' + level + ' (' + (req.by || '?') + ')');
   setFields(TABS.list, row._row, f);
-  if (level) logStock({ item_id: row.item_id, level: level, who: req.by, source: 'list', list_id: row.id });
+  if (level) {
+    logStock({ item_id: row.item_id, level: level, who: req.by, source: 'list', list_id: row.id });
+    awardPoints(req.by, 'reconcile', row.id, req.by, 'We have ' + (HAVE_TEXT[level] || level) + ': ' + row.name + ' (next week)');
+  }
   return { id: row.id, hold_until: until };
 }
 
@@ -1385,7 +1424,12 @@ function itemInfo(req) {
 function stockLogAction(req) {
   const level = cleanLevel(req.level);
   if (!req.item_id || !level) throw new Error('Missing item or amount');
-  logStock({ item_id: req.item_id, level: level, who: req.by, source: 'shop' });
+  logStock({ item_id: req.item_id, level: level, who: req.by, source: req.list_id ? 'list' : 'shop', list_id: req.list_id || '' });
+  // "A little" / a count on a List row keeps the row but still reconciles it (api 20).
+  if (req.list_id) {
+    const row = readTab(TABS.list).find((r) => r.id === req.list_id && r.item_id === req.item_id && ACTIVE.indexOf(r.status) >= 0);
+    if (row) awardPoints(req.by, 'reconcile', row.id, req.by, 'We have ' + (HAVE_TEXT[level] || level) + ': ' + row.name);
+  }
   return { item_id: req.item_id, level: level };
 }
 
