@@ -97,6 +97,8 @@ const SETTLE_PARENTS = 4;          // per day, shared by both parents
 const SETTLE_KID_OPTIONS = "It's here; Not here";
 const SETTLE_PARENT_OPTIONS = "Got it; Still need it; Don't need it";
 const SETTLE_ORDER_OPTIONS = 'Yes, all of it; Some of it; Not yet';
+const SETTLE_MEAL_OPTIONS = 'Take them off; Keep them';
+const SETTLE_MEAL_GRACE_DAYS = 2;  // a meal counts as planned if it's on the plan from 2 days ago through the next 14 days
 
 // Stock is an append-only log of "we have it" sightings (created on first use).
 const STOCK_HEAD = ['at', 'item_id', 'level', 'expires', 'who', 'source', 'list_id'];
@@ -135,7 +137,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      filled cart. Answers set the List row bought / have / skipped or keep it; 3 points.
 // 18 = points_start (Settings, yyyy-mm-dd): nothing scored before that day counts anywhere (scoreboard, streaks,
 //      leaderboard, 👑, History); state.points.start. Set to 2026-11-02 so everyone starts even.
-const API_VERSION = 18;
+// 19 = meals that left the plan: List rows still tied to a meal that isn't planned anymore get one parents' card
+//      per meal ("<meal> isn't on the plan anymore… Take them off / Keep them", type settle_meal).
+const API_VERSION = 19;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -766,6 +770,58 @@ function makeSettle(today, kids, review) {
   return out;
 }
 
+// Meals that left the plan (Hearth week replaced them, a parent changed the day): List rows still tied to a
+// meal that isn't planned from SETTLE_MEAL_GRACE_DAYS ago through the next PLAN_DAYS get one parents' card per
+// meal. Rows added in the last couple of days are left alone (someone may be about to plan it).
+function mealPlannedSet(today, plan) {
+  const from = addDays(today, -SETTLE_MEAL_GRACE_DAYS), to = addDays(today, PLAN_DAYS);
+  const planned = {};
+  plan.forEach((p) => { const d = planDate(p); if (d && d >= from && d <= to && p.meal_id) planned[p.meal_id] = true; });
+  return planned;
+}
+function makeMealSettle(today, review, plan, mealOf) {
+  const planned = mealPlannedSet(today, plan);
+  const asked = {};
+  review.forEach((r) => {
+    if (r.type !== 'settle_meal') return;
+    if (r.status !== 'open' && r.created && daysBetween(String(r.created).slice(0, 10), today) >= SETTLE_REASK_DAYS) return;
+    const m = String(r.detail).match(/\(meal (m\d+)\)/); if (m) asked[m[1]] = true;
+  });
+  const by = {};
+  readTab(TABS.list).forEach((r) => {
+    if (r.status !== 'needed' || !r.meal_id || planned[r.meal_id] || asked[r.meal_id]) return;
+    const added = rowStamp(r, 'added_at');
+    if (added && daysBetween(added, today) < SETTLE_MEAL_GRACE_DAYS) return;
+    (by[r.meal_id] = by[r.meal_id] || []).push(r);
+  });
+  return Object.keys(by).map((id) => {
+    const rows = by[id], name = mealOf[id] ? mealOf[id].name : 'A meal';
+    return { type: 'settle_meal', audience: 'parents',
+      detail: rows.length === 1
+        ? name + ' isn\'t on the plan anymore, but the List still has ' + rows[0].name + ' for it. Take it off, or keep it as a regular item? (meal ' + id + ') Options: Take it off; Keep it'
+        : name + ' isn\'t on the plan anymore, but ' + rows.length + ' things for it are still on the List: ' + rows.slice(0, 8).map((r) => r.name).join(', ') + (rows.length > 8 ? ', …' : '') +
+          '. Take them off, or keep them as regular items? (meal ' + id + ') Options: ' + SETTLE_MEAL_OPTIONS };
+  });
+}
+
+// "<meal> isn't on the plan anymore" → Take them off: those needed rows → skipped. Keep them: the rows stay
+// as regular items (meal_id cleared). Rows in a store cart only lose the meal link.
+function settleMealAnswer(r, answer, who) {
+  const id = (String(r.detail).match(/\(meal (m\d+)\)/) || [])[1];
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!id || !a || a === 'skip') return null;
+  const off = /^take/.test(a), keep = /^keep/.test(a);
+  if (!off && !keep) return null;
+  const stamp = nowStamp();
+  let n = 0;
+  readTab(TABS.list).filter((x) => x.meal_id === id && ACTIVE.indexOf(x.status) >= 0 && x.status !== 'requested').forEach((x) => {
+    if (off && x.status === 'needed') setFields(TABS.list, x._row, { status: 'skipped', hold_until: '', meal_id: '', updated_at: stamp, note: listNote(x, 'meal came off the plan (' + who + ')') });
+    else setFields(TABS.list, x._row, { meal_id: '', updated_at: stamp });
+    n++;
+  });
+  return { meal: id, rows: n, off: off };
+}
+
 // One "Did we get it?" answer → the List row.
 //  It's here / Got it → done (bought if it was in a cart or a parent says got it, else have) + a Stock sighting;
 //  Not here / Still need it → stays on the List (touched, so it isn't asked again for a week); Not here logs "out";
@@ -831,7 +887,7 @@ function answerReview(req) {
     points: pts, points_to: r.type === 'helped' ? String(r.points_to || '') : who, points_why: why,
   });
   const mission = r.type === 'check' ? missionAnswer(r, answer, who) : null;
-  const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : null;
+  const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : r.type === 'settle_meal' ? settleMealAnswer(r, answer, who) : null;
   return { id: r.id, points: pts, why: why, mission: mission, settled: settled };
 }
 
@@ -850,7 +906,7 @@ function pointsWhy(r, answer) {
     return due && nowStamp() > due ? 'task_late' : 'task';
   }
   if (t === 'check' || t === 'mission') return 'check';
-  if (t === 'settle' || t === 'settle_order') return 'settle';
+  if (t === 'settle' || t === 'settle_order' || t === 'settle_meal') return 'settle';
   if (t === 'rate') return 'rate';
   if (t === 'still') return 'still';
   return 'other';
@@ -1157,7 +1213,7 @@ function dailyCards() {
     review.forEach((r) => {
       const age = r.created ? daysBetween(String(r.created).slice(0, 10), today) : 0;
       if (r.status === 'open' && ((r.type === 'rate' && age > RATE_EXPIRE_DAYS) || (r.type === 'helped' && age > HELPED_EXPIRE_DAYS) ||
-        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order') && age > SETTLE_EXPIRE_DAYS))) {
+        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal') && age > SETTLE_EXPIRE_DAYS))) {
         setFields(TABS.review, r._row, { status: 'closed' });
       }
     });
@@ -1205,6 +1261,7 @@ function dailyCards() {
 
     // Did we get it? Settle List rows that no receipt will close (see makeSettle).
     makeSettle(today, kids, review).forEach((m) => add(m));
+    makeMealSettle(today, review, plan, mealOf).forEach((m) => add(m));
 
     // Still eating? Weekly, a couple per person, from things we buy regularly.
     if (!st.still_through || daysBetween(String(st.still_through).slice(0, 10), today) >= STILL_EVERY_DAYS) {

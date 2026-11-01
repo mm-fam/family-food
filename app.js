@@ -494,8 +494,11 @@
   // 7 days that uses this item (Mike, Nov 1: filter the List to meal items vs just stock).
   function mealFor(r) {
     if (!r) return null;
+    // A meal link only counts while that meal is on the plan (2 days back through the plan window); a meal that
+    // came off the plan (Hearth replaced the week) leaves its rows as plain stock until a parent settles them.
     const m = r.meal_id && mealById(r.meal_id);
-    if (m) return { meal: m, date: '', planned: false };
+    const fresh = r.added_at && String(r.added_at).slice(0, 10) === D().today; // added for it today: planning may come next
+    if (m && (fresh || mealPlanned(m.id))) return { meal: m, date: '', planned: false };
     if (!r.item_id) return null;
     const today = D().today, last = addDays(today, 6);
     let best = null;
@@ -508,6 +511,10 @@
     return best;
   }
   const forMeal = (r) => !!mealFor(r);
+  function mealPlanned(id) {
+    const from = addDays(D().today, -2), to = addDays(D().today, (D().planDays || 14));
+    return (D().plan || []).some((p) => { const d = planDate(p); return p.meal_id === id && d && d >= from && d <= to; });
+  }
   function mealTag(r) {
     const f = mealFor(r);
     if (!f) return '';
@@ -1262,6 +1269,10 @@
         const m = String(r.detail).match(/\((L\d{4,})\)/);
         if (m && !D().list.some((x) => x.id === m[1])) return false;
       }
+      if (r.type === 'settle_meal') { // gone once no List row is tied to that meal anymore
+        const m = String(r.detail).match(/\(meal (m\d+)\)/);
+        if (m && !D().list.concat(D().held || []).some((x) => x.meal_id === m[1])) return false;
+      }
       const aud = String(r.audience || 'parents').trim();
       if (aud === 'all') return true;
       if (aud === 'parents') return amParent();
@@ -1313,7 +1324,7 @@
     if (SECTIONS[sec]) return sec;
     const t = String(r.type || '').toLowerCase(), d = String(r.detail || '');
     if (t === 'helped') return 'helped';
-    if (t === 'settle' || t === 'settle_order') return 'settle';
+    if (t === 'settle' || t === 'settle_order' || t === 'settle_meal') return 'settle';
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
     if (t === 'check' || t === 'mission') return 'mission';
@@ -1585,15 +1596,15 @@
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
       '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() && !preStart() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : '+' + cardPoints(r)) + '</span>' : '') + '</div>' +
-      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
+      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|meal m\d+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
       (canPass() ? '<button type="button" class="btn btn-plain" data-act="ask-pass" data-id="' + r.id + '">Pass ↗</button>' : '') +
       (deck.length > 1 ? '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' : '') + '</div>') + '</section>';
     if (deck.length > 1) html += '<div class="deck-edge"></div>';
-    const isSettle = r.type === 'settle' || r.type === 'settle_order';
-    html += '<p class="hint">' + (isSettle ? (r.type === 'settle_order' ? 'Yes takes the whole cart off the List. Some of it asks about each thing. ' : isKid(S.me) ? 'Go look where it lives (fridge, pantry, bathroom). It’s here takes it off the List. ' : 'Got it or Don’t need it takes it off the List; Still need it keeps it there. ') : '') + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
+    const isSettle = r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal';
+    html += '<p class="hint">' + (isSettle ? (r.type === 'settle_meal' ? 'Take them off clears them from the List; Keep them leaves them as regular items. ' : r.type === 'settle_order' ? 'Yes takes the whole cart off the List. Some of it asks about each thing. ' : isKid(S.me) ? 'Go look where it lives (fridge, pantry, bathroom). It’s here takes it off the List. ' : 'Got it or Don’t need it takes it off the List; Still need it keeps it there. ') : '') + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
     return html;
   }
 
