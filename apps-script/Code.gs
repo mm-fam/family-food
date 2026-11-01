@@ -536,7 +536,7 @@ function updateListRow(req) {
   // A parent handling a kid's request: the parent scores for deciding; the kid scores once it's approved.
   if (row.status === 'requested' && f.status && f.status !== 'requested' && !isKid(req.by)) {
     awardPoints(req.by, 'approve', row.id, req.by, (f.status === 'needed' ? 'Approved ' : 'Skipped ') + row.name);
-    if (f.status === 'needed') wantedList(row).filter(isKid).forEach((k) => awardPoints(k, 'list_add', row.id, req.by, 'Added ' + row.name + ' to the List (approved)'));
+    if (f.status === 'needed' && !/^Mission:/.test(String(row.note || ''))) wantedList(row).filter(isKid).forEach((k) => awardPoints(k, 'list_add', row.id, req.by, 'Added ' + row.name + ' to the List (approved)'));
   }
   return { id: row.id };
 }
