@@ -41,7 +41,9 @@
     sheet: null,       // bottom sheet { type, ...draft }
     toast: null,
     setupError: '',
-    loading: false,
+    loading: false,    // first unlock in progress
+    bootError: '',     // saved passcode, but the first load failed
+    slow: false,       // first load is taking a while (Apps Script waking up)
   };
 
   let seq = 0;
@@ -62,7 +64,7 @@
   }
 
   async function refresh() {
-    if (!S.pass || !apiUrl()) return;
+    if (!S.pass || !apiUrl() || !S.data) return; // before the first load, firstLoad() owns the screen
     try { await api('state'); if (!S.dragging) render(); }
     catch (e) { handleError(e); }
   }
@@ -262,7 +264,8 @@
     const root = document.getElementById('app');
     const focus = captureFocus();
     if (!apiUrl()) root.innerHTML = viewNoBackend();
-    else if (!S.pass || !S.data) root.innerHTML = viewSetup();
+    else if (S.pass && !S.data) root.innerHTML = viewLoading();
+    else if (!S.pass) root.innerHTML = viewSetup();
     else if (!S.me) root.innerHTML = viewPickPerson();
     else root.innerHTML = viewApp();
     restoreFocus(focus);
@@ -283,6 +286,36 @@
 
   function viewNoBackend() {
     return '<div class="setup"><img class="setup-logo" src="icons/poppy-logo.png" alt="Poppy 2.0" width="120" height="120"><h1>Poppy 2.0</h1><p class="note">The app isn’t connected to its Google Sheet yet. Add the Apps Script URL to <b>config.js</b> (see the README).</p></div>';
+  }
+
+  // Shown while the first state loads: right after Unlock, and on every return visit (saved passcode).
+  function viewLoading() {
+    const msg = S.bootError ? '' :
+      '<div class="spinner" aria-hidden="true"></div>' +
+      '<p class="note" role="status">' + (S.loading ? 'Checking the passcode…' : 'Getting the list…') + '</p>' +
+      (S.slow ? '<p class="note small">Still working. The server takes a few seconds to wake up after a quiet spell.</p>' : '');
+    const err = S.bootError ?
+      '<div class="error">' + esc(S.bootError) + '</div>' +
+      '<button class="btn btn-primary btn-block" data-act="boot-retry">Try again</button>' : '';
+    return '<div class="setup loading-screen">' +
+      '<img class="setup-logo' + (S.bootError ? '' : ' pulse') + '" src="icons/poppy-logo.png" alt="Poppy 2.0" width="120" height="120">' +
+      '<div><div class="eyebrow">Poppy 2.0</div></div>' + msg + err + '</div>';
+  }
+
+  // First load of state (return visit or right after Unlock). Shows a "still working" hint after 4 s.
+  async function firstLoad() {
+    S.bootError = ''; S.slow = false; render();
+    const t = setTimeout(() => { if (!S.data) { S.slow = true; render(); } }, 4000);
+    try { await api('state'); return true; }
+    catch (e) {
+      const msg = String(e && e.message || e);
+      if (msg === 'wrong_passcode') {
+        S.pass = ''; store.del('ff_pass'); S.setupError = 'That passcode didn’t work.';
+      } else {
+        S.bootError = msg === 'Failed to fetch' ? 'Couldn’t reach the server. Check your connection.' : 'Couldn’t load the list (' + msg + ').';
+      }
+      return false;
+    } finally { clearTimeout(t); S.slow = false; render(); }
   }
 
   function viewSetup() {
@@ -933,6 +966,7 @@
   function rowById(id) { return D().list.find((r) => r.id === id) || D().recent.find((r) => r.id === id); }
 
   const handlers = {
+    'boot-retry': () => { firstLoad(); },
     'pick-me': (el) => { S.me = el.dataset.name; store.set('ff_me', S.me); render(); },
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
     tab: (el) => { if (el.dataset.tab === 'ask' && S.tab !== 'ask') { S.askAnswered = 0; resetAskCard(); } S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
@@ -1139,13 +1173,13 @@
     if (form.dataset.form === 'unlock') {
       const v = document.getElementById('pass').value.trim();
       if (!v) return;
-      S.pass = v; S.loading = true; S.setupError = ''; render();
-      try { await api('state'); store.set('ff_pass', v); }
-      catch (e) {
-        S.pass = '';
-        S.setupError = String(e.message) === 'wrong_passcode' ? 'That passcode didn’t work.' : 'Couldn’t reach the server (' + e.message + ').';
-      }
-      S.loading = false; render();
+      const f = document.getElementById('pass'); if (f) f.blur();
+      S.pass = v; S.loading = true; S.setupError = '';
+      const ok = await firstLoad();
+      S.loading = false;
+      if (ok) store.set('ff_pass', v);
+      else if (S.pass) { S.pass = ''; S.setupError = S.bootError; S.bootError = ''; }
+      render();
     }
     if (form.dataset.form === 'add') {
       const q = S.query.trim();
@@ -1225,6 +1259,5 @@
     refresh();
   }, POLL_MS);
 
-  render();
-  if (S.pass && apiUrl()) refresh();
+  if (S.pass && apiUrl()) firstLoad(); else render();
 })();

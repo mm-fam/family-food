@@ -252,6 +252,19 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .setup { padding: calc(48px + env(safe-area-inset-top)) 20px 40px; display: flex; flex-direction: column; gap: 16px; }
 .setup h1 { font-size: 30px; }
 .setup-logo { width: 120px; height: 120px; display: block; }
+.loading-screen { align-items: center; text-align: center; padding-top: calc(96px + env(safe-area-inset-top)); }
+.loading-screen .note { margin: 0; font-size: 15px; }
+.loading-screen .note.small { font-size: 13px; max-width: 280px; }
+.loading-screen .btn-block { max-width: 320px; }
+.spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid var(--accent-soft); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+.pulse { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.96); opacity: 0.85; } }
+@media (prefers-reduced-motion: reduce) { .spinner, .pulse { animation-duration: 3s; } .pulse { animation: none; } }
 .people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .people button { min-height: 72px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); font-size: 18px; font-weight: 600; }
 .error { color: var(--danger); font-size: 14px; }
