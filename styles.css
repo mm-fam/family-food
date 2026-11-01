@@ -645,3 +645,18 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .mission-count label { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .mission-count input { width: 80px; flex: 0 0 auto; text-align: center; }
 .pr-cap { display: block; font-size: 12px; color: var(--muted); }
+
+/* Use soon strip (api 20): perishables near their last good day, top of the List */
+.use-soon { border-color: #E9C46A; background: #FFF9E8; margin-bottom: 10px; }
+.use-soon .card-head { color: #8A6100; }
+.us-row { border-top: 1px solid #F1E2B6; padding: 8px 12px 10px; }
+.us-row .row-main { width: 100%; padding: 0; text-align: left; }
+.us-row.past .row-meta { color: #B45309; }
+.us-btns { display: flex; gap: 8px; margin-top: 8px; }
+.us-btns .btn { flex: 1; }
+@media (prefers-color-scheme: dark) {
+  .use-soon { background: #2A2614; border-color: #5C4E1F; }
+  .use-soon .card-head { color: #F2D58A; }
+  .us-row { border-top-color: #4A3F1A; }
+  .us-row.past .row-meta { color: #F4B183; }
+}

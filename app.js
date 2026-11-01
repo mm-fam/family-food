@@ -287,7 +287,7 @@
     }, 'Back on the list');
   }
 
-  const LEVEL_LABEL = { plenty: 'plenty', some: 'some', low: 'a little' };
+  const LEVEL_LABEL = { plenty: 'plenty', some: 'some', low: 'a little', out: 'none left', waste: 'tossed it' };
   const levelText = (lv) => (/^\d+$/.test(String(lv)) ? String(lv) : (LEVEL_LABEL[lv] || lv));
 
   // We already have it at home: nothing bought, sighting logged.
@@ -612,6 +612,7 @@
 
     html += viewInstallTip();
     html += viewJobBanner();
+    html += viewUseSoon();
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
         requests.map(requestRow).join('') + '</section>';
@@ -662,6 +663,28 @@
 
     html += '<p class="hint">One list for every store: wherever you shop, grab what you can. 🍽 For meals = added for a meal or used in a meal planned this week; 🧺 Stock = everything else. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
     return html;
+  }
+
+  /* ---------- use soon (api 22) ---------- */
+  // Perishables near their last good day (bought date + Items shelf_days). Used it / Tossed / Still good.
+  const canUseSoon = () => Number(D().api || 0) >= 22;
+  function useSoonWhen(x) {
+    if (x.left >= 1) return 'good through tomorrow';
+    if (x.left === 0) return 'last good day today';
+    return 'probably past it · still there?';
+  }
+  function viewUseSoon() {
+    if (!canUseSoon()) return '';
+    const rows = D().useSoon || [];
+    if (!rows.length) return '';
+    return '<section class="card use-soon"><div class="card-head">⏳ USE SOON · ' + rows.length + '</div>' + rows.map((x) => {
+      const past = x.left < 0;
+      return '<div class="us-row' + (past ? ' past' : '') + '"><button class="row-main" data-act="open-item" data-id="' + esc(x.item_id) + '"><span class="row-name">' + esc(x.name) + '</span>' +
+        '<span class="row-meta">' + esc(useSoonWhen(x)) + ' · bought ' + esc(daysAgo(x.bought)) + '</span></button>' +
+        '<div class="us-btns"><button class="btn btn-outline btn-sm" data-act="use-soon" data-id="' + esc(x.item_id) + '" data-what="used">Used it</button>' +
+        '<button class="btn btn-outline btn-sm" data-act="use-soon" data-id="' + esc(x.item_id) + '" data-what="tossed">Tossed</button>' +
+        '<button class="btn btn-plain btn-sm" data-act="use-soon" data-id="' + esc(x.item_id) + '" data-what="good">Still good</button></div></div>';
+    }).join('') + '</section>';
   }
 
   /* ---------- in-store mode (on the List) ---------- */
@@ -842,7 +865,7 @@
     const it = itemById(itemId);
     S.sheet = {
       type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
-      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}) : null,
+      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}) : null,
     };
     render();
     if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
@@ -942,6 +965,7 @@
           '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
           '<div><label for="d-brand">Brand / size</label><input id="d-brand" class="field" style="width:100%" data-input="d" data-field="brand_size" value="' + esc(sh.d.brand_size) + '"' + (kid ? ' disabled' : '') + '></div>' +
           '<div><label for="d-aisle">Aisle</label><select id="d-aisle" class="select" style="width:100%" data-input="d" data-field="group"' + (kid ? ' disabled' : '') + '>' + GROUPS.map((g) => '<option' + (g === sh.d.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
+          (canUseSoon() ? '<div><label for="d-shelf">Stays good about (days)</label><input id="d-shelf" class="field" style="width:100%" inputmode="numeric" data-input="d" data-field="shelf_days" value="' + esc(sh.d.shelf_days) + '" placeholder="Blank = doesn’t go bad fast"' + (kid ? ' disabled' : '') + '></div>' : '') +
           '<div><label for="d-notes">Notes</label><input id="d-notes" class="field" style="width:100%" data-input="d" data-field="notes" value="' + esc(sh.d.notes) + '" placeholder="e.g. Gia only eats strawberry"' + (kid ? ' disabled' : '') + '></div>' +
           (kid ? '<p class="note">A parent can change these.</p>' : '<button class="btn btn-primary btn-block" data-act="save-details">Save details</button>') + '</div>';
       }
@@ -1369,7 +1393,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }
@@ -2022,6 +2046,13 @@
     },
     fold: (el) => { const k = el.dataset.key; setClosed(k, !isClosed(k)); render(); },
     'list-kind': (el) => { S.listKind = el.dataset.v || 'all'; render(); },
+    'use-soon': (el) => {
+      const id = el.dataset.id, what = el.dataset.what;
+      const x = (D().useSoon || []).find((y) => y.item_id === id);
+      if (!x) return;
+      const msg = { used: 'Used up: ' + x.name, tossed: 'Tossed: ' + x.name + '. Thanks for saying so', good: x.name + ': we’ll ask again in 2 days' }[what];
+      act('useSoon', { item_id: id, what: what }, () => { D().useSoon = (D().useSoon || []).filter((y) => y !== x); }, msg);
+    },
     'fold-all': () => {
       const keys = groupsIn(D().list.filter((r) => r.status !== 'requested' && kindOk(r))).map((g) => 'a:' + g);
       const close = !keys.every((k) => isClosed(k));

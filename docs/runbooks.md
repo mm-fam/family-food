@@ -148,7 +148,8 @@ Design and the full steps: `docs/hearth.md`.
 | Household or schedule facts (who orders, order days, how many nights we cook, what goes to waste) | Profile row with topic `household: <topic>`. Schedule answers also feed the schedule design (live session). |
 | Item preference from a parent (`(iNNN)`) | Items: `ok_swap` for swap questions (conditional answers → notes + a follow-up, not Y/N); store/group only when the answer says it plainly; everything else appended to notes as `<answer> (<name>, <date>)`. Never set Drop. |
 | Item preference from a kid | Append `<Name>: <answer>` to that item's notes. Nothing else changes. |
-| Shelf life | Item notes `Shelf life: <answer> (<name>)` until Items has `shelf_days`. |
+| Shelf life | Items `shelf_days` = the upper end of the answer in days ("2–3 days" → 3, "About a week" → 7); also a notes line `Shelf life: <answer> (<name>)`. "Once opened" answers stay notes only (no open date to count from). A kid's answer → notes only, plus a card to a parent. |
+| Tossed it (`waste`) | Buy fewer / Buy less often → append "Tossed often: <answer> (<name>, <date>)" to Items notes and report it to Mike; It's fine → outcome `No signal`. Never change qty or status yourself. |
 | A dinner someone wishes we made | Already in Meals → append "<Name> wishes we made it more often (<date>)" to its notes. New → a parent's wish becomes a Meals row per §8 step 3 (+ vote cards, §8 step 5); a kid's wish becomes the parents' "Add it to Our meals?" card (§8 step 4). |
 | An item request inside an answer ("can we add coffee beans") | A follow-up card to the same person for the missing detail (brand, size, store). A parent's clear answer later → new Item per §1 step 4 (status Sometimes). |
 | Unclear or misspelled free text | A follow-up card to the same person that offers the likely readings as options. Never write a guess as fact. |

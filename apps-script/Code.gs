@@ -97,6 +97,18 @@ const SETTLE_PARENTS = 4;          // per day, shared by both parents
 const SETTLE_KID_OPTIONS = "It's here; Not here";
 const SETTLE_PARENT_OPTIONS = "Got it; Still need it; Don't need it";
 const SETTLE_ORDER_OPTIONS = 'Yes, all of it; Some of it; Not yet';
+// Use soon (api 22, inventory-design step 3): perishables with Items shelf_days (from Joni's answers) show at the
+// top of the List from the day before they go bad. Bought = the newest of the last receipt and a List row marked
+// bought; a Stock sighting with `expires` (Still good, or a printed date) after that moves the date.
+const USE_SOON_AHEAD = 1;   // show from this many days before the last good day
+const USE_SOON_DROP = 3;    // stop showing this many days after it (assume it's gone)
+const USE_SOON_SNOOZE = 3;  // "Still good" → look again in 2 days (expires = today + 3, shown from the day before)
+const USE_SOON_ACTS = { used: 'out', tossed: 'waste', good: 'some' };
+// Waste learning: an item tossed this many times in WASTE_DAYS gets one parents' card (type waste).
+const WASTE_TIMES = 2;
+const WASTE_DAYS = 60;
+const WASTE_REASK_DAYS = 90;
+const WASTE_OPTIONS = 'Buy fewer; Buy less often; It’s fine';
 const SETTLE_MEAL_OPTIONS = 'Take them off; Keep them';
 const SETTLE_MEAL_GRACE_DAYS = 2;  // a meal counts as planned if it's on the plan from 2 days ago through the next 14 days
 
@@ -147,7 +159,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      Plenty / Some on the List, and a kid's "It's here" on a Did we get it? card, both go to the parents as a
 //      have_check card ("Take it off the List?"); nothing a kid says takes a row off by itself. The mission or
 //      Did we get it? card still pays its points when answered; the parent gets 1 for answering the have_check.
-const API_VERSION = 21;
+// 22 = use soon: Items shelf_days (parents can edit it in Details); state.useSoon = perishables near their last
+//      good day; useSoon {item_id, what: used|tossed|good} logs Stock (out / waste / some + expires);
+//      a daily parents' card (type waste) for anything tossed 2+ times in 60 days.
+const API_VERSION = 22;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -211,6 +226,7 @@ function handle(req) {
     stockLog: () => withLock(() => stockLogAction(req)),
     mealIdea: () => withLock(() => addMealIdea(req)),
     mealRequest: () => withLock(() => addMealRequest(req)),
+    useSoon: () => withLock(() => useSoonAction(req)),
     feedback: () => withLock(() => addFeedback(req)),
   };
   const fn = actions[req.action];
@@ -351,8 +367,9 @@ function getState() {
   // A fresh "we have plenty/some/a count" sighting (last 7 days) holds back "probably due".
   const stocked = {};
   const stockLatest = {}; // item_id -> latest sighting { level, at, who }
-  if (SpreadsheetApp.getActive().getSheetByName(TABS.stock)) {
-    readTab(TABS.stock).forEach((s) => {
+  const stockRows = SpreadsheetApp.getActive().getSheetByName(TABS.stock) ? readTab(TABS.stock) : [];
+  if (stockRows.length) {
+    stockRows.forEach((s) => {
       if (s.item_id) stockLatest[s.item_id] = { level: String(s.level), at: String(s.at).slice(0, 10), who: s.who || '' };
       const lvl = String(s.level).toLowerCase();
       const fresh = s.at && daysBetween(String(s.at).slice(0, 10), today) <= 7;
@@ -393,6 +410,7 @@ function getState() {
     weekOf: weekOf(today),
     review: readTab(TABS.review).filter((r) => r.status === 'open').map(stripRow),
     due: due,
+    useSoon: useSoonList(today, items, list, stockRows, onList),
     stock: stockLatest,
     products: productsMap(),
     cartJobs: recentCartJobs(today),
@@ -630,10 +648,15 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
   if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
+  if (f.shelf_days !== undefined) {
+    const n = parseInt(f.shelf_days, 10);
+    f.shelf_days = n > 0 && n <= 365 ? n : '';
+    ensureColumn(TABS.items, 'shelf_days');
+  }
   setFields(TABS.items, item._row, f);
   return { id: item.id };
 }
@@ -1291,6 +1314,9 @@ function dailyCards() {
     makeSettle(today, kids, review).forEach((m) => add(m));
     makeMealSettle(today, review, plan, mealOf).forEach((m) => add(m));
 
+    // Waste learning: tossed the same thing twice lately → ask the parents to buy less (see makeWaste).
+    makeWaste(today, review).forEach((m) => add(m));
+
     // Still eating? Weekly, a couple per person, from things we buy regularly.
     if (!st.still_through || daysBetween(String(st.still_through).slice(0, 10), today) >= STILL_EVERY_DAYS) {
       const items = readTab(TABS.items).filter((i) => i.status !== 'Drop' && Number(i.orders) >= 2 && NON_FOOD.indexOf(String(i.group)) < 0);
@@ -1438,6 +1464,77 @@ function requestOrder(req) {
   if (s) setFields(TABS.settings, s._row, { value: value });
   else appendObj(TABS.settings, { key: 'order_requested', value: value });
   return { order_requested: value };
+}
+
+/* ---------------------------------------------------------------- use soon (api 22) */
+
+const dayOf = (v) => stampOf(v).slice(0, 10);
+
+// Perishables near their last good day, for the strip at the top of the List.
+// [{ item_id, name, group, bought, use_by, left }] sorted soonest first; `left` < 0 = past it.
+function useSoonList(today, items, list, stockRows, onList) {
+  const boughtOn = {}; // item_id -> newest List "bought" day
+  list.forEach((r) => {
+    if (r.status === 'bought' && r.item_id && r.updated_at) {
+      const d = dayOf(r.updated_at);
+      if (!boughtOn[r.item_id] || d > boughtOn[r.item_id]) boughtOn[r.item_id] = d;
+    }
+  });
+  const byItem = {};
+  stockRows.forEach((s) => { if (s.item_id) (byItem[s.item_id] = byItem[s.item_id] || []).push(s); });
+  const out = [];
+  items.forEach((it) => {
+    const shelf = parseInt(it.shelf_days, 10);
+    if (!(shelf > 0) || it.status === 'Drop' || onList[it.id]) return;
+    let bought = it.last_bought ? dayOf(it.last_bought) : '';
+    if (boughtOn[it.id] && boughtOn[it.id] > bought) bought = boughtOn[it.id];
+    if (!bought) return;
+    let useBy = addDays(bought, shelf);
+    let gone = false;
+    (byItem[it.id] || []).forEach((s) => {
+      const at = dayOf(s.at), lvl = String(s.level).toLowerCase(), mine = String(s.source) === 'usesoon';
+      // Used up / tossed after we bought it (a use-soon tap on the buying day counts too).
+      if ((lvl === 'out' || lvl === 'waste') && (at > bought || (mine && at >= bought))) gone = true;
+      const exp = s.expires ? dayOf(s.expires) : '';
+      if (exp && at >= bought && /^\d{4}-\d\d-\d\d$/.test(exp)) useBy = exp; // Still good / a printed date: the newest wins
+    });
+    if (gone) return;
+    const left = daysBetween(today, useBy);
+    if (left > USE_SOON_AHEAD || left < -USE_SOON_DROP) return;
+    out.push({ item_id: it.id, name: it.name, group: it.group || '', bought: bought, use_by: useBy, left: left });
+  });
+  return out.sort((a, b) => a.left - b.left || (a.name < b.name ? -1 : 1));
+}
+
+// Used it / Tossed it / Still good on the Use soon strip.
+function useSoonAction(req) {
+  const level = USE_SOON_ACTS[String(req.what || '')];
+  const it = readTab(TABS.items).find((i) => i.id === req.item_id);
+  if (!level || !it) throw new Error('Missing item or answer');
+  const today = isoDate(new Date());
+  const expires = req.what === 'good' ? addDays(today, Number(req.days) > 0 ? Number(req.days) : USE_SOON_SNOOZE) : '';
+  logStock({ item_id: it.id, level: level, expires: expires, who: req.by, source: 'usesoon' });
+  return { item_id: it.id, what: req.what, expires: expires };
+}
+
+// Parents' card for anything tossed WASTE_TIMES+ times in WASTE_DAYS, once per WASTE_REASK_DAYS per item.
+function makeWaste(today, review) {
+  if (!SpreadsheetApp.getActive().getSheetByName(TABS.stock)) return [];
+  const count = {};
+  readTab(TABS.stock).forEach((s) => {
+    if (String(s.level).toLowerCase() === 'waste' && s.item_id && daysBetween(dayOf(s.at), today) <= WASTE_DAYS) count[s.item_id] = (count[s.item_id] || 0) + 1;
+  });
+  const asked = {};
+  review.forEach((r) => {
+    if (r.type !== 'waste' || !r.created || daysBetween(dayOf(r.created), today) > WASTE_REASK_DAYS) return;
+    const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) asked[m[1]] = true;
+  });
+  const items = {};
+  readTab(TABS.items).forEach((i) => (items[i.id] = i));
+  return Object.keys(count).filter((id) => count[id] >= WASTE_TIMES && !asked[id] && items[id]).slice(0, 2).map((id) => {
+    review.push({ type: 'waste', status: 'open', created: today, detail: '(' + id + ')' });
+    return { type: 'waste', audience: 'parents', detail: 'We’ve tossed ' + items[id].name + ' ' + count[id] + ' times lately. Buy less? (' + id + ') Options: ' + WASTE_OPTIONS };
+  });
 }
 
 /* ---------------------------------------------------------------- cart jobs (api 12) */
