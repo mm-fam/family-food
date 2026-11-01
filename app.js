@@ -1269,12 +1269,14 @@
     rate: { icon: '🍽', label: 'How was it?' },
     mission: { icon: '🔎', label: 'Missions' },
     question: { icon: '💬', label: 'Quick questions' },
+    helped: { icon: '🧑‍🍳', label: 'Kitchen help' },
   };
-  const sectionOrder = () => amParent() ? ['decision', 'due', 'rate', 'mission', 'question'] : ['due', 'rate', 'mission', 'question'];
+  const sectionOrder = () => amParent() ? ['decision', 'due', 'helped', 'rate', 'mission', 'question'] : ['due', 'rate', 'mission', 'question'];
   function sectionOf(r) {
     const sec = String(r.section || '').toLowerCase();
     if (SECTIONS[sec]) return sec;
     const t = String(r.type || '').toLowerCase(), d = String(r.detail || '');
+    if (t === 'helped') return 'helped';
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
     if (t === 'check' || t === 'mission') return 'mission';
@@ -1314,6 +1316,48 @@
     return qs;
   }
 
+  /* Inbox points (api 13). Mirrors cardPoints() in Code.gs; the backend is the one that counts. */
+  const canPoints = () => Number(D().api || 0) >= 13 && D().points;
+  function cardPoints(r, answer) {
+    const a = String(answer || '').trim().toLowerCase();
+    const t = String(r.type || '').toLowerCase();
+    if (a === 'skip' || t === 'meal_request') return 0;
+    if (t === 'helped') return answer === undefined ? 10 : /^cooked/.test(a) ? 10 : /^helped/.test(a) ? 5 : 0;
+    const sec = sectionOf(r);
+    if (sec === 'due') return r.due_at && new Date() > new Date(String(r.due_at)) ? 2 : 5;
+    if (sec === 'mission') return 3;
+    if (t === 'rate' || t === 'still') return 2;
+    return 1;
+  }
+  function viewScoreboard() {
+    if (!canPoints()) return '';
+    const P = D().points, me = S.me;
+    const mine = P.today[me] || 0, goal = P.goal || 10, streak = P.streak[me] || 0;
+    const pct = Math.min(100, Math.round(100 * mine / goal));
+    const people = Object.keys(P.week || {}).sort((a, b) => (P.week[b] || 0) - (P.week[a] || 0));
+    const winners = String(P.lastWeekWinner || '').split(' + ');
+    return '<section class="card score"><div class="score-me">' +
+      '<div class="ring" style="--p:' + pct + '"><b>' + mine + '</b><span>/' + goal + '</span></div>' +
+      '<div><b>' + (mine >= goal ? '🎉 Daily goal done!' : (goal - mine) + (goal - mine === 1 ? ' point' : ' points') + ' to today’s goal') + '</b>' +
+      '<span class="note">' + (streak ? '🔥 ' + streak + '-day streak' : 'Hit ' + goal + ' today to start a streak') + '</span></div></div>' +
+      '<div class="board">' + people.map((p, i) => '<div class="board-p' + (p === me ? ' me' : '') + '"><span class="board-n">' + (winners.indexOf(p) >= 0 ? '👑 ' : '') + esc(p) + '</span><b>' + (P.week[p] || 0) + '</b>' +
+        ((P.streak[p] || 0) ? '<span class="board-s">🔥' + P.streak[p] + '</span>' : '') + '</div>').join('') + '</div>' +
+      '<div class="note board-foot">This week’s points' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div></section>';
+  }
+  // Count the points right away on this phone so the ring moves; the next state from the backend wins.
+  function bumpPoints(r, value) {
+    if (!canPoints()) return '';
+    const pts = cardPoints(r, value);
+    if (!pts) return '';
+    const to = r.type === 'helped' ? String(r.points_to || '') : S.me;
+    const P = D().points;
+    const before = P.today[to] || 0;
+    P.today[to] = before + pts; P.week[to] = (P.week[to] || 0) + pts;
+    if (to !== S.me) return '+' + pts + ' for ' + to;
+    if (before < P.goal && before + pts >= P.goal) { P.streak[to] = (P.streak[to] || 0) + 1; return '🎉 Daily goal! +' + pts; }
+    return '+' + pts + ' points';
+  }
+
   function viewSectionChips() {
     const counts = {};
     myQuestions().forEach((q) => { const k = sectionOf(q); counts[k] = (counts[k] || 0) + 1; });
@@ -1334,7 +1378,7 @@
 
   function viewAsk() {
     const deck = askDeck();
-    const top = viewApprovals();
+    const top = viewScoreboard() + viewApprovals();
     if (!deck.length) {
       return top + '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">Lunch picks, How was it?, missions and questions show up here.</span></div>' +
         '<p class="hint">Everything here teaches Poppy what the family needs. A parent makes the final call.</p>';
@@ -1375,8 +1419,8 @@
     let html = top + viewSectionChips() + '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
-      '<div class="qcard-sec">' + sec.icon + ' ' + esc(sec.label) + '</div>' +
-      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,})\)/g, '')) + '</div>' + control + (typing ? textBox :
+      '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : '+' + cardPoints(r)) + '</span>' : '') + '</div>' +
+      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
@@ -1418,7 +1462,9 @@
       resetAskCard();
       S.askAnswered = (S.askAnswered || 0) + 1;
       S.askLater = (S.askLater || []).filter((x) => x !== id);
-      act('reviewAnswer', { id: id, answer: value + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, toastMsg || 'Got it');
+      const card = D().review.find((r) => r.id === id);
+      const won = card ? bumpPoints(card, value) : '';
+      act('reviewAnswer', { id: id, answer: value + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, won || toastMsg || 'Got it');
     });
   }
 

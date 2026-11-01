@@ -47,6 +47,12 @@ const RATE_PER_DAY = 2;    // unanswered "How was it?" cards close after this
 const STILL_PER_PERSON = 2;    // "Still eating …?" cards per person per week
 const STILL_EVERY_DAYS = 7;
 const STILL_REASK_DAYS = 90;
+// Inbox points (api 13). Every answered card earns points for whoever answered it; a "Did <kid> help with
+// dinner?" card (type helped) earns points for the kid it's about (Review points_to). Skips earn nothing.
+const POINTS = { task: 5, task_late: 2, check: 3, rate: 2, still: 2, helped_cooked: 10, helped_helped: 5, other: 1 };
+const POINTS_GOAL = 10; // daily goal; Settings points_goal overrides
+const HELPED_OPTIONS = 'Cooked it; Helped; Not this time';
+const HELPED_EXPIRE_DAYS = 3;
 const NON_FOOD = ['Personal care', 'Household', 'Paper & cleaning', 'Other'];
 
 // Stock is an append-only log of "we have it" sightings (created on first use).
@@ -69,9 +75,12 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 11 = products: state.products = the exact product we buy per item per store (Products tab, written by
 //      Claude), with aisle when known, for the item screen and In-store aisle order. List rows can carry
 //      `cart` (store code) + `cart_at` when Claude put them in a store's online cart (status carted).
+// 13 = Inbox points: reviewAnswer stamps Review answered_at + points + points_to; state.points = today / this week
+//      per person, streaks, daily goal, last week's winner; daily "Did <kid> help with dinner?" cards (type helped,
+//      audience parents) whose answer gives that kid points.
 // 12 = cart jobs: cartJob {store, kind: build|check} queues a job in the Cart Jobs tab for Claude's cart runner,
 //      cartJobCancel {id} cancels a queued one; state.cartJobs = recent jobs with status + result.
-const API_VERSION = 12;
+const API_VERSION = 13;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -319,6 +328,7 @@ function getState() {
     stock: stockLatest,
     products: productsMap(),
     cartJobs: recentCartJobs(today),
+    points: pointsSummary(today),
     settings: {
       parents: String(settings.parents || '').split(',').map((s) => s.trim()).filter(String),
       kids: String(settings.kids || '').split(',').map((s) => s.trim()).filter(String),
@@ -555,8 +565,67 @@ function saveItem(req) {
 function answerReview(req) {
   const r = readTab(TABS.review).find((x) => x.id === req.id);
   if (!r) throw new Error('Review item not found');
-  setFields(TABS.review, r._row, { answer: req.answer || '', status: 'answered' });
-  return { id: r.id };
+  const answer = String(req.answer || '');
+  const who = (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || String(req.by || '');
+  const pts = cardPoints(r, answer);
+  ['answered_at', 'points', 'points_to'].forEach((c) => ensureColumn(TABS.review, c));
+  setFields(TABS.review, r._row, {
+    answer: answer, status: 'answered', answered_at: "'" + nowStamp(),
+    points: pts, points_to: r.type === 'helped' ? String(r.points_to || '') : who,
+  });
+  return { id: r.id, points: pts };
+}
+
+// Points a card earns when answered (see POINTS). "skip" (Don't care) and meal requests earn nothing.
+function cardPoints(r, answer) {
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  const t = String(r.type || '').toLowerCase();
+  if (!a || a === 'skip' || t === 'meal_request') return 0;
+  if (t === 'helped') return /^cooked/.test(a) ? POINTS.helped_cooked : /^helped/.test(a) ? POINTS.helped_helped : 0;
+  if (t === 'task' || r.due_at || /^school lunches for next week/i.test(String(r.detail || ''))) {
+    const late = r.due_at && nowStamp() > String(r.due_at);
+    return late ? POINTS.task_late : POINTS.task;
+  }
+  if (t === 'check' || t === 'mission') return POINTS.check;
+  if (t === 'rate') return POINTS.rate;
+  if (t === 'still') return POINTS.still;
+  return POINTS.other;
+}
+
+// The Inbox scoreboard: points today and this week (Mon–Sun) per person, streaks (days in a row at the
+// daily goal; today counts once reached, and an unfinished today doesn't break it), last week's winner.
+function pointsSummary(today) {
+  const goal = Number(settingsMap().points_goal) || POINTS_GOAL;
+  const everyone = people();
+  const byDay = {}; // name -> { day: pts }
+  everyone.forEach((p) => (byDay[p] = {}));
+  readTab(TABS.review).forEach((r) => {
+    const pts = Number(r.points) || 0;
+    const to = String(r.points_to || '').trim();
+    if (!pts || !to || !r.answered_at) return;
+    const key = everyone.find((p) => p.toLowerCase() === to.toLowerCase());
+    if (!key) return;
+    const d = String(r.answered_at).slice(0, 10);
+    byDay[key][d] = (byDay[key][d] || 0) + pts;
+  });
+  const dow = new Date(today + 'T12:00:00').getDay();
+  const monday = addDays(today, -((dow + 6) % 7));
+  const lastMonday = addDays(monday, -7);
+  const sum = (m, a, b) => Object.keys(m).reduce((t, d) => t + (d >= a && d <= b ? m[d] : 0), 0);
+  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '' };
+  let best = 0;
+  everyone.forEach((p) => {
+    const m = byDay[p];
+    out.today[p] = m[today] || 0;
+    out.week[p] = sum(m, monday, today);
+    let streak = 0;
+    let d = (m[today] || 0) >= goal ? today : addDays(today, -1);
+    while ((m[d] || 0) >= goal) { streak++; d = addDays(d, -1); }
+    out.streak[p] = streak;
+    const lw = sum(m, lastMonday, addDays(monday, -1));
+    if (lw > best) { best = lw; out.lastWeekWinner = p; } else if (lw && lw === best) out.lastWeekWinner += ' + ' + p;
+  });
+  return out;
 }
 
 // "Later" on a Q&A card: count it and stamp when, so the card stays at the back of the deck
@@ -719,9 +788,12 @@ function dailyCards() {
     let n = nextIdNum(review);
     const add = (o) => { appendObj(TABS.review, Object.assign({ id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), status: 'open', answer: '' }, o)); };
 
-    // Close stale, unanswered "How was it?" cards.
+    ensureColumn(TABS.review, 'points_to');
+    const kids = String(st.kids || '').split(',').map((x) => x.trim()).filter(String);
+    // Close stale, unanswered "How was it?" and "Did <kid> help?" cards.
     review.forEach((r) => {
-      if (r.type === 'rate' && r.status === 'open' && r.created && daysBetween(String(r.created).slice(0, 10), today) > RATE_EXPIRE_DAYS) {
+      const age = r.created ? daysBetween(String(r.created).slice(0, 10), today) : 0;
+      if (r.status === 'open' && ((r.type === 'rate' && age > RATE_EXPIRE_DAYS) || (r.type === 'helped' && age > HELPED_EXPIRE_DAYS))) {
         setFields(TABS.review, r._row, { status: 'closed' });
       }
     });
@@ -740,6 +812,16 @@ function dailyCards() {
       const rows = plan.filter((p) => planDate(p) === d && p.meal_id && mealOf[p.meal_id] && !isLeftover(p) && RATE_SLOTS.indexOf(planSlot(p)) >= 0)
         .filter((p) => madeBefore(p.meal_id, d) <= RATE_NEW_TIMES) // only meals still new to us
         .sort((a, b) => RATE_SLOTS.indexOf(planSlot(a)) - RATE_SLOTS.indexOf(planSlot(b)));
+      // Did <kid> help with dinner? One card per kid for each planned (non-leftover) dinner, to the parents.
+      // The answer records what they did and gives the kid points (cooked 10, helped 5).
+      plan.filter((p) => planDate(p) === d && planSlot(p) === 'dinner' && p.meal_id && mealOf[p.meal_id] && !isLeftover(p)).slice(0, 1).forEach((p) => {
+        kids.forEach((kid) => {
+          const asked = review.some((r) => r.type === 'helped' && String(r.points_to) === kid && String(r.detail).indexOf('(' + d + ')') >= 0);
+          if (asked) return;
+          add({ type: 'helped', audience: 'parents', points_to: kid, detail: 'Did ' + kid + ' help cook ' + mealOf[p.meal_id].name + ' ' + when + '? (' + p.meal_id + ') (' + d + ') Options: ' + HELPED_OPTIONS });
+          review.push({ type: 'helped', status: 'open', points_to: kid, detail: '(' + d + ')' });
+        });
+      });
       everyone.forEach((who) => {
         let given = 0;
         rows.forEach((p) => {

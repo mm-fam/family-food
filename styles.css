@@ -587,3 +587,19 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 @media (prefers-color-scheme: dark) {
   .job-fail { background: #3A1A17; }
 }
+
+/* Inbox points (api 13) */
+.qcard-sec { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.qcard-pts { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 800; color: var(--accent-deep, var(--accent)); background: var(--accent-soft, transparent); border-radius: 99px; padding: 2px 8px; }
+.score { padding: 12px 14px; }
+.score-me { display: flex; align-items: center; gap: 12px; }
+.score-me > div:last-child { display: flex; flex-direction: column; gap: 2px; }
+.ring { --p: 0; flex: none; width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: baseline; justify-content: center; padding-top: 16px; box-sizing: border-box;
+  background: radial-gradient(closest-side, var(--card) 76%, transparent 78%), conic-gradient(var(--accent) calc(var(--p) * 1%), var(--line) 0); }
+.ring b { font-size: 18px; } .ring span { font-size: 11px; color: var(--muted); }
+.board { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.board::-webkit-scrollbar { display: none; }
+.board-p { flex: 1 0 auto; min-width: 64px; border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px; display: flex; flex-direction: column; align-items: center; font-size: 12px; }
+.board-p b { font-size: 17px; } .board-p.me { border-color: var(--accent); }
+.board-n { white-space: nowrap; } .board-s { font-size: 11px; color: var(--muted); }
+.board-foot { margin-top: 6px; font-size: 12px; }
