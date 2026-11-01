@@ -111,3 +111,10 @@ The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it on
 6. Unreadable or not a dinner: set `declined` with a short reason in notes (it shows in the app).
 
 **Report:** "Meal ideas: N added (names), N waiting for a parent."
+
+## 9. Hearth meal plan
+
+Design and the full steps: `docs/hearth.md`.
+
+- **Hearth → Poppy** (a screenshot of the Hearth Meal Plan): read every day × Breakfast / Lunch / Snack / Dinner cell; match to Meals or add new ones (kind = the row; link only catalog items the name clearly names; never complete cut-off names or create Items); write Plan rows with slot (and note `Leftovers` for leftover cells). Hearth wins for that date + slot. Back up first above ~20 rows.
+- **Poppy → Hearth:** Meals → THIS WEEK → **→ Hearth** → week → Copy → paste into Hearth Helper → approve its preview.
