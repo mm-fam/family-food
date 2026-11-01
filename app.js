@@ -245,13 +245,13 @@
       act('add', { item_id: item.id, qty: 1 }, () => {
         if (!iWant(existing)) existing.wanted_by = wantedBy(existing).concat([S.me]).join(';');
         if (isHeld) { D().held = held.filter((r) => r !== existing); D().list.push(existing); }
-      }, isHeld ? item.name + ' is back on the list' : others.join(' + ') + ' already asked. Added you too.');
+      }, isHeld ? item.name + ' is back on the list' : others.join(' + ') + ' already asked. Added you too.' + (amParent() ? ptsTag('list_add') : ''));
       return;
     }
     const status = isKid(S.me) ? 'requested' : 'needed';
     const row = Object.assign({ id: tmpId(), item_id: item.id, name: item.name, store: item.store || 'Either', qty: 1, note: '', added_by: S.me, wanted_by: S.me, status: status }, extra || {});
     act('add', { item_id: item.id, qty: row.qty, meal_id: row.meal_id || '' }, () => { D().list.push(row); },
-      status === 'requested' ? 'Asked for ' + item.name : 'Added ' + item.name);
+      status === 'requested' ? 'Asked for ' + item.name + (ptsTag('list_add') ? ' · +1 when a parent approves' : '') : 'Added ' + item.name + ptsTag('list_add'));
   }
 
   function addNew(name, storeCode) {
@@ -262,7 +262,7 @@
     const status = isKid(S.me) ? 'requested' : 'needed';
     act('add', { name: clean, store: storeCode || 'Either' }, () => {
       D().list.push({ id: tmpId(), item_id: '', name: clean, store: storeCode || 'Either', qty: 1, added_by: S.me, wanted_by: S.me, status: status });
-    }, (status === 'requested' ? 'Asked for ' : 'Added ') + clean);
+    }, status === 'requested' ? 'Asked for ' + clean + (ptsTag('list_add') ? ' · +1 when a parent approves' : '') : 'Added ' + clean + ptsTag('list_add'));
   }
 
   function setStatus(row, status, msg) {
@@ -1326,15 +1326,19 @@
     { key: 'rate', icon: '🍽', label: 'How was it?', pts: 2, to: 'you' },
     { key: 'still', icon: '🍽', label: 'Still eating it?', pts: 2, to: 'you' },
     { key: 'other', icon: '💬', label: 'Any other card: questions, dinner votes, decisions', pts: 1, to: 'you' },
-    { key: 'helped_cooked', icon: '🧑‍🍳', label: 'Kitchen help: Cooked it', pts: 10, to: 'kid' },
-    { key: 'helped_helped', icon: '🧑‍🍳', label: 'Kitchen help: Helped', pts: 5, to: 'kid' },
+    { key: 'helped_cooked', icon: '🧑‍🍳', label: 'Kitchen help: Cooked it', pts: 10, to: 'kid', group: 'kitchen' },
+    { key: 'helped_helped', icon: '🧑‍🍳', label: 'Kitchen help: Helped', pts: 5, to: 'kid', group: 'kitchen' },
   ];
+  const ruleGroup = (x) => x.group || (x.to === 'kid' ? 'kitchen' : 'inbox');
+  // " · +1" on a toast for points earned outside the Inbox (api 16: List adds, meal asks, handling kids' requests).
+  const ptsTag = (k) => (Number(D().api || 0) >= 16 && rulePts(k) ? ' · +' + rulePts(k) : '');
   const pointRules = () => (D().points && D().points.rules) || DEFAULT_RULES;
   const rulePts = (k) => { const x = pointRules().find((y) => y.key === k); return x ? Number(x.pts) || 0 : 0; };
   function cardPoints(r, answer) {
     const a = String(answer || '').trim().toLowerCase();
     const t = String(r.type || '').toLowerCase();
-    if (a === 'skip' || t === 'meal_request') return 0;
+    if (a === 'skip') return 0;
+    if (t === 'meal_request') return /^cancel/.test(a) ? 0 : rulePts('approve');
     if (t === 'helped') return answer === undefined ? rulePts('helped_cooked') : /^cooked/.test(a) ? rulePts('helped_cooked') : /^helped/.test(a) ? rulePts('helped_helped') : 0;
     const sec = sectionOf(r);
     if (sec === 'due') return rulePts(r.due_at && new Date() > new Date(String(r.due_at)) ? 'task_late' : 'task');
@@ -1369,17 +1373,25 @@
   }
   function viewPointsRules() {
     const P = D().points || {}, goal = P.goal || 10;
-    const row = (x) => '<div class="pr-row"><span class="pr-what">' + x.icon + ' ' + esc(x.label) + '</span><b class="pr-pts">+' + x.pts + '</b></div>';
+    const row = (x) => '<div class="pr-row"><span class="pr-what">' + x.icon + ' ' + esc(x.label) + (x.cap ? '<span class="pr-cap">up to ' + x.cap + ' a day</span>' : '') + '</span><b class="pr-pts">+' + x.pts + '</b></div>';
     const rules = pointRules();
-    return '<h3 class="pr-h">How you earn points</h3>' +
+    const family = rules.filter((x) => ruleGroup(x) === 'family');
+    return '<h3 class="pr-h">📥 Inbox cards</h3>' +
       '<p class="note">Answer a card in your Inbox and you get its points. Every card shows what it’s worth in its top corner.</p>' +
-      '<div class="pr-table">' + rules.filter((x) => x.to !== 'kid').map(row).join('') + '</div>' +
+      '<div class="pr-table">' + rules.filter((x) => ruleGroup(x) === 'inbox').map(row).join('') + '</div>' +
+      (family.length ? '<h3 class="pr-h">🛒 Helping plan and shop</h3>' +
+        '<p class="note">Poppy works best when everyone pitches in on what we eat and buy, so these count too.</p>' +
+        '<div class="pr-table">' + family.map(row).join('') + '</div>' +
+        '<ul class="pr-list"><li>A kid’s add is a request: it earns its point when a parent approves it. A skipped request earns nothing.</li>' +
+        '<li>Adding something that’s already on the List counts if you weren’t on it yet (you show up as “asked by … + you”).</li>' +
+        '<li>Approve and Skip both count for the parent: saying no is a decision too.</li></ul>' : '') +
       '<h3 class="pr-h">🧑‍🍳 Kitchen help</h3>' +
       '<p class="note">The day after a planned dinner, a parent gets a card for each kid: “Did <i>kid</i> help cook <i>dinner</i>?” The points go to the <b>kid</b>, not to the parent who answers.</p>' +
-      '<div class="pr-table">' + rules.filter((x) => x.to === 'kid').map(row).join('') + '<div class="pr-row"><span class="pr-what">🧑‍🍳 Kitchen help: Not this time</span><b class="pr-pts zero">0</b></div></div>' +
+      '<div class="pr-table">' + rules.filter((x) => ruleGroup(x) === 'kitchen').map(row).join('') + '<div class="pr-row"><span class="pr-what">🧑‍🍳 Kitchen help: Not this time</span><b class="pr-pts zero">0</b></div></div>' +
       '<h3 class="pr-h">What earns nothing</h3>' +
       '<ul class="pr-list"><li><b>Don’t care</b>, <b>Pass ↗</b> and <b>Later</b>: 0 (a Later card still pays when you answer it).</li>' +
-      '<li>Asking for a meal, approving the kids’ requests, adding to the List.</li>' +
+      (family.length ? '<li>Adds past the daily limit, a kid’s request a parent skips, and adding a whole meal’s ingredients at once.</li><li>Cancelling your own meal request.</li>'
+        : '<li>Asking for a meal, approving the kids’ requests, adding to the List (coming with the next server update).</li>') +
       '<li>Kitchen help cards nobody answers close after 3 days with no points.</li></ul>' +
       '<h3 class="pr-h">Good to know</h3>' +
       '<ul class="pr-list"><li>Typing your own answer (“Something else? Type it”) counts the same as tapping one.</li>' +
@@ -1393,7 +1405,7 @@
       '<h3 class="pr-h">🏆 Leaderboard and 👑</h3>' +
       '<p class="note">The leaderboard adds up points from Monday to Sunday and starts over every Monday. Whoever had the most points last week wears the 👑 all this week; a tie crowns everyone tied. Any prize is up to Mom and Dad.</p>' +
       '<h3 class="pr-h">📜 The record</h3>' +
-      '<p class="note">Every answer that scores is saved with the time, who got the points, how many, and why. See it in <button type="button" class="link-btn inline" data-act="points-tab" data-tab="history">History</button>. Points started Nov 1, 2026; answers before that have none.</p>';
+      '<p class="note">Everything that scores is saved with the time, who got the points, how many, and why. See it in <button type="button" class="link-btn inline" data-act="points-tab" data-tab="history">History</button>. Points started Nov 1, 2026; answers before that have none.</p>';
   }
   function viewPointsHistory(sh) {
     if (Number(D().api || 0) < 14) return '<p class="note">History shows once the latest server update is live.</p>';
@@ -1429,7 +1441,7 @@
       '<h3 class="pr-h">Every point</h3>' +
       (list || '<p class="note">No points yet' + (who ? ' for ' + esc(who) : '') + '. Answer a card in the Inbox to start.</p>') +
       (rows.length > 200 ? '<p class="note">Showing the latest 200.</p>' : '') +
-      '<p class="note">The full record lives in the Review tab of the family Sheet (answered_at, points, points_to, points_why).</p>';
+      '<p class="note">The full record lives in the family Sheet: Inbox answers on the Review tab (answered_at, points, points_to, points_why), everything else on the Points tab.</p>';
   }
   function loadPointsLog() {
     const mine = S.sheet;
@@ -1751,8 +1763,8 @@
     'review-skip': (el) => answerQuestion(el.dataset.id, 'skip', 'up', 'Skipped'),
     undo: () => { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); else render(); },
 
-    approve: (el) => { const r = rowById(el.dataset.id); if (r) act('update', { id: r.id, fields: { status: 'needed' } }, () => (r.status = 'needed'), 'Approved ' + r.name); },
-    skip: (el) => { const r = rowById(el.dataset.id); if (r) setStatus(r, 'skipped', 'Skipped ' + r.name); },
+    approve: (el) => { const r = rowById(el.dataset.id); if (r) act('update', { id: r.id, fields: { status: 'needed' } }, () => (r.status = 'needed'), 'Approved ' + r.name + ptsTag('approve')); },
+    skip: (el) => { const r = rowById(el.dataset.id); if (r) setStatus(r, 'skipped', 'Skipped ' + r.name + (r.status === 'requested' ? ptsTag('approve') : '')); },
     restore: (el) => { const r = rowById(el.dataset.id); if (r) restore(r); },
     'toggle-day': (el) => { S.openDay = S.openDay === el.dataset.day ? null : el.dataset.day; render(); },
     ing: (el) => { const p = S.mealPick[el.dataset.day] || (S.mealPick[el.dataset.day] = {}); p[el.dataset.id] = p[el.dataset.id] === false; render(); },
@@ -1780,9 +1792,9 @@
       const a = sh.ask;
       act('mealRequest', { meal_id: m.id, slot: a.slot, when: a.when }, () => {
         D().review.push({ id: tmpId(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: S.me, detail: S.me + ' wants ' + m.name + ' for ' + a.slot + ', ' + a.when + '. (' + m.id + ') Options: Plan it; Not now' });
-      }, 'Asked for ' + m.name);
+      }, 'Asked for ' + m.name + ptsTag('meal_ask'));
     },
-    'req-no': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Not now (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Said not now'); },
+    'req-no': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Not now (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Said not now' + ptsTag('approve')); },
     'req-cancel': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Cancelled (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Cancelled'); },
     'open-feedback': () => { S.sheet = { type: 'feedback', text: '' }; render(); const f = document.getElementById('fb-text'); if (f) f.focus(); },
     'save-feedback': () => {

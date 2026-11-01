@@ -24,7 +24,12 @@ const TABS = {
   feedback: 'App Feedback',
   products: 'Products',
   jobs: 'Cart Jobs',
+  points: 'Points',
 };
+
+// Points (api 16): points earned outside the Inbox (adding to the List, asking for a meal, handling a kid's
+// request). Append-only ledger, created on first use. Inbox points stay on their Review rows.
+const POINTS_HEAD = ['at', 'to', 'pts', 'why', 'ref', 'by', 'note'];
 
 // Cart Jobs (api 12): a parent taps "Build the cart" / "Check the cart" on a phone; the job waits here until
 // Claude's cart runner (a scheduled task on the owner's computer, which has Chrome signed in to the stores)
@@ -60,9 +65,13 @@ const POINT_RULES = [
   { key: 'rate', icon: '🍽', label: 'How was it?', pts: POINTS.rate, to: 'you' },
   { key: 'still', icon: '🍽', label: 'Still eating it?', pts: POINTS.still, to: 'you' },
   { key: 'other', icon: '💬', label: 'Any other card: questions, dinner votes, decisions', pts: POINTS.other, to: 'you' },
-  { key: 'helped_cooked', icon: '🧑‍🍳', label: 'Kitchen help: Cooked it', pts: POINTS.helped_cooked, to: 'kid' },
-  { key: 'helped_helped', icon: '🧑‍🍳', label: 'Kitchen help: Helped', pts: POINTS.helped_helped, to: 'kid' },
+  { key: 'list_add', icon: '🛒', label: 'Adding something to the List (kids: once a parent approves it)', pts: 1, to: 'you', group: 'family', cap: 5 },
+  { key: 'meal_ask', icon: '🙋', label: 'Asking for a meal', pts: 2, to: 'you', group: 'family', cap: 2 },
+  { key: 'approve', icon: '✅', label: 'Handling a kid’s request: Approve or Skip, Plan it or Not now', pts: 1, to: 'you', group: 'family' },
+  { key: 'helped_cooked', icon: '🧑‍🍳', label: 'Kitchen help: Cooked it', pts: POINTS.helped_cooked, to: 'kid', group: 'kitchen' },
+  { key: 'helped_helped', icon: '🧑‍🍳', label: 'Kitchen help: Helped', pts: POINTS.helped_helped, to: 'kid', group: 'kitchen' },
 ];
+POINT_RULES.forEach((x) => (x.group = x.group || 'inbox'));
 const POINTS_LOG_DAYS = 120; // pointsLog sends answers from this many days back
 const HELPED_OPTIONS = 'Cooked it; Helped; Not this time';
 const HELPED_EXPIRE_DAYS = 3;
@@ -105,7 +114,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 15 = Inbox missions: daily "go check" cards (type check) for the kids from probably-due items and the next
 //      3 days' meal ingredients; answering one logs a Stock sighting and, if low or out, puts it on the List
 //      (a kid's answer as requested, a parent's as needed).
-const API_VERSION = 15;
+// 16 = points for helping plan and shop (Points tab ledger): adding to the List (1; kids when a parent approves;
+//      up to 5 a day), asking for a meal (2, up to 2 a day), a parent handling a kid's List or meal request (1).
+const API_VERSION = 16;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -482,6 +493,7 @@ function addToList(req) {
     if (!already) f.wanted_by = wanted.concat([req.by]).join(';');
     if (req.bump === true) f.qty = (Number(existing.qty) || 1) + qty;
     setFields(TABS.list, existing._row, f);
+    if (!already && !req._noPoints && !isKid(req.by)) awardPoints(req.by, 'list_add', existing.id, req.by, 'Added ' + existing.name + ' to the List');
     return { id: existing.id, merged: true, already: already };
   }
 
@@ -500,6 +512,8 @@ function addToList(req) {
     meal_id: req.meal_id || '',
     wanted_by: req.by,
   });
+  // Parents score when they add; a kid's add is a request and scores when a parent approves it.
+  if (!req._noPoints && !isKid(req.by)) awardPoints(req.by, 'list_add', id, req.by, 'Added ' + item.name + ' to the List');
   return { id: id, merged: false };
 }
 
@@ -519,6 +533,11 @@ function updateListRow(req) {
   if (f.status === 'needed' && row.status === 'requested' && isKid(req.by)) throw new Error('Only parents can approve');
   f.updated_at = nowStamp();
   setFields(TABS.list, row._row, f);
+  // A parent handling a kid's request: the parent scores for deciding; the kid scores once it's approved.
+  if (row.status === 'requested' && f.status && f.status !== 'requested' && !isKid(req.by)) {
+    awardPoints(req.by, 'approve', row.id, req.by, (f.status === 'needed' ? 'Approved ' : 'Skipped ') + row.name);
+    if (f.status === 'needed') wantedList(row).filter(isKid).forEach((k) => awardPoints(k, 'list_add', row.id, req.by, 'Added ' + row.name + ' to the List (approved)'));
+  }
   return { id: row.id };
 }
 
@@ -526,7 +545,7 @@ function addMealToList(req) {
   const meal = readTab(TABS.meals).find((m) => m.id === req.meal_id);
   if (!meal) throw new Error('Meal not found');
   const ids = req.item_ids && req.item_ids.length ? req.item_ids : String(meal.item_ids).split(';').filter(String);
-  ids.forEach((itemId) => addToList({ item_id: itemId, by: req.by, meal_id: meal.id, bump: false }));
+  ids.forEach((itemId) => addToList({ item_id: itemId, by: req.by, meal_id: meal.id, bump: false, _noPoints: true }));
   return { added: ids.length };
 }
 
@@ -636,7 +655,7 @@ function missionAnswer(r, answer, who) {
   if (!level) return null;
   logStock({ item_id: id, level: level, who: who, source: 'mission' });
   if (level === 'low' || level === 'out' || level === '0') {
-    const res = addToList({ item_id: id, by: who, note: 'Mission: ' + (level === 'low' ? 'a little left' : 'out') });
+    const res = addToList({ item_id: id, by: who, _noPoints: true, note: 'Mission: ' + (level === 'low' ? 'a little left' : 'out') });
     return { level: level, list: res.id };
   }
   return { level: level };
@@ -665,7 +684,8 @@ function pointsWhy(r, answer) {
   const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
   const t = String(r.type || '').toLowerCase();
   const d = String(r.detail || '');
-  if (!a || a === 'skip' || t === 'meal_request') return '';
+  if (!a || a === 'skip') return '';
+  if (t === 'meal_request') return /^cancel/.test(a) ? '' : 'approve'; // a parent's Plan it / Not now; a kid cancelling scores nothing
   if (t === 'helped') return /^cooked/.test(a) ? 'helped_cooked' : /^helped/.test(a) ? 'helped_helped' : '';
   if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) {
     const due = stampOf(r.due_at);
@@ -685,6 +705,37 @@ function stampOf(v) {
   return String(v);
 }
 
+// Ledger: award `why` points to `to` (a family member), once per ref, within the rule's daily cap.
+function awardPoints(to, why, ref, by, note) {
+  const rule = ruleByKey(why);
+  const name = people().find((p) => p.toLowerCase() === String(to || '').trim().toLowerCase());
+  if (!name || !rule.pts) return 0;
+  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.points);
+  if (!sh) { sh = SpreadsheetApp.getActive().insertSheet(TABS.points); sh.appendRow(POINTS_HEAD); sh.setFrozenRows(1); }
+  const rows = readTab(TABS.points);
+  if (ref && rows.some((r) => String(r.to) === name && String(r.why) === why && String(r.ref) === String(ref))) return 0;
+  const today = isoDate(new Date());
+  if (rule.cap && rows.filter((r) => String(r.to) === name && String(r.why) === why && stampOf(r.at).slice(0, 10) === today).length >= rule.cap) return 0;
+  appendObj(TABS.points, { at: "'" + nowStamp(), to: name, pts: rule.pts, why: why, ref: ref || '', by: by || '', note: String(note || '').slice(0, 120) });
+  return rule.pts;
+}
+function ledgerRows() {
+  return SpreadsheetApp.getActive().getSheetByName(TABS.points) ? readTab(TABS.points) : [];
+}
+// Every scored event: answered Inbox cards (Review) plus the Points ledger.
+function scoredEvents() {
+  const out = [];
+  readTab(TABS.review).forEach((r) => {
+    const pts = Number(r.points) || 0, at = stampOf(r.answered_at);
+    if (pts && r.points_to && at) out.push({ src: 'review', r: r, at: at, to: String(r.points_to), pts: pts });
+  });
+  ledgerRows().forEach((r) => {
+    const pts = Number(r.pts) || 0, at = stampOf(r.at);
+    if (pts && r.to && at) out.push({ src: 'ledger', r: r, at: at, to: String(r.to), pts: pts });
+  });
+  return out;
+}
+
 // Points history (Inbox → Points history): every scored answer from the last POINTS_LOG_DAYS days, newest first,
 // with who got the points, who answered, how many, why, and the card; plus each week's totals and winner.
 // Rows answered before api 14 have no points_why, so the reason is worked out from the card (marked guessed).
@@ -695,11 +746,10 @@ function pointsLog(req) {
   const entries = [];
   const weeks = {}; // monday -> { name: pts }
   const goalDays = {}; // name -> { day: pts }
-  readTab(TABS.review).forEach((r) => {
-    const pts = Number(r.points) || 0;
-    const to = nameOf(r.points_to);
-    const at = stampOf(r.answered_at);
-    if (!pts || !to || !at) return;
+  scoredEvents().forEach((e) => {
+    const r = e.r, pts = e.pts, at = e.at;
+    const to = nameOf(e.to);
+    if (!to) return;
     const day = at.slice(0, 10);
     const dow = new Date(day + 'T12:00:00').getDay();
     const mon = addDays(day, -((dow + 6) % 7));
@@ -708,6 +758,10 @@ function pointsLog(req) {
     goalDays[to] = goalDays[to] || {};
     goalDays[to][day] = (goalDays[to][day] || 0) + pts;
     if (day < since) return;
+    if (e.src === 'ledger') {
+      entries.push({ id: String(r.ref || ''), at: at, to: to, by: String(r.by || ''), pts: pts, why: String(r.why), label: ruleByKey(String(r.why)).label, guessed: false, q: String(r.note || ''), answer: '' });
+      return;
+    }
     let why = String(r.points_why || '');
     const guessed = !why;
     if (guessed) {
@@ -744,13 +798,11 @@ function pointsSummary(today) {
   const everyone = people();
   const byDay = {}; // name -> { day: pts }
   everyone.forEach((p) => (byDay[p] = {}));
-  readTab(TABS.review).forEach((r) => {
-    const pts = Number(r.points) || 0;
-    const to = String(r.points_to || '').trim();
-    if (!pts || !to || !r.answered_at) return;
-    const key = everyone.find((p) => p.toLowerCase() === to.toLowerCase());
+  scoredEvents().forEach((e) => {
+    const pts = e.pts;
+    const key = everyone.find((p) => p.toLowerCase() === e.to.trim().toLowerCase());
     if (!key) return;
-    const d = stampOf(r.answered_at).slice(0, 10);
+    const d = e.at.slice(0, 10);
     byDay[key][d] = (byDay[key][d] || 0) + pts;
   });
   const dow = new Date(today + 'T12:00:00').getDay();
@@ -900,6 +952,7 @@ function addMealRequest(req) {
     id: id, created: nowStamp(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: req.by || '',
     detail: (req.by || 'Someone') + ' wants ' + meal.name + ' for ' + slot + ', ' + when + '. (' + meal.id + ') Options: Plan it; Not now',
   });
+  awardPoints(req.by, 'meal_ask', id, req.by, 'Asked for ' + meal.name);
   return { id: id };
 }
 

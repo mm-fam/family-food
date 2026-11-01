@@ -639,3 +639,4 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .mission-count { margin-top: 10px; align-items: center; }
 .mission-count label { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .mission-count input { width: 80px; flex: 0 0 auto; text-align: center; }
+.pr-cap { display: block; font-size: 12px; color: var(--muted); }
