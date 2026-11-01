@@ -125,6 +125,6 @@ Design and the full steps: `docs/hearth.md`.
 
 **When:** the daily morning check.
 1. **App Feedback** rows with status `new`: quote each (who, tab, text) in the report to the owner, then set `seen`. Don't change the app from them without the owner's go-ahead.
-2. **Still eating? = No** (answered `still` rows): add one card to the parents: `<who> isn't eating <item> anymore. Stop buying it? (iNNN) Options: Yes; No, others eat it` (type `preference`, audience `parents`), then close the `still` row. A parent's Yes → Items status `Drop`. Never change Items from a kid's answer alone.
+2. **Still eating? = No** (answered `still` rows): add one card to the parents: `<who> isn't eating <item> anymore. Stop buying it? (iNNN) Options: Yes; No, others eat it` (type `preference`, audience `parents`), then close the `still` row. A parent's Yes to "Stop buying it?": append "Parent says stop (<date>)" to the item's notes and report it to the owner; a parent sets Drop in the app (item screen → Details → How often → Stop buying). Never change Items from a kid's answer alone.
 3. **How was it?** (`rate`) answers need nothing: they count as votes in meal tags (they're read like `vote` rows; never edit their answers).
 4. **Meal requests** (`meal_request`) are handled by parents in the app. Report any open longer than 3 days.
