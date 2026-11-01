@@ -346,7 +346,7 @@
     if (S.tab === 'admin' && !isAdmin()) S.tab = 'list';
     const instore = S.tab === 'list' && S.instore;
     const n = D().list.filter((r) => r.status !== 'requested').length;
-    const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Ask', admin: 'Behind the scenes' };
+    const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Q&A', admin: 'Behind the scenes' };
     const eyebrows = { list: n + ' thing' + (n === 1 ? '' : 's') + ' we need', shop: 'Add to the List', meals: 'Next 2 weeks', ask: 'Your say', admin: 'Just for ' + S.me };
     const title = instore ? 'In store' : titles[S.tab];
     const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : eyebrows[S.tab];
@@ -376,10 +376,13 @@
   function viewNav() {
     const req = D().list.filter((r) => r.status === 'requested').length;
     const review = myQuestions().length;
-    const tab = (id, label, badge) => '<button data-act="tab" data-tab="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + label +
-      (badge ? '<span class="dot">' + badge + '</span>' : '') + '</button>';
+    // List badge = everything still on the list (held "Next week" rows live in D().held, so they don't count).
+    // Green for a count; orange when a parent has kids' requests waiting.
+    const onList = D().list.filter((r) => r.status === 'requested' || r.status === 'needed' || r.status === 'carted').length;
+    const tab = (id, label, badge, cls) => '<button data-act="tab" data-tab="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + esc(label) +
+      (badge ? '<span class="dot' + (cls ? ' ' + cls : '') + '">' + badge + '</span>' : '') + '</button>';
     return '<nav class="tabs" aria-label="Sections"><div class="inner">' +
-      tab('list', S.instore ? 'In store' : 'List', amParent() ? req : 0) + tab('shop', 'Shop') + tab('meals', 'Meals') + tab('ask', 'Ask', review) +
+      tab('list', S.instore ? 'In store' : 'List', onList, amParent() && req ? '' : 'count') + tab('shop', 'Shop') + tab('meals', 'Meals') + tab('ask', 'Q&A', review) +
       '</div></nav>';
   }
 
@@ -493,13 +496,6 @@
           '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    const recent = D().recent.slice().reverse().slice(0, 12);
-    if (recent.length) {
-      const c = isClosed('recent');
-      html += '<section class="card dashed"><button class="card-head acc-head head-either" data-act="fold" data-key="recent"><span>RECENTLY DONE · ' + recent.length + '</span>' + chev(c) + '</button>' +
-        (c ? '' : recent.map((r) => '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + (r.status === 'bought' ? 'Bought' : r.status === 'have' ? 'Had it' + (haveLevel(r) ? ' (' + esc(haveLevel(r)) + ')' : '') + ', not bought' : 'Removed') + '</span></div>' +
-          '<button class="btn btn-plain" data-act="restore" data-id="' + r.id + '">Put back</button></div>').join('')) + '</section>';
-    }
     html += '<p class="hint">Tap a store or aisle to open it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
     return html;
   }
