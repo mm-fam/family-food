@@ -66,6 +66,13 @@ const POINT_RULES = [
 const POINTS_LOG_DAYS = 120; // pointsLog sends answers from this many days back
 const HELPED_OPTIONS = 'Cooked it; Helped; Not this time';
 const HELPED_EXPIRE_DAYS = 3;
+// Missions (Inbox step 3): "go check how much X we have" cards for the kids, every day.
+const MISSIONS_PER_KID = 3;
+const MISSION_EXPIRE_DAYS = 2;     // a check goes stale fast; unanswered ones close
+const MISSION_RECHECK_DAYS = 3;    // skip items someone already looked at this recently
+const MISSION_PLAN_DAYS = 3;       // ingredients for meals planned today + the next 2 days
+const MISSION_OPTIONS = 'Plenty; Some; A little; Out';
+const MISSION_LEVEL = { plenty: 'plenty', some: 'some', 'a little': 'low', low: 'low', out: 'out', none: 'out' };
 const NON_FOOD = ['Personal care', 'Household', 'Paper & cleaning', 'Other'];
 
 // Stock is an append-only log of "we have it" sightings (created on first use).
@@ -95,7 +102,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      state.points.rules = the scoring rules; pointsLog {} (read-only) = every scored answer + weekly totals.
 // 12 = cart jobs: cartJob {store, kind: build|check} queues a job in the Cart Jobs tab for Claude's cart runner,
 //      cartJobCancel {id} cancels a queued one; state.cartJobs = recent jobs with status + result.
-const API_VERSION = 14;
+// 15 = Inbox missions: daily "go check" cards (type check) for the kids from probably-due items and the next
+//      3 days' meal ingredients; answering one logs a Stock sighting and, if low or out, puts it on the List
+//      (a kid's answer as requested, a parent's as needed).
+const API_VERSION = 15;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -578,6 +588,60 @@ function saveItem(req) {
   return { id: item.id };
 }
 
+// Today's missions: things worth a look right now, split between the kids so each gets different ones.
+// Ingredients of meals planned in the next MISSION_PLAN_DAYS first, then the most overdue "probably due"
+// items. Skips anything on the List, sighted in the last MISSION_RECHECK_DAYS, or already on an open check.
+function makeMissions(today, kids, review, plan, mealOf) {
+  if (!kids.length) return [];
+  const items = readTab(TABS.items).filter((i) => i.status !== 'Drop');
+  const byId = {}; items.forEach((i) => (byId[i.id] = i));
+  const onList = {};
+  readTab(TABS.list).forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0) onList[r.item_id] = true; });
+  const seen = {};
+  if (SpreadsheetApp.getActive().getSheetByName(TABS.stock)) {
+    readTab(TABS.stock).forEach((x) => {
+      if (x.item_id && x.at && daysBetween(String(x.at).slice(0, 10), today) < MISSION_RECHECK_DAYS) seen[x.item_id] = true;
+    });
+  }
+  review.forEach((r) => {
+    if (r.type === 'check' && r.status === 'open') { const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) seen[m[1]] = true; }
+  });
+  const ok = (id) => byId[id] && !onList[id] && !seen[id];
+  const picks = [];
+  const take = (id, why) => { if (ok(id) && picks.every((p) => p.id !== id)) picks.push({ id: id, why: why }); };
+  plan.filter((p) => { const d = planDate(p); return d && d >= today && daysBetween(today, d) < MISSION_PLAN_DAYS && !isLeftover(p) && mealOf[p.meal_id]; })
+    .sort((a, b) => (planDate(a) < planDate(b) ? -1 : 1))
+    .forEach((p) => String(mealOf[p.meal_id].item_ids || '').split(/[;,\s]+/).filter(String).forEach((id) => take(id, mealOf[p.meal_id].name)));
+  items.filter((i) => i.avg_days && i.last_bought)
+    .map((i) => ({ id: i.id, r: daysBetween(String(i.last_bought).slice(0, 10), today) / Number(i.avg_days), late: daysBetween(String(i.last_bought).slice(0, 10), today) >= Number(i.avg_days) - 2 }))
+    .filter((x) => x.late).sort((a, b) => b.r - a.r).forEach((x) => take(x.id, ''));
+  const out = [];
+  const per = {};
+  picks.slice(0, MISSIONS_PER_KID * kids.length).forEach((p, i) => {
+    const kid = kids[i % kids.length];
+    per[kid] = (per[kid] || 0) + 1;
+    out.push({ type: 'check', audience: kid,
+      detail: 'Go check the ' + byId[p.id].name + ': how much do we have?' + (p.why ? ' It\'s for ' + p.why + '.' : '') + ' (' + p.id + ') Options: ' + MISSION_OPTIONS });
+  });
+  return out;
+}
+
+// A mission answer ("Some", "A little", "6", …) becomes a Stock sighting; low or out also puts the item
+// on the List (a kid's answer as a request a parent approves, a parent's as needed).
+function missionAnswer(r, answer, who) {
+  const id = (String(r.detail).match(/\((i\d{3,})\)/) || [])[1];
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!id || !a || a === 'skip') return null;
+  const level = /^\d{1,3}$/.test(a) ? a : MISSION_LEVEL[a];
+  if (!level) return null;
+  logStock({ item_id: id, level: level, who: who, source: 'mission' });
+  if (level === 'low' || level === 'out' || level === '0') {
+    const res = addToList({ item_id: id, by: who, note: 'Mission: ' + (level === 'low' ? 'a little left' : 'out') });
+    return { level: level, list: res.id };
+  }
+  return { level: level };
+}
+
 function answerReview(req) {
   const r = readTab(TABS.review).find((x) => x.id === req.id);
   if (!r) throw new Error('Review item not found');
@@ -590,7 +654,8 @@ function answerReview(req) {
     answer: answer, status: 'answered', answered_at: "'" + nowStamp(),
     points: pts, points_to: r.type === 'helped' ? String(r.points_to || '') : who, points_why: why,
   });
-  return { id: r.id, points: pts, why: why };
+  const mission = r.type === 'check' ? missionAnswer(r, answer, who) : null;
+  return { id: r.id, points: pts, why: why, mission: mission };
 }
 
 // Which rule (POINT_RULES key) a card scores under when answered, or '' for no points: "skip" (Don't care),
@@ -873,7 +938,8 @@ function dailyCards() {
     // Close stale, unanswered "How was it?" and "Did <kid> help?" cards.
     review.forEach((r) => {
       const age = r.created ? daysBetween(String(r.created).slice(0, 10), today) : 0;
-      if (r.status === 'open' && ((r.type === 'rate' && age > RATE_EXPIRE_DAYS) || (r.type === 'helped' && age > HELPED_EXPIRE_DAYS))) {
+      if (r.status === 'open' && ((r.type === 'rate' && age > RATE_EXPIRE_DAYS) || (r.type === 'helped' && age > HELPED_EXPIRE_DAYS) ||
+        (r.type === 'check' && age > MISSION_EXPIRE_DAYS))) {
         setFields(TABS.review, r._row, { status: 'closed' });
       }
     });
@@ -915,6 +981,9 @@ function dailyCards() {
         });
       });
     }
+
+    // Missions: a few "go check" cards per kid, every day (see makeMissions).
+    makeMissions(today, kids, review, plan, mealOf).forEach((m) => add(m));
 
     // Still eating? Weekly, a couple per person, from things we buy regularly.
     if (!st.still_through || daysBetween(String(st.still_through).slice(0, 10), today) >= STILL_EVERY_DAYS) {

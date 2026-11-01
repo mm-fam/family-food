@@ -633,3 +633,9 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .pts-body > .note, .pts-body p.note { margin: 4px 0 0; display: block; }
 .pts-body .pr-h:first-child { margin-top: 4px; }
 .pts-body .pill-scroll { margin-bottom: 4px; padding-top: 2px; }
+
+/* Inbox missions (api 15) */
+.mission-levels { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mission-count { margin-top: 10px; align-items: center; }
+.mission-count label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.mission-count input { width: 80px; flex: 0 0 auto; text-align: center; }

@@ -1505,6 +1505,15 @@
         '<button type="button" class="btn btn-primary" data-act="ask-sel-save" data-id="' + r.id + '"' + (S.askSel ? '' : ' disabled') + '>Save</button></div>';
     }
 
+    // Missions (api 15): the level buttons above, plus "count them" for things you can count (eggs, yogurts).
+    const isMission = r.type === 'check';
+    if (isMission) {
+      control = control.replace('class="pick-list"', 'class="pick-list mission-levels"') +
+        '<form class="ask-text mission-count" data-form="ask-count" data-id="' + r.id + '"><label for="ask-count">Or count them</label>' +
+        '<input id="ask-count" class="field" type="number" inputmode="numeric" min="0" max="999" placeholder="#" data-input="ask-draft" value="' + esc(S.askDraft || '') + '">' +
+        '<button class="btn btn-primary" type="submit">Save</button></form>';
+    }
+
     const textBox = '<form class="ask-text" data-form="ask-text" data-id="' + r.id + '"><label class="sr" for="ask-in">Answer</label>' +
       '<input id="ask-in" class="field" data-input="ask-draft" value="' + esc(S.askDraft || '') + '" placeholder="' + (kind === 'text' ? 'Type an answer…' : 'Type your answer…') + '">' +
       '<button class="btn btn-primary" type="submit">Save</button></form>';
@@ -1514,14 +1523,14 @@
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
       '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : '+' + cardPoints(r)) + '</span>' : '') + '</div>' +
-      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (typing ? textBox :
+      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
       (canPass() ? '<button type="button" class="btn btn-plain" data-act="ask-pass" data-id="' + r.id + '">Pass ↗</button>' : '') +
       (deck.length > 1 ? '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' : '') + '</div>') + '</section>';
     if (deck.length > 1) html += '<div class="deck-edge"></div>';
-    html += '<p class="hint">' + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
+    html += '<p class="hint">' + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
     return html;
   }
 
@@ -2047,6 +2056,13 @@
       else addNew(q);
       render();
       const f = document.getElementById('add'); if (f) f.blur();
+    }
+    if (form.dataset.form === 'ask-count') {
+      const n = String(S.askDraft || '').trim();
+      if (!/^\d{1,3}$/.test(n)) return;
+      const f = document.getElementById('ask-count'); if (f) f.blur();
+      answerQuestion(form.dataset.id, n);
+      return;
     }
     if (form.dataset.form === 'ask-text') {
       const answer = (S.askDraft || '').trim();
