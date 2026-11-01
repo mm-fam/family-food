@@ -20,16 +20,22 @@ const TABS = {
   review: 'Review',
   settings: 'Settings',
   stock: 'Stock',
+  ideas: 'Meal Ideas',
 };
 
 // Stock is an append-only log of "we have it" sightings (created on first use).
 const STOCK_HEAD = ['at', 'item_id', 'level', 'expires', 'who', 'source', 'list_id'];
 const LEVELS = ['plenty', 'some', 'low', 'out'];
 const HOLD_DAYS = 7;
+// Meal Ideas: pasted recipes / links / ideas from the app. Claude turns them into Meals rows (created on first use).
+const IDEAS_HEAD = ['id', 'at', 'who', 'text', 'status', 'meal_id', 'notes'];
+const IDEA_MAX = 6000; // characters kept from a pasted idea
+// Dinner-vote emoji → score (4 = love it).
+const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // Backend version. Bump when the app needs something new from the backend.
 // 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by; 5 = itemInfo + stockLog + state.stock;
-// 6 = Plan by date (rolling planDays window, planSet {date}).
-const API_VERSION = 6;
+// 6 = Plan by date (rolling planDays window, planSet {date}); 7 = mealIdea + state.ideas + state.mealStats.
+const API_VERSION = 7;
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -86,6 +92,7 @@ function handle(req) {
     requestOrder: () => withLock(() => requestOrder(req)),
     itemInfo: () => itemInfo(req),
     stockLog: () => withLock(() => stockLogAction(req)),
+    mealIdea: () => withLock(() => addMealIdea(req)),
   };
   const fn = actions[req.action];
   if (!fn) return reply({ ok: false, error: 'unknown_action' });
@@ -229,6 +236,8 @@ function getState() {
     .filter((r) => DONE.indexOf(r.status) >= 0 && r.updated_at && daysBetween(String(r.updated_at).slice(0, 10), today) <= 3)
     .slice(-20);
 
+  const meals = readTab(TABS.meals);
+
   return {
     api: API_VERSION,
     today: today,
@@ -236,7 +245,9 @@ function getState() {
     list: active.map(stripRow),
     held: held.map(stripRow),
     recent: recent.map(stripRow),
-    meals: readTab(TABS.meals).map(stripRow),
+    meals: meals.map(stripRow),
+    mealStats: mealStats(meals, today),
+    ideas: recentIdeas(today),
     plan: readTab(TABS.plan)
       .map((p) => Object.assign(stripRow(p), { date: planDate(p) }))
       .filter((p) => p.date && daysBetween(today, p.date) >= 0 && daysBetween(today, p.date) < PLAN_DAYS),
@@ -450,6 +461,90 @@ function passReview(req) {
   if (['parents', 'all'].indexOf(to.toLowerCase()) < 0 && people.indexOf(to.toLowerCase()) < 0) throw new Error('Unknown person: ' + to);
   setFields(TABS.review, r._row, { audience: to, passed_by: req.by || '' });
   return { id: r.id, to: to };
+}
+
+/* ---------------------------------------------------------------- meal ideas + meal stats */
+
+function ideasSheet() {
+  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.ideas);
+  if (!sh) {
+    sh = SpreadsheetApp.getActive().insertSheet(TABS.ideas);
+    sh.appendRow(IDEAS_HEAD);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+// Anyone pastes a recipe, link or idea; Claude reads new rows each morning and makes the meal.
+function addMealIdea(req) {
+  const text = String(req.text || '').trim().slice(0, IDEA_MAX);
+  if (!text) throw new Error('Paste the idea first');
+  ideasSheet();
+  const id = nextId(readTab(TABS.ideas), 'id', 'x', 3);
+  appendObj(TABS.ideas, { id: id, at: nowStamp(), who: req.by || '', text: text, status: 'new', meal_id: '', notes: '' });
+  return { id: id };
+}
+
+// Ideas still being worked on, plus ones finished in the last 14 days (so people see what happened).
+function recentIdeas(today) {
+  if (!SpreadsheetApp.getActive().getSheetByName(TABS.ideas)) return [];
+  return readTab(TABS.ideas)
+    .filter((x) => x.status === 'new' || x.status === 'asked' || daysBetween(String(x.at).slice(0, 10), today) <= 14)
+    .slice(-10)
+    .map((x) => ({ id: x.id, at: String(x.at).slice(0, 10), who: x.who, text: String(x.text).slice(0, 160), status: x.status, meal_id: x.meal_id, notes: x.notes }));
+}
+
+// Per meal: family votes, how often it's been on the plan, next planned date, rough cost.
+// Everything is computed from Review, Plan (+ Plan Archive) and Receipts; nothing is typed.
+function mealStats(meals, today) {
+  const out = {};
+  meals.forEach((m) => (out[m.id] = { votes: {}, voters: {}, score: 0, made: 0, last: '', next: '', cost: 0, priced: 0, linked: 0 }));
+
+  // Votes: "Dinner vote: how do you feel about <name>? (mNN)". Latest answer per person wins.
+  const byName = {};
+  meals.forEach((m) => (byName[String(m.name).toLowerCase()] = m.id));
+  readTab(TABS.review).forEach((r) => {
+    if (String(r.type) !== 'vote' || !r.answer) return;
+    const d = String(r.detail);
+    let id = (d.match(/\((m\d{2,})\)/) || [])[1];
+    if (!id) { const n = (d.match(/about (.+?)\?/) || [])[1]; id = n && byName[n.toLowerCase()]; }
+    if (!id || !out[id]) return;
+    const a = String(r.answer).trim();
+    const emoji = Object.keys(VOTE_SCORE).find((e) => a.indexOf(e) === 0);
+    if (!emoji) return;
+    const who = (a.match(/\(([^)]+)\)\s*$/) || [])[1] || r.audience || '?';
+    out[id].voters[who] = emoji;
+  });
+
+  // Plan history: dates before today count as made; the first date from today on is "next".
+  let plan = readTab(TABS.plan);
+  if (SpreadsheetApp.getActive().getSheetByName('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
+  plan.forEach((p) => {
+    const st = out[p.meal_id]; const d = planDate(p);
+    if (!st || !d) return;
+    if (d < today) { st.made++; if (d > st.last) st.last = d; }
+    else if (!st.next || d < st.next) st.next = d;
+  });
+
+  // Cost: latest unit price of each linked ingredient (one of each).
+  const price = {};
+  readTab(TABS.receipts).forEach((r) => {
+    const v = Number(r.price);
+    if (!r.item_id || !(v > 0)) return;
+    const d = String(r.date).slice(0, 10);
+    if (!price[r.item_id] || d >= price[r.item_id].d) price[r.item_id] = { d: d, v: v };
+  });
+  meals.forEach((m) => {
+    const st = out[m.id];
+    const ids = String(m.item_ids || '').split(';').filter(String);
+    st.linked = ids.length;
+    ids.forEach((id) => { if (price[id]) { st.cost += price[id].v; st.priced++; } });
+    st.cost = Math.round(st.cost * 100) / 100;
+    const vs = Object.keys(st.voters).map((w) => st.voters[w]);
+    vs.forEach((e) => (st.votes[e] = (st.votes[e] || 0) + 1));
+    st.score = vs.length ? Math.round((vs.reduce((t, e) => t + VOTE_SCORE[e], 0) / vs.length) * 10) / 10 : 0;
+  });
+  return out;
 }
 
 /* ---------------------------------------------------------------- stock ("we have it") */

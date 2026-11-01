@@ -98,3 +98,16 @@ The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it on
 - Google Sheets version history covers most mistakes (File → Version history).
 - Before bulk edits (more than ~20 rows) or schema changes, make a dated copy.
 - Rotate the passcode if a phone is lost: change the Script Property; everyone re-enters it.
+
+## 8. Meal ideas → meals
+
+**When:** the daily morning check, or when someone says an idea came in. Read Meal Ideas rows with status `new`.
+
+1. Read the text (a recipe, a link, or just an idea). Pick a short meal name the family would say ("Tuscan chicken linguine").
+2. If a meal with that name (or clearly the same dish) already exists, don't duplicate it: set the idea `done`, `meal_id` = that meal, notes "Already in Our meals".
+3. **Idea from a parent:** add a Meals row (next free `mNN`): `item_ids` = only catalog items that clearly match an ingredient (prefer what the family already buys); `notes` = "From <who>'s idea <date>." + "Not in the catalog yet: …" for unmatched ingredients + the link if there was one. Never create Items from an idea; unmatched ingredients wait for receipts or a parent. Then set the idea `done` and `meal_id`.
+4. **Idea from a kid:** add one Ask card to the parents: `<who> suggested <name>. Add it to Our meals? (xNNN) Options: Yes; No`. Set the idea `asked`. On Yes, do step 3; on No, set it `declined` with notes "A parent said not now".
+5. For every new meal, add one dinner-vote card per family member: `Dinner vote: how do you feel about <name>? (mNN) Options: 😍; 🙂; 😐; 👎` (`type` vote, `audience` = the person). Votes feed the meal's tags.
+6. Unreadable or not a dinner: set `declined` with a short reason in notes (it shows in the app).
+
+**Report:** "Meal ideas: N added (names), N waiting for a parent."

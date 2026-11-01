@@ -38,6 +38,7 @@
     staplesQuery: '',
     openDay: null,
     mealPick: {},      // date -> { itemId: true/false } (need it?)
+    mealSort: 'az',    // Our meals order: az / top / cost / stale
     sheet: null,       // bottom sheet { type, ...draft }
     toast: null,
     setupError: '',
@@ -87,7 +88,7 @@
   }
 
   /* ------------------------------------------------------------ data helpers */
-  const D = () => S.data || { items: [], list: [], held: [], recent: [], meals: [], plan: [], review: [], due: [], stock: {}, settings: { parents: [], kids: [] } };
+  const D = () => S.data || { items: [], list: [], held: [], recent: [], meals: [], plan: [], review: [], due: [], stock: {}, mealStats: {}, ideas: [], settings: { parents: [], kids: [] } };
   const itemById = (id) => D().items.find((i) => i.id === id);
   const mealById = (id) => D().meals.find((m) => m.id === id);
   const listRowFor = (itemId) => D().list.find((r) => r.item_id === itemId);
@@ -383,15 +384,18 @@
   }
 
   function viewToast() {
-    if (!S.toast || S.sheet) return '';
-    return '<div class="toast" role="status"><span>' + esc(S.toast.text) + '</span>' + (S.toast.undo ? '<button data-act="undo">Undo</button>' : '') + '</div>';
+    // Inside a sheet only the meal card shows toasts (so planning a night can be undone); they sit at the top there.
+    if (!S.toast || (S.sheet && S.sheet.type !== 'mealcard')) return '';
+    return '<div class="toast' + (S.sheet ? ' top' : '') + '" role="status"><span>' + esc(S.toast.text) + '</span>' + (S.toast.undo ? '<button data-act="undo">Undo</button>' : '') + '</div>';
   }
 
   /* ---------- list ---------- */
-  // Accordion state per phone: { 's:GE': true (closed), 'g:GE:Dairy': false (open), ... }
-  S.closed = (() => { try { return JSON.parse(store.get('ff_closed') || '{}'); } catch (e) { return {}; } })();
-  const isClosed = (key, dflt) => (key in S.closed ? !!S.closed[key] : dflt);
-  function setClosed(key, v) { S.closed[key] = v; store.set('ff_closed', JSON.stringify(S.closed)); }
+  // Accordions: { 's:GE': true (closed), 'g:GE:Dairy': false (open), ... }. Everything starts folded
+  // each time the app opens (stores and aisles show a one-line peek); what you open stays open until you leave.
+  S.closed = {};
+  store.del('ff_closed'); // older versions remembered folds across launches
+  const isClosed = (key) => (key in S.closed ? !!S.closed[key] : true);
+  function setClosed(key, v) { S.closed[key] = v; }
 
   const groupOf = (r) => { const it = itemById(r.item_id); return (it && it.group) || 'Other'; };
   const groupsIn = (rows) => GROUPS.concat(Array.from(new Set(rows.map(groupOf))).filter((g) => GROUPS.indexOf(g) < 0))
@@ -441,7 +445,7 @@
     const list = D().list;
     const requests = list.filter((r) => r.status === 'requested');
     const active = list.filter((r) => r.status !== 'requested');
-    let html = viewDinnersStrip();
+    let html = '';
 
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
@@ -450,7 +454,7 @@
 
     const codes = STORE_ORDER.filter((code) => active.some((r) => (r.store || 'Either') === code));
     if (codes.length) {
-      const allClosed = codes.every((c) => isClosed('s:' + c, false));
+      const allClosed = codes.every((c) => isClosed('s:' + c));
       html += '<div class="list-tools"><span>' + active.length + ' item' + (active.length === 1 ? '' : 's') + '</span>' +
         '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
     }
@@ -458,7 +462,7 @@
       const rows = active.filter((r) => (r.store || 'Either') === code);
       const st = storeOf(code);
       const key = 's:' + code;
-      const closed = isClosed(key, false);
+      const closed = isClosed(key);
       html += '<section class="card acc"><button class="card-head acc-head head-' + st.cls + '" data-act="fold" data-key="' + key + '" aria-expanded="' + !closed + '">' +
         '<span>' + st.name.toUpperCase() + ' · ' + rows.length + '</span>' + chev(closed) + '</button>';
       if (closed) {
@@ -469,7 +473,7 @@
         groupsIn(rows).forEach((g) => {
           const inG = rows.filter((r) => groupOf(r) === g);
           const gk = 'g:' + code + ':' + g;
-          const gc = isClosed(gk, false);
+          const gc = isClosed(gk);
           html += '<button class="sub-head" data-act="fold" data-key="' + gk + '" aria-expanded="' + !gc + '"><span class="sub-title">' + esc(g) + ' <b>' + inG.length + '</b></span>' +
             (gc ? '<span class="sub-peek">' + esc(inG.map((r) => r.name).join(', ')) + '</span>' : '<span class="sub-peek"></span>') + chev(gc) + '</button>';
           if (!gc) html += inG.map(listRow).join('');
@@ -482,7 +486,7 @@
 
     const held = D().held || [];
     if (held.length) {
-      const c = isClosed('held', true);
+      const c = isClosed('held');
       html += '<section class="card dashed"><button class="card-head acc-head head-either" data-act="fold" data-key="held"><span>NEXT WEEK · ' + held.length + '</span>' + chev(c) + '</button>' +
         (c ? '' : held.map((r) => '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + esc(storeOf(r.store).name) +
           (r.hold_until ? ' · back ' + esc(shortDay(r.hold_until)) : '') + '</span></button>' +
@@ -491,25 +495,13 @@
 
     const recent = D().recent.slice().reverse().slice(0, 12);
     if (recent.length) {
-      const c = isClosed('recent', true);
+      const c = isClosed('recent');
       html += '<section class="card dashed"><button class="card-head acc-head head-either" data-act="fold" data-key="recent"><span>RECENTLY DONE · ' + recent.length + '</span>' + chev(c) + '</button>' +
         (c ? '' : recent.map((r) => '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + (r.status === 'bought' ? 'Bought' : r.status === 'have' ? 'Had it' + (haveLevel(r) ? ' (' + esc(haveLevel(r)) + ')' : '') + ', not bought' : 'Removed') + '</span></div>' +
           '<button class="btn btn-plain" data-act="restore" data-id="' + r.id + '">Put back</button></div>').join('')) + '</section>';
     }
-    html += '<p class="hint">Tap a store or aisle to fold it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
+    html += '<p class="hint">Tap a store or aisle to open it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
     return html;
-  }
-
-  // Upcoming dinners at the top of the List, so meals and the list live together.
-  // Days within the next week show as "Tue"; later ones as "Tue 11/10".
-  function viewDinnersStrip() {
-    const byDate = planByDate();
-    const dates = planDates().filter((d) => byDate[d] && mealById(byDate[d]));
-    const label = (d, i) => (planDates().indexOf(d) < 7 ? dayName(d) : dayName(d) + ' ' + md(d));
-    const body = dates.length
-      ? dates.map((d, i) => '<span class="dinner"><b>' + label(d, i) + '</b> ' + esc(mealById(byDate[d]).name) + '</span>').join('')
-      : '<span class="dinner muted">None picked yet</span>';
-    return '<button class="dinners" data-act="tab" data-tab="meals"><span class="dinners-label">Dinners coming up</span><span class="dinners-list">' + body + '</span><span class="dinners-go">Plan ›</span></button>';
   }
 
   /* ---------- in-store mode (on the List) ---------- */
@@ -614,10 +606,20 @@
     } else {
       const sorted = items.slice().sort((a, b) => (Number(b.orders) || 0) - (Number(a.orders) || 0) || String(a.name).localeCompare(b.name));
       const groups = GROUPS.concat(Array.from(new Set(sorted.map((i) => i.group || 'Other'))).filter((g) => GROUPS.indexOf(g) < 0));
-      groups.forEach((g) => {
+      const used = groups.filter((g) => sorted.some((i) => (i.group || 'Other') === g));
+      // Aisles start folded with a peek of names; a search opens everything it matches.
+      const keyOf = (g) => 'p:' + f + ':' + g;
+      if (used.length > 1 && !q) {
+        const allClosed = used.every((g) => isClosed(keyOf(g)));
+        html += '<div class="list-tools"><span>' + sorted.length + ' item' + (sorted.length === 1 ? '' : 's') + '</span>' +
+          '<button class="link-btn" data-act="shop-fold-all" data-keys="' + esc(used.map(keyOf).join('|')) + '">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
+      }
+      used.forEach((g) => {
         const inG = sorted.filter((i) => (i.group || 'Other') === g);
-        if (!inG.length) return;
-        html += '<section class="card"><div class="card-head"><span>' + esc(g.toUpperCase()) + '</span><span class="sub">' + inG.length + '</span></div>' + inG.map(row).join('') + '</section>';
+        const key = keyOf(g);
+        const closed = !q && used.length > 1 && isClosed(key);
+        html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="' + esc(key) + '" aria-expanded="' + !closed + '"><span>' + esc(g.toUpperCase()) + ' · ' + inG.length + '</span>' + chev(closed) + '</button>' +
+          (closed ? '<button class="peek" data-act="fold" data-key="' + esc(key) + '">' + esc(inG.slice(0, 8).map((i) => i.name).join(', ')) + (inG.length > 8 ? '…' : '') + '</button>' : inG.map(row).join('')) + '</section>';
       });
     }
     if (!items.length && !q) html += '<div class="empty">Nothing here right now.</div>';
@@ -745,12 +747,139 @@
       return row + '</div>';
     }).join('') + '</section>';
 
-    html += '<section class="card"><div class="card-head"><span>OUR MEALS</span><button class="btn btn-outline" data-act="new-meal">+ New meal</button></div>' +
-      (meals.length ? meals.map((m) => '<div class="row"><button class="row-main" data-act="edit-meal" data-id="' + m.id + '"><span class="row-name">' + esc(m.name) + '</span>' +
-        '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span></button></div>').join('')
+    html += viewIdeas();
+
+    const sorted = sortMeals(meals);
+    const sortPill = (v, label) => '<button class="pill small' + (S.mealSort === v ? ' on' : '') + '" data-act="meal-sort" data-v="' + v + '">' + label + '</button>';
+    html += '<section class="card"><div class="card-head"><span>OUR MEALS · ' + meals.length + '</span><span class="head-btns">' +
+      (canIdeas() ? '<button class="btn btn-outline" data-act="new-idea">💡 Idea</button>' : '') +
+      '<button class="btn btn-outline" data-act="new-meal">+ New</button></span></div>' +
+      (canStats() && meals.length > 3 ? '<div class="chips-row meal-sorts">' + sortPill('az', 'A–Z') + sortPill('top', 'Favorites') + sortPill('cost', 'Cheapest') + sortPill('stale', 'Not lately') + '</div>' : '') +
+      (sorted.length ? sorted.map((m) => '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + esc(m.name) + '</span>' +
+        '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span>' +
+        (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') + '</button></div>').join('')
         : '<div class="empty">No meals yet.</div>') + '</section>';
-    html += '<p class="hint">Pick dinners for the next two weeks, tap Ingredients to see what you need, and add the rest to the List in one tap.</p>';
+    html += '<p class="hint">Tap a meal to put it on a night, see its ingredients or edit it.' + (canIdeas() ? ' Found a good one online? Tap 💡 Idea and paste it; Poppy adds it to Our meals.' : '') + '</p>';
     return html;
+  }
+
+  /* ---------- meal stats, tags, card ---------- */
+  const canStats = () => Number(D().api || 0) >= 7;
+  const canIdeas = canStats;
+  const VOTE_ORDER = ['😍', '🙂', '😐', '👎'];
+  const statOf = (id) => (D().mealStats || {})[id] || null;
+  const tierOf = (cost) => (cost < 15 ? '$' : cost < 30 ? '$$' : '$$$');
+  // A meal's cost shows only when most of its linked ingredients have a receipt price.
+  const costKnown = (st) => st && st.linked && st.priced * 2 >= st.linked && st.cost > 0;
+
+  // Tags shown on each meal as you scroll: votes, next/last made, rough cost.
+  function mealTags(m) {
+    const st = statOf(m.id);
+    const tags = [];
+    if (!st) return tags;
+    const voters = Object.keys(st.voters || {});
+    if (voters.length) {
+      const counts = VOTE_ORDER.filter((e) => st.votes[e]).map((e) => e + (st.votes[e] > 1 ? st.votes[e] : '')).join(' ');
+      const fav = voters.length >= 2 && st.score >= 3.5;
+      tags.push('<span class="stat-tag' + (fav ? ' fav' : st.score && st.score < 2 ? ' meh' : '') + '" title="' + esc(voters.map((w) => w + ' ' + st.voters[w]).join(', ')) + '">' + (fav ? 'Favorite · ' : '') + counts + '</span>');
+    }
+    if (st.next) tags.push('<span class="stat-tag next">' + (st.next === D().today ? 'Tonight' : 'Next ' + esc(shortDay(st.next))) + '</span>');
+    if (st.made) tags.push('<span class="stat-tag">Made ' + st.made + '× · last ' + esc(md(st.last)) + '</span>');
+    if (costKnown(st)) tags.push('<span class="stat-tag" title="Latest receipt prices of ' + st.priced + ' of ' + st.linked + ' ingredients">' + tierOf(st.cost) + ' · ~$' + Math.round(st.cost) + (st.priced < st.linked ? '+' : '') + '</span>');
+    if (!voters.length && !st.made && !st.next) tags.push('<span class="stat-tag new">New</span>');
+    return tags;
+  }
+
+  function sortMeals(meals) {
+    const k = S.mealSort || 'az';
+    const st = (m) => statOf(m.id) || {};
+    const by = {
+      az: () => 0,
+      top: (a, b) => (st(b).score || 0) - (st(a).score || 0) || Object.keys(st(b).voters || {}).length - Object.keys(st(a).voters || {}).length,
+      cost: (a, b) => (costKnown(st(a)) ? st(a).cost : 1e9) - (costKnown(st(b)) ? st(b).cost : 1e9),
+      stale: (a, b) => String(st(a).last || '0000') < String(st(b).last || '0000') ? -1 : String(st(a).last || '0000') > String(st(b).last || '0000') ? 1 : 0,
+    }[k] || (() => 0);
+    return meals.slice().sort((a, b) => by(a, b) || String(a.name).localeCompare(b.name));
+  }
+
+  // Ideas people pasted, with where they stand. Done ones link to the new meal.
+  function viewIdeas() {
+    const ideas = (D().ideas || []).slice().reverse();
+    if (!ideas.length) return '';
+    const label = { new: 'Poppy is adding it', asked: 'Waiting for a parent', done: 'Added', declined: 'Not added' };
+    return '<section class="card"><div class="card-head"><span>MEAL IDEAS · ' + ideas.length + '</span></div>' + ideas.map((x) => {
+      const m = x.meal_id && mealById(x.meal_id);
+      const first = String(x.text).split('\n')[0];
+      return '<div class="row"><button class="row-main" data-act="' + (m ? 'open-meal' : 'open-idea') + '" data-id="' + esc(m ? m.id : x.id) + '"><span class="row-name">' + esc(m ? m.name : first) + '</span>' +
+        '<span class="row-meta">' + esc((x.who || 'Someone') + ' · ' + daysAgo(x.at)) + (x.notes && x.status !== 'done' ? ' · ' + esc(x.notes) : '') + '</span></button>' +
+        '<span class="idea-status ' + esc(x.status || 'new') + '">' + esc(label[x.status] || x.status) + '</span></div>';
+    }).join('') + '</section>';
+  }
+
+  // The meal card: plan it on a night, its ingredients, its stats, edit.
+  function viewMealCard(sh) {
+    const m = mealById(sh.id);
+    if (!m) return '<p class="note">That meal is gone.</p>';
+    const plan = planByDate();
+    const weeks = [];
+    planDates().forEach((d) => {
+      const wk = addDays(d, -DAYS.indexOf(dayName(d)));
+      if (!weeks.length || weeks[weeks.length - 1].wk !== wk) weeks.push({ wk: wk, days: [] });
+      weeks[weeks.length - 1].days.push(d);
+    });
+    const thisWk = addDays(D().today, -DAYS.indexOf(dayName(D().today)));
+    const wkLabel = (wk) => (wk === thisWk ? 'This week' : wk === addDays(thisWk, 7) ? 'Next week' : 'Week of ' + md(wk));
+    let h = '<div class="is-head"><div><h2>' + esc(m.name) + '</h2>' + (mealTags(m).length ? '<div class="tags">' + mealTags(m).join('') + '</div>' : '') + '</div>' +
+      '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
+    h += '<div class="is-block first"><div class="is-label">Put it on a night</div>' + weeks.map((w) =>
+      '<div class="wk"><div class="wk-label">' + wkLabel(w.wk) + '</div><div class="day-chips">' + w.days.map((d) => {
+        const other = plan[d] && plan[d] !== m.id && mealById(plan[d]);
+        const mine = plan[d] === m.id;
+        return '<button class="day-chip' + (mine ? ' on' : other ? ' taken' : '') + '" data-act="plan-meal" data-day="' + d + '" aria-pressed="' + mine + '"' +
+          ' aria-label="' + esc(dayName(d) + ' ' + md(d) + (mine ? ', planned' : other ? ', ' + other.name + ' planned' : '')) + '">' +
+          '<b>' + (d === D().today ? 'Today' : dayName(d)) + '</b><small>' + (mine ? '✓' : other ? esc(other.name) : md(d)) + '</small></button>';
+      }).join('') + '</div></div>').join('') +
+      '<p class="note">Tap a night to plan it, tap again to take it off. A night with something else on it gets swapped.</p></div>';
+
+    const ids = mealItems(m).filter((id) => itemById(id));
+    const need = ids.filter((id) => !listRowFor(id));
+    h += '<div class="is-block"><div class="is-label">Ingredients</div>' + (ids.length
+      ? '<ul class="is-notes">' + ids.map((id) => '<li>' + esc(itemById(id).name) + (listRowFor(id) ? ' <span class="tag tag-listed">On list</span>' : '') + '</li>').join('') + '</ul>' +
+        (need.length ? '<button class="btn btn-outline btn-block" data-act="meal-add-all" data-id="' + m.id + '">Add ' + need.length + ' to the List</button>' : '<p class="note">Everything is on the List already.</p>')
+      : '<p class="note">No ingredients linked yet.</p>') + '</div>';
+    if (m.notes) h += '<div class="is-block"><div class="is-label">Notes</div><p class="is-fact">' + esc(m.notes) + '</p></div>';
+    h += '<div class="is-actions"><button class="btn btn-plain" data-act="edit-meal" data-id="' + m.id + '">Edit meal</button></div>';
+    return h;
+  }
+
+  function viewIdeaSheet(sh) {
+    const kid = isKid(S.me);
+    return '<h2>Share a meal idea</h2>' +
+      '<p class="note">Paste a recipe, a link, or just the idea (from Google, an AI chat, a friend). Poppy reads it, matches the ingredients to what we buy and adds it to Our meals' +
+      (kid ? ' once a parent says yes.' : ', usually by the next morning.') + '</p>' +
+      '<label class="sr" for="idea-text">Meal idea</label><textarea id="idea-text" class="field idea-text" data-input="draft" data-field="text" rows="8" placeholder="e.g. Sheet-pan chicken fajitas: chicken thighs, 3 bell peppers, onion, fajita seasoning, tortillas…">' + esc(sh.text || '') + '</textarea>' +
+      '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-idea"' + (String(sh.text || '').trim() ? '' : ' disabled') + '>Send to Poppy</button></div>';
+  }
+
+  function viewIdeaView(sh) {
+    const x = (D().ideas || []).find((i) => i.id === sh.id);
+    if (!x) return '<p class="note">That idea is gone.</p>';
+    return '<div class="is-head"><div><h2>Meal idea</h2><div class="is-sub">' + esc((x.who || 'Someone') + ' · ' + daysAgo(x.at)) + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      '<p class="is-fact idea-body">' + esc(x.text) + (String(x.text).length >= 160 ? '…' : '') + '</p>' +
+      (x.notes ? '<p class="note">' + esc(x.notes) + '</p>' : '<p class="note">Poppy turns it into a meal on the next morning check.</p>');
+  }
+
+  function planMeal(date, mealId) {
+    const before = planByDate()[date] || '';
+    const to = before === mealId ? '' : mealId;
+    const wk = addDays(date, -DAYS.indexOf(dayName(date)));
+    const m = mealById(mealId); const prev = before && before !== mealId ? mealById(before) : null;
+    const msg = to ? m.name + ' on ' + (date === D().today ? 'tonight' : shortDay(date)) + (prev ? ' (instead of ' + prev.name + ')' : '') : 'Took ' + m.name + ' off ' + shortDay(date);
+    const send = (meal) => act('planSet', { date: date, day: dayName(date), week_of: wk, meal_id: meal }, () => {
+      D().plan = D().plan.filter((p) => planDate(p) !== date);
+      if (meal) D().plan.push({ date: date, week_of: wk, day: dayName(date), meal_id: meal });
+    }, meal === to ? msg : null, meal === to ? () => send(before) : null);
+    send(to);
   }
 
   function viewIngredients(day, meal) {
@@ -856,7 +985,7 @@
     let html = '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
-      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\(i\d{3,}\)/g, '')) + '</div>' + control + (typing ? textBox :
+      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,})\)/g, '')) + '</div>' + control + (typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
@@ -938,6 +1067,9 @@
     const storeOpts = [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['Either', 'Either']];
 
     if (sh.type === 'item') inner = viewItemSheet(sh);
+    if (sh.type === 'mealcard') inner = viewMealCard(sh);
+    if (sh.type === 'idea') inner = viewIdeaSheet(sh);
+    if (sh.type === 'ideaview') inner = viewIdeaView(sh);
 
     if (sh.type === 'meal') {
       const hits = searchItems(sh.q || '', 5).filter((i) => sh.item_ids.indexOf(i.id) < 0);
@@ -952,8 +1084,9 @@
         '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-meal"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
     }
 
-    return '<div class="scrim" data-act="close-sheet"><div class="sheet' + (sh.type === 'item' ? ' item-sheet' : '') + '" role="dialog" aria-modal="true">' + inner +
-      (sh.type === 'item' ? '' : '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button>') + '</div></div>';
+    const hasX = sh.type === 'item' || sh.type === 'mealcard' || sh.type === 'ideaview';
+    return '<div class="scrim" data-act="close-sheet"><div class="sheet' + (hasX ? ' item-sheet' : '') + '" role="dialog" aria-modal="true">' + inner +
+      (hasX ? '' : '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button>') + '</div></div>';
   }
 
   function fmtDate(iso) {
@@ -1003,6 +1136,28 @@
       act('addMeal', { meal_id: meal.id, item_ids: ids }, () => {
         ids.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, status: status, meal_id: meal.id }); });
       }, 'Added ' + ids.length + ' for ' + meal.name);
+    },
+    'open-meal': (el) => { if (mealById(el.dataset.id)) { S.sheet = { type: 'mealcard', id: el.dataset.id }; render(); } },
+    'plan-meal': (el) => { const sh = S.sheet; if (sh && sh.type === 'mealcard') planMeal(el.dataset.day, sh.id); },
+    'meal-add-all': (el) => {
+      const meal = mealById(el.dataset.id);
+      const ids = mealItems(meal).filter((id) => itemById(id) && !listRowFor(id));
+      if (!ids.length) return;
+      const status = isKid(S.me) ? 'requested' : 'needed';
+      act('addMeal', { meal_id: meal.id, item_ids: ids }, () => {
+        ids.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, wanted_by: S.me, status: status, meal_id: meal.id }); });
+      }, 'Added ' + ids.length + ' for ' + meal.name);
+    },
+    'meal-sort': (el) => { S.mealSort = el.dataset.v; render(); },
+    'new-idea': () => { S.sheet = { type: 'idea', text: '' }; render(); const f = document.getElementById('idea-text'); if (f) f.focus(); },
+    'open-idea': (el) => { S.sheet = { type: 'ideaview', id: el.dataset.id }; render(); },
+    'save-idea': () => {
+      const text = String((S.sheet && S.sheet.text) || '').trim();
+      if (!text) return;
+      S.sheet = null;
+      act('mealIdea', { text: text }, () => {
+        (D().ideas = D().ideas || []).push({ id: tmpId(), at: D().today, who: S.me, text: text.slice(0, 160), status: 'new', meal_id: '', notes: '' });
+      }, 'Sent. Poppy will add it to Our meals.');
     },
     'new-meal': () => { S.sheet = { type: 'meal', id: '', name: '', item_ids: [], q: '' }; render(); },
     'edit-meal': (el) => { const m = mealById(el.dataset.id); if (m) { S.sheet = { type: 'meal', id: m.id, name: m.name, item_ids: mealItems(m), q: '' }; render(); } },
@@ -1065,11 +1220,17 @@
       act('itemSave', { id: it.id, fields: fields }, () => { Object.assign(it, fields); }, 'Saved');
       if (r && r.store !== fields.store) act('update', { id: r.id, fields: { store: fields.store } }, () => { r.store = fields.store; });
     },
-    fold: (el) => { const k = el.dataset.key; const dflt = k === 'held' || k === 'recent'; setClosed(k, !isClosed(k, dflt)); render(); },
+    fold: (el) => { const k = el.dataset.key; setClosed(k, !isClosed(k)); render(); },
     'fold-all': () => {
       const codes = STORE_ORDER.filter((c) => D().list.some((r) => r.status !== 'requested' && (r.store || 'Either') === c));
-      const close = !codes.every((c) => isClosed('s:' + c, false));
+      const close = !codes.every((c) => isClosed('s:' + c));
       codes.forEach((c) => setClosed('s:' + c, close));
+      render();
+    },
+    'shop-fold-all': (el) => {
+      const keys = String(el.dataset.keys || '').split('|').filter(String);
+      const close = !keys.every((k) => isClosed(k));
+      keys.forEach((k) => setClosed(k, close));
       render();
     },
     'shop-filter': (el) => { S.shopFilter = el.dataset.v; render(); window.scrollTo(0, 0); },
@@ -1142,6 +1303,7 @@
       S.sheet[el.dataset.field] = el.value;
       // Only the meal search and name-gated Save buttons need a redraw while typing.
       if (el.dataset.field === 'q' || el.dataset.field === 'name') render();
+      if (el.dataset.field === 'text') { const b = document.querySelector('[data-act="save-idea"]'); if (b) b.disabled = !el.value.trim(); }
     }
   });
 
