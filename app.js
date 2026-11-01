@@ -422,8 +422,8 @@
     if (S.tab === 'admin' && !isAdmin()) S.tab = 'list';
     const instore = S.tab === 'list' && S.instore;
     const n = D().list.filter((r) => r.status !== 'requested').length;
-    const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Q&A', admin: 'Behind the scenes' };
-    const eyebrows = { list: n + ' on the list', shop: 'Add to the List', meals: 'Next 2 weeks', ask: 'Your say', admin: 'Just for ' + S.me };
+    const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Inbox', admin: 'Behind the scenes' };
+    const eyebrows = { list: n + ' on the list', shop: 'Add to the List', meals: 'Next 2 weeks', ask: inboxEyebrow(), admin: 'Just for ' + S.me };
     const title = instore ? 'In store' : titles[S.tab];
     const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : eyebrows[S.tab];
     let right = '';
@@ -452,14 +452,14 @@
 
   function viewNav() {
     const req = D().list.filter((r) => r.status === 'requested').length;
-    const review = myQuestions().length;
+    const review = myQuestions().length + myApprovals();
     // List badge = everything still on the list (held "Next week" rows live in D().held, so they don't count).
     // Green for a count; orange when a parent has kids' requests waiting.
     const onList = D().list.filter((r) => r.status === 'requested' || r.status === 'needed' || r.status === 'carted').length;
     const tab = (id, label, badge, cls) => '<button data-act="tab" data-tab="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + esc(label) +
       (badge ? '<span class="dot' + (cls ? ' ' + cls : '') + '">' + badge + '</span>' : '') + '</button>';
     return '<nav class="tabs" aria-label="Sections"><div class="inner">' +
-      tab('list', S.instore ? 'In store' : 'List', onList, amParent() && req ? '' : 'count') + tab('shop', 'Shop') + tab('meals', 'Meals') + tab('ask', 'Q&A', review) +
+      tab('list', S.instore ? 'In store' : 'List', onList, amParent() && req ? '' : 'count') + tab('shop', 'Shop') + tab('meals', 'Meals') + tab('ask', 'Inbox', review) +
       '</div></nav>';
   }
 
@@ -1258,23 +1258,85 @@
     return 'text';
   }
 
-  // Deck order: cards never put off first (sheet order), then saved "Later" cards, oldest Later first
-  // (api 10), then anything put off in this session.
-  function askDeck() {
+  /* Inbox sections (Nov 1, Mike): the deck is grouped, most important first.
+     Kids:    Due soon -> How was it? -> Missions -> Quick questions
+     Parents: (Approvals list above the deck) -> Decisions -> Due soon -> How was it? -> Missions -> Quick questions
+     A Review `section` column wins when it exists; otherwise the section comes from the card's type and text. */
+  const SECTIONS = {
+    due: { icon: '⏰', label: 'Due soon' },
+    decision: { icon: '⚖', label: 'Decisions' },
+    rate: { icon: '🍽', label: 'How was it?' },
+    mission: { icon: '🔎', label: 'Missions' },
+    question: { icon: '💬', label: 'Quick questions' },
+  };
+  const sectionOrder = () => amParent() ? ['decision', 'due', 'rate', 'mission', 'question'] : ['due', 'rate', 'mission', 'question'];
+  function sectionOf(r) {
+    const sec = String(r.section || '').toLowerCase();
+    if (SECTIONS[sec]) return sec;
+    const t = String(r.type || '').toLowerCase(), d = String(r.detail || '');
+    if (t === 'task' || r.due_at || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
+    if (t === 'rate' || t === 'still') return 'rate';
+    if (t === 'check' || t === 'mission') return 'mission';
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code'].indexOf(t) >= 0 ||
+      (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
+    return 'question';
+  }
+
+  // Approvals for parents: kids' List requests and meal requests (they also stay on List and Meals).
+  function myApprovals() {
+    if (!amParent()) return 0;
+    return D().list.filter((r) => r.status === 'requested').length + (canV9() ? mealRequests().length : 0);
+  }
+  function inboxEyebrow() {
+    const n = myQuestions().length + myApprovals();
+    return n ? n + ' waiting for you' : 'All caught up';
+  }
+
+  // Deck order: by section (see sectionOrder), then inside a section cards never put off first (sheet
+  // order), then saved "Later" cards, oldest Later first (api 10), then anything put off this session.
+  // A section chip narrows the deck to one section.
+  function askDeck(all) {
     const later = S.askLater || [];
-    const qs = myQuestions().map((q, i) => ({ q: q, i: i })).sort((a, b) => {
+    const order = sectionOrder();
+    let qs = myQuestions().map((q, i) => ({ q: q, i: i, s: order.indexOf(sectionOf(q)), lt: later.indexOf(q.id) })).sort((a, b) => {
+      if (a.s !== b.s) return a.s - b.s;
+      if ((a.lt >= 0) !== (b.lt >= 0)) return a.lt >= 0 ? 1 : -1;
+      if (a.lt >= 0) return a.lt - b.lt;
       const la = String(a.q.later_at || ''), lb = String(b.q.later_at || '');
       if (!la !== !lb) return la ? 1 : -1;
       return la < lb ? -1 : la > lb ? 1 : a.i - b.i;
     }).map((x) => x.q);
-    return qs.filter((q) => later.indexOf(q.id) < 0).concat(later.map((id) => qs.find((q) => q.id === id)).filter(Boolean));
+    if (!all && S.askSection) {
+      const only = qs.filter((q) => sectionOf(q) === S.askSection);
+      if (only.length) qs = only; else S.askSection = '';
+    }
+    return qs;
+  }
+
+  function viewSectionChips() {
+    const counts = {};
+    myQuestions().forEach((q) => { const k = sectionOf(q); counts[k] = (counts[k] || 0) + 1; });
+    const keys = sectionOrder().filter((k) => counts[k]);
+    if (keys.length < 2) return '';
+    const chip = (k, label, n) => '<button type="button" class="sec-chip' + ((S.askSection || '') === k ? ' on' : '') + '" data-act="ask-section" data-sec="' + k + '">' + label + (n ? ' <b>' + n + '</b>' : '') + '</button>';
+    return '<div class="sec-chips">' + chip('', 'All', 0) + keys.map((k) => chip(k, SECTIONS[k].icon + ' ' + SECTIONS[k].label, counts[k])).join('') + '</div>';
+  }
+
+  function viewApprovals() {
+    if (!amParent()) return '';
+    const reqs = D().list.filter((r) => r.status === 'requested');
+    let h = '';
+    if (reqs.length) h += '<section class="card requests"><div class="card-head">✅ APPROVALS · ' + reqs.length + '</div>' + reqs.map(requestRow).join('') + '</section>';
+    h += viewMealRequests();
+    return h;
   }
 
   function viewAsk() {
     const deck = askDeck();
+    const top = viewApprovals();
     if (!deck.length) {
-      return '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">Questions about favorites and dinner votes will show up here.</span></div>' +
-        '<p class="hint">Answers teach Poppy what the family likes. Votes help pick dinners; a parent makes the final call.</p>';
+      return top + '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">Lunch picks, How was it?, missions and questions show up here.</span></div>' +
+        '<p class="hint">Everything here teaches Poppy what the family needs. A parent makes the final call.</p>';
     }
     const r = deck[0];
     const sp = splitOptions(r.detail);
@@ -1308,9 +1370,11 @@
       '<input id="ask-in" class="field" data-input="ask-draft" value="' + esc(S.askDraft || '') + '" placeholder="' + (kind === 'text' ? 'Type an answer…' : 'Type your answer…') + '">' +
       '<button class="btn btn-primary" type="submit">Save</button></form>';
 
-    let html = '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
+    const sec = SECTIONS[sectionOf(r)];
+    let html = top + viewSectionChips() + '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
+      '<div class="qcard-sec">' + sec.icon + ' ' + esc(sec.label) + '</div>' +
       '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,})\)/g, '')) + '</div>' + control + (typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) :
@@ -1441,6 +1505,7 @@
     'pick-me': (el) => { S.me = el.dataset.name; store.set('ff_me', S.me); render(); },
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
     tab: (el) => { if (el.dataset.tab === 'ask' && S.tab !== 'ask') { S.askAnswered = 0; resetAskCard(); } S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
+    'ask-section': (el) => { S.askSection = el.dataset.sec || ''; S.askAnswered = 0; resetAskCard(); render(); },
     'ask-pick': (el) => answerQuestion(el.dataset.id, el.dataset.v, el.dataset.v === 'Yes' || /^yes/i.test(el.dataset.v) ? 'right' : 'left'),
     'ask-type': (el) => { S.askTyping = el.dataset.id; render(); const f = document.getElementById('ask-in'); if (f) f.focus(); },
     'ask-sel-save': (el) => { if (S.askSel) answerQuestion(el.dataset.id, S.askSel); },

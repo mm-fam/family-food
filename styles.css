@@ -562,3 +562,12 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .store-dot.amz { background: var(--amz-edge); }
 .only-tag.amz { color: var(--amz); }
 .cart-tag.amz { background: var(--amz); }
+
+/* Inbox sections (Nov 1) */
+.sec-chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.sec-chips::-webkit-scrollbar { display: none; }
+.sec-chip { flex: none; border: 1px solid var(--line); background: var(--card, transparent); color: inherit; border-radius: 99px; padding: 6px 12px; font: inherit; font-size: 13px; white-space: nowrap; }
+.sec-chip b { margin-left: 2px; color: var(--muted); }
+.sec-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sec-chip.on b { color: inherit; }
+.qcard-sec { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
