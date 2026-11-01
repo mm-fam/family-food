@@ -139,7 +139,7 @@ Design and the full steps: `docs/hearth.md`.
 
 **When:** the daily morning check, step B (replaces the old "fold in clear cases" step). Runs in this order. Question ideas come from `docs/question-bank.md`. People: the parents and kids in Settings. "Deck" = a person's open Review rows (audience = their name; for parents also `parents` and `all`; blank = parents). `meal_request` rows never count.
 
-**B1. Account for every answered row.** Nothing stays `answered` past one morning, except `vote` and `rate` rows (the app reads them for meal tags: never edit, close or write `outcome` on them) and `meal_request` rows (parents handle them in the app). For every other answered row, apply it, set status `closed`, and write where it went in **`outcome`** (short: `Items i005 notes`, `Profile`, `Meals m41`, `Follow-up r140`, `skip`, `No signal`).
+**B1. Account for every answered row.** Nothing stays `answered` past one morning, except `vote` and `rate` rows (the app reads them for meal tags: never edit, close or write `outcome` on them) and `meal_request` rows (parents handle them in the app). For every other answered row, apply it, set status `closed`, and write where it went in **`outcome`** (short: `Items i005 notes`, `Profile`, `Meals m41`, `Follow-up r140`, `skip`, `No signal`). **Missions (`check`) are already applied by the backend** (Stock row, and a List row when low or out): just close them with outcome `Stock`; never log Stock or add List rows for them again, and don't create `check` cards yourself (the backend makes them daily). Kitchen help (`helped`) answers → Profile topic `kitchen help`, outcome `Kitchen help`. Never edit `answered_at`, `points`, `points_to` or `points_why`.
 
 | Answer | Where it goes |
 |---|---|
