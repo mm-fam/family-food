@@ -53,18 +53,31 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 
 ## 4. Changing the backend (Code.gs)
 
-1. Edit `apps-script/Code.gs` in the repo; commit.
-2. Mike pastes it into Extensions → Apps Script → Code.gs → Save.
-3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** URL stays the same. (A *New deployment* changes the URL and breaks the app unless config.js is updated.)
-4. If triggers changed, run `setup()` once.
-5. Test through Chrome: `/exec?action=ping&pass=<wrong>` should return `wrong_passcode`; then have Mike open the app.
+Deploys are automatic once the one-time setup below is done.
+
+1. Edit `apps-script/Code.gs`; bump `API_VERSION` if the app needs the new behavior; commit.
+2. Push to `main`. The **Deploy backend** GitHub Action (`.github/workflows/deploy-backend.yml`) pulls the live Apps Script project, replaces only `Code.gs` (manifest and other files untouched), pushes it, publishes a new version of the existing deployment (ID read from `config.js`, so the URL never changes), then checks `/exec?action=version` reports the new `API_VERSION`.
+3. Push backend changes before (or with) app changes that depend on them; the app hides features the live `api` doesn't have.
+4. If triggers changed, run `setup()` once by hand in the Apps Script editor.
+5. If the Action fails: open Actions → Deploy backend → the failed run. "Missing secret" = setup not done; an auth error = the clasp login expired (redo setup step 3 and update `CLASPRC_JSON`); "no Code.gs" = the live project's file was renamed. Re-run with **Run workflow** once fixed.
+
+**Manual fallback** (Action broken): paste `Code.gs` into Extensions → Apps Script → Code.gs → Save, then **Deploy → Manage deployments → pencil → Version: New version → Deploy**. Never "New deployment" (it changes the URL).
+
+**One-time setup** (the repo owner, ~10 minutes):
+1. https://script.google.com/home/usersettings → turn **Google Apps Script API** on.
+2. Apps Script editor → Project Settings → copy the **Script ID**.
+3. On a computer with Node: `npx @google/clasp@2.4.2 login`, approve in the browser, then copy the contents of `~/.clasprc.json`.
+4. GitHub repo → Settings → Secrets and variables → Actions → New repository secret: `CLASPRC_JSON` (step 3) and `SCRIPT_ID` (step 2).
+5. Actions → Deploy backend → Run workflow; it should end green with the live api version.
+
+The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it only in GitHub secrets, never in the repo or docs. Revoke it at https://myaccount.google.com/permissions ("clasp") if it ever leaks.
 
 ## 5. Schema change checklist (new tab or column)
 
 1. Add columns at the **end** of a tab, never in the middle (the backend reads by header name, but formulas and Mike's eyes rely on order).
 2. Update `Code.gs` (TABS, reads/writes), `app.js` if the app shows it, and `family-food-system.md`.
 3. Back up first: File → Make a copy of the Sheet, named with the date.
-4. Deploy backend (section 4) before pushing app changes that depend on it.
+4. Backend changes deploy on push (section 4); push them before or with app changes that depend on them.
 5. Add a line to the roadmap decision log.
 
 ## 6. Troubleshooting
@@ -77,7 +90,8 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 | "Probably due" empty or odd | Items J:M formulas missing on new rows, or Receipts item_id not filled. |
 | Items stats wrong | Someone typed over J:M. Re-copy formulas from a good row. |
 | List getting long | Nightly trigger not installed. Run `setup()`. |
-| Claude can't reach the backend | Expected from the workspace. Use Chrome. |
+| Claude can't reach the backend | Expected from the workspace. Use Chrome, or the Deploy backend Action's version check. |
+| Backend change didn't show up | Check Actions → Deploy backend. Red = see section 4, step 5. |
 | Claude can't push | Claude GitHub app needs access to the `mm-fam` org (github.com/settings/installations). |
 
 ## 7. Backups and safety

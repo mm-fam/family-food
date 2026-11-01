@@ -26,6 +26,10 @@ const TABS = {
 const STOCK_HEAD = ['at', 'item_id', 'level', 'expires', 'who', 'source', 'list_id'];
 const LEVELS = ['plenty', 'some', 'low', 'out'];
 const HOLD_DAYS = 7;
+// Backend version. Bump when the app needs something new from the backend.
+// 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by; 5 = itemInfo + stockLog + state.stock;
+// 6 = Plan by date (rolling planDays window, planSet {date}).
+const API_VERSION = 6;
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -60,6 +64,8 @@ function doGet(e) {
 }
 
 function handle(req) {
+  // No passcode needed: only says which backend version is live (the deploy workflow checks it).
+  if (req.action === 'version') return reply({ ok: true, api: API_VERSION });
   const pass = PropertiesService.getScriptProperties().getProperty('FAMILY_PASSCODE');
   if (!pass) return reply({ ok: false, error: 'passcode_not_set' });
   if (String(req.pass || '') !== pass) return reply({ ok: false, error: 'wrong_passcode' });
@@ -224,7 +230,7 @@ function getState() {
     .slice(-20);
 
   return {
-    api: 6, // 6 = Plan by date (rolling planDays window, planSet {date}); 5 = itemInfo + stockLog + state.stock; bump when the app needs a newer backend; 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by
+    api: API_VERSION,
     today: today,
     items: items.map(stripRow),
     list: active.map(stripRow),

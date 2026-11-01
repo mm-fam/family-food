@@ -31,7 +31,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 |---|---|
 | App | `mm-fam/family-food` (public repo), served at https://mm-fam.github.io/family-food/. Plain HTML/JS/CSS, no build: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `icons/` (Poppy 2.0 logo, rounded-square robot tile: 180 apple-touch full-bleed for iPhone, 192 + 512 with transparent rounded corners, 512 maskable at 70% on a matching teal gradient for Android, `poppy-logo.png` 320 shown on the unlock and "Who's this?" screens). |
 | Config | `config.js` holds `API_URL` (the Apps Script `/exec` URL). Not a secret. |
-| Backend | `apps-script/Code.gs` in the repo; the live copy is pasted into the Sheet's Apps Script. Deployed as Web app, Execute as Me, access Anyone. |
+| Backend | `apps-script/Code.gs` in the repo; the live copy is in the Sheet's Apps Script. Deployed as Web app, Execute as Me, access Anyone. A push to `main` that changes Code.gs deploys it automatically (GitHub Action **Deploy backend**, clasp; runbook §4). `?action=version` (no passcode) returns the live `api`. |
 | Passcode | Script Property `FAMILY_PASSCODE`. Checked on every request. Never put it in the repo or in project docs. |
 | Data | Google Sheet "Poppy 2.0 (app data)" in Mike's Drive |
 

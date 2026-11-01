@@ -1,0 +1,92 @@
+# Deploys apps-script/Code.gs to the Sheet's Apps Script project and publishes it as a
+# new version of the existing web app deployment (same /exec URL, so config.js never changes).
+#
+# Runs when Code.gs changes on main, or by hand (Actions → Deploy backend → Run workflow).
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   CLASPRC_JSON  contents of ~/.clasprc.json after `npx @google/clasp@2.4.2 login`
+#   SCRIPT_ID     Apps Script → Project Settings → Script ID
+# The deployment ID is read from config.js (it's the id inside the /exec URL).
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps-script/Code.gs']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Check secrets
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ]; then
+            echo "::error::Missing CLASPRC_JSON or SCRIPT_ID secret. See the comment at the top of this workflow."
+            exit 1
+          fi
+
+      - name: Sign in to Apps Script
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+
+      # Pull the live project first so its manifest (appsscript.json: time zone, web app
+      # settings) and any other files are kept exactly as they are; only Code.gs is replaced.
+      - name: Pull live project and swap in Code.gs
+        env:
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/gas" && cd "$RUNNER_TEMP/gas"
+          printf '{"scriptId":"%s","rootDir":".","fileExtension":"gs"}' "$SCRIPT_ID" > .clasp.json
+          clasp pull
+          echo "Live project files:"; ls -1
+          if [ ! -f Code.gs ]; then
+            echo "::error::The live project has no Code.gs; not deploying (would create a second copy of the functions)."
+            exit 1
+          fi
+          cp "$GITHUB_WORKSPACE/apps-script/Code.gs" Code.gs
+          clasp push --force
+
+      - name: Publish new version to the existing deployment
+        run: |
+          DEPLOYMENT_ID=$(grep -o 'macros/s/[A-Za-z0-9_-]*/exec' config.js | sed 's#macros/s/##; s#/exec##')
+          if [ -z "$DEPLOYMENT_ID" ]; then echo "::error::Couldn't read the deployment id from config.js"; exit 1; fi
+          echo "DEPLOYMENT_ID=$DEPLOYMENT_ID" >> "$GITHUB_ENV"
+          cd "$RUNNER_TEMP/gas"
+          clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "${GITHUB_SHA::7} $(git -C "$GITHUB_WORKSPACE" log -1 --format=%s | cut -c1-80)"
+
+      - name: Check the live backend version
+        run: |
+          want=$(grep -o 'const API_VERSION = [0-9]*' apps-script/Code.gs | grep -o '[0-9]*$')
+          url="https://script.google.com/macros/s/$DEPLOYMENT_ID/exec?action=version"
+          for i in 1 2 3 4 5 6; do
+            got=$(curl -sL "$url" | grep -o '"api":[0-9]*' | grep -o '[0-9]*$' || true)
+            echo "attempt $i: live api=$got, expected $want"
+            [ "$got" = "$want" ] && exit 0
+            sleep 10
+          done
+          echo "::error::Live backend reports api=$got, expected $want"
+          exit 1
+
+      - name: Sign out
+        if: always()
+        run: rm -f ~/.clasprc.json
