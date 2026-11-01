@@ -28,7 +28,9 @@
     pass: store.get('ff_pass') || '',
     me: store.get('ff_me') || '',
     data: null,
-    tab: store.get('ff_tab') || 'list',
+    tab: ({ list: 'need', staples: 'need', order: 'need' })[store.get('ff_tab')] || store.get('ff_tab') || 'need',
+    shop: store.get('ff_shop') || '', // Shop mode: store being shopped (GE / WF / TGT / all); '' = at home
+    browse: false,     // Need tab: "Browse what we buy" open
     storeFilter: 'all',
     editMode: false,
     query: '',
@@ -88,6 +90,21 @@
   const listRowFor = (itemId) => D().list.find((r) => r.item_id === itemId);
   const isKid = (name) => D().settings.kids.map((k) => k.toLowerCase()).indexOf(String(name || '').toLowerCase()) >= 0;
   const amParent = () => !isKid(S.me);
+  // Admin screen (cart requests, behind-the-scenes): Settings "admins", else the first parent.
+  const isAdmin = () => {
+    const a = (D().settings.admins && D().settings.admins.length) ? D().settings.admins : D().settings.parents.slice(0, 1);
+    return a.map((x) => x.toLowerCase()).indexOf(String(S.me).toLowerCase()) >= 0;
+  };
+  // Everyone who asked for a row (wanted_by "Mike;Joni"), falling back to added_by.
+  const wantedBy = (r) => {
+    const w = String(r.wanted_by || '').split(';').map((x) => x.trim()).filter(String);
+    return w.length ? w : [r.added_by].filter(Boolean);
+  };
+  const iWant = (r) => wantedBy(r).map((x) => x.toLowerCase()).indexOf(String(S.me).toLowerCase()) >= 0;
+  const nowIso = () => {
+    const d = new Date(); const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  };
   const storeOf = (code) => STORES[code] || STORES.Either;
   const mealItems = (meal) => String(meal && meal.item_ids || '').split(';').filter(Boolean);
   const tmpId = () => 'tmp' + Date.now() + Math.floor(Math.random() * 1000);
@@ -131,10 +148,20 @@
 
   /* ------------------------------------------------------------ actions */
   function addItem(item, extra) {
-    const existing = listRowFor(item.id);
-    if (existing) { showToast(item.name + ' is already on the list'); return; }
+    const held = D().held || [];
+    const existing = listRowFor(item.id) || held.find((r) => r.item_id === item.id);
+    if (existing) {
+      const isHeld = held.indexOf(existing) >= 0;
+      if (iWant(existing) && !isHeld) { showToast(item.name + ' is already on the list'); return; }
+      const others = wantedBy(existing).filter((w) => w.toLowerCase() !== String(S.me).toLowerCase());
+      act('add', { item_id: item.id, qty: 1 }, () => {
+        if (!iWant(existing)) existing.wanted_by = wantedBy(existing).concat([S.me]).join(';');
+        if (isHeld) { D().held = held.filter((r) => r !== existing); D().list.push(existing); }
+      }, isHeld ? item.name + ' is back on the list' : others.join(' + ') + ' already asked. Added you too.');
+      return;
+    }
     const status = isKid(S.me) ? 'requested' : 'needed';
-    const row = Object.assign({ id: tmpId(), item_id: item.id, name: item.name, store: item.store || 'Either', qty: 1, note: '', added_by: S.me, status: status }, extra || {});
+    const row = Object.assign({ id: tmpId(), item_id: item.id, name: item.name, store: item.store || 'Either', qty: 1, note: '', added_by: S.me, wanted_by: S.me, status: status }, extra || {});
     act('add', { item_id: item.id, qty: row.qty, meal_id: row.meal_id || '' }, () => { D().list.push(row); },
       status === 'requested' ? 'Asked for ' + item.name : 'Added ' + item.name);
   }
@@ -146,7 +173,7 @@
     if (known) { addItem(known); return; }
     const status = isKid(S.me) ? 'requested' : 'needed';
     act('add', { name: clean, store: storeCode || 'Either' }, () => {
-      D().list.push({ id: tmpId(), item_id: '', name: clean, store: storeCode || 'Either', qty: 1, added_by: S.me, status: status });
+      D().list.push({ id: tmpId(), item_id: '', name: clean, store: storeCode || 'Either', qty: 1, added_by: S.me, wanted_by: S.me, status: status });
     }, (status === 'requested' ? 'Asked for ' : 'Added ') + clean);
   }
 
@@ -156,7 +183,7 @@
       row.status = status;
       if (status === 'bought' || status === 'skipped' || status === 'have') {
         D().list = D().list.filter((r) => r !== row);
-        D().recent.push(Object.assign({}, row, { status: status, updated_at: D().today }));
+        D().recent.push(Object.assign({}, row, { status: status, updated_at: nowIso() }));
       }
     }, msg, msg && (status === 'bought' || status === 'skipped') ? () => restore(row, before) : null);
   }
@@ -252,20 +279,31 @@
   }
 
   function viewApp() {
-    const titles = { list: 'The List', staples: 'Staples', meals: 'Meals', ask: 'Ask', order: 'Order' };
-    const eyebrows = { list: 'Poppy 2.0', staples: 'We’re out of…', meals: 'Week of ' + fmtDate(D().weekOf), ask: 'Your say', order: 'Order day' };
-    let top = '<header class="top"><div class="top-row"><div><div class="eyebrow">' + esc(eyebrows[S.tab]) + '</div><h1>' + titles[S.tab] + '</h1></div>' +
-      '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button></div>';
-    if (S.tab === 'list') top += viewAddBar();
-    if (S.tab === 'staples') top += viewStaplesFilters();
+    if (S.tab === 'order') S.tab = 'admin';
+    if (S.tab === 'admin' && !isAdmin()) S.tab = 'need';
+    const shopping = S.tab === 'need' && S.shop;
+    const titles = { need: 'Need', meals: 'Meals', ask: 'Ask', admin: 'Behind the scenes' };
+    const eyebrows = { need: 'Poppy 2.0', meals: 'Week of ' + fmtDate(D().weekOf), ask: 'Your say', admin: 'Just for ' + S.me };
+    const title = shopping ? 'Shopping' : titles[S.tab];
+    const eyebrow = shopping ? (S.shop === 'all' ? 'Every store' : storeOf(S.shop).name) : eyebrows[S.tab];
+    let right = '';
+    if (shopping) right = '<button class="btn btn-primary shop-done" data-act="shop-done">Done</button>';
+    else {
+      if (S.tab === 'need') right += '<button class="btn btn-outline shop-btn" data-act="shop-start">🛒 Shop</button>';
+      if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'need' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
+      right += '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button>';
+    }
+    let top = '<header class="top"><div class="top-row"><div><div class="eyebrow">' + esc(eyebrow) + '</div><h1>' + title + '</h1></div>' +
+      '<div class="top-right">' + right + '</div></div>';
+    if (shopping) top += viewShopPicker();
+    else if (S.tab === 'need') top += viewAddBar();
     top += '</header>';
 
     let body = '';
-    if (S.tab === 'list') body = viewList();
-    if (S.tab === 'staples') body = viewStaples();
+    if (S.tab === 'need') body = shopping ? viewShop() : viewNeed();
     if (S.tab === 'meals') body = viewMeals();
     if (S.tab === 'ask') body = viewAsk();
-    if (S.tab === 'order') body = viewOrder();
+    if (S.tab === 'admin') body = viewOrder();
 
     return top + '<main>' + body + '</main>' + viewNav() + viewSheet() + viewToast();
   }
@@ -276,7 +314,7 @@
     const tab = (id, label, badge) => '<button data-act="tab" data-tab="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + label +
       (badge ? '<span class="dot">' + badge + '</span>' : '') + '</button>';
     return '<nav class="tabs" aria-label="Sections"><div class="inner">' +
-      tab('list', 'List', amParent() ? req : 0) + tab('staples', 'Staples') + tab('meals', 'Meals') + tab('ask', 'Ask', review) + tab('order', 'Order') +
+      tab('need', S.shop ? 'Shopping' : 'Need', amParent() ? req : 0) + tab('meals', 'Meals') + tab('ask', 'Ask', review) +
       '</div></nav>';
   }
 
@@ -303,33 +341,44 @@
       '<button class="btn-icon" type="submit" aria-label="Add item">+</button>' + sug + '</form>';
   }
 
-  function rowHtml(r, opts) {
+  // "Mike + Joni": who asked. Two or more names are highlighted so a double ask gets a second look.
+  function whoHtml(r) {
+    const names = wantedBy(r);
+    if (!names.length) return '';
+    const many = names.length > 1;
+    const kid = !many && isKid(names[0]);
+    return '<span class="who-names' + (many ? ' many' : '') + (kid ? ' kid' : '') + '" title="Asked by ' + esc(names.join(', ')) + '">' + esc(names.join(' + ')) + '</span>';
+  }
+
+  function rowMeta(r) {
     const meta = [];
     if (Number(r.qty) > 1) meta.push('×' + r.qty);
     if (r.note) meta.push(esc(r.note));
     if (r.meal_id && mealById(r.meal_id)) meta.push(esc(mealById(r.meal_id).name));
     const item = itemById(r.item_id);
     if (item && item.brand_size) meta.push(esc(item.brand_size));
-    const who = String(r.added_by || '?').charAt(0).toUpperCase();
-    let right = '<span class="who' + (isKid(r.added_by) ? ' kid' : '') + '" title="Added by ' + esc(r.added_by) + '">' + esc(who) + '</span>';
+    return meta;
+  }
+
+  function rowHtml(r, opts) {
+    const meta = rowMeta(r);
     if (opts && opts.request) {
       const btns = amParent()
         ? '<button class="btn btn-primary" data-act="approve" data-id="' + r.id + '">Approve</button><button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Skip</button>'
-        : (r.added_by === S.me ? '<button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Cancel</button>' : '');
-      return '<div class="row"><span class="who kid" title="Asked by ' + esc(r.added_by) + '">' + esc(who) + '</span>' +
-        '<div class="row-main"><span class="row-name">' + esc(r.name) + '</span>' +
-        (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + '</div>' + btns + '</div>';
+        : (iWant(r) ? '<button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Cancel</button>' : '');
+      return '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span>' +
+        '<span class="row-meta">' + ['asked by ' + esc(wantedBy(r).join(' + '))].concat(meta).join(' · ') + '</span></div>' + btns + '</div>';
     }
-    return '<div class="row"><button class="check" data-act="bought" data-id="' + r.id + '" aria-label="Mark ' + esc(r.name) + ' bought"></button>' +
-      '<button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span>' +
-      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + '</button>' + right + '</div>';
+    // At home a tap opens the item (how many / we have it / next week). Only Shop mode checks things off.
+    return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span>' +
+      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
   }
 
-  function viewList() {
+  function viewNeed() {
     const list = D().list;
     const requests = list.filter((r) => r.status === 'requested');
     const active = list.filter((r) => r.status !== 'requested');
-    let html = '';
+    let html = viewDinnersStrip();
 
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
@@ -344,7 +393,7 @@
         (code === 'Either' ? '<span class="sub">tap to pick a store</span>' : '') + '</div>' + rows.map((r) => rowHtml(r)).join('') + '</section>';
     });
 
-    if (!list.length) html += '<div class="empty">Nothing on the list yet.<br>Add something above, or tap a few Staples.</div>';
+    if (!list.length) html += '<div class="empty">Nothing on the list yet.<br>Add something above, or browse what we buy below.</div>';
 
     const due = D().due.map((d) => Object.assign({}, d, { item: itemById(d.id) })).filter((d) => d.item);
     if (due.length && !isKid(S.me)) {
@@ -353,6 +402,8 @@
         ' · usually every ~' + d.every + ' days · last ' + esc(daysAgo(d.item.last_bought)) + '</span></div>' +
         '<button class="btn btn-outline" data-act="add-item" data-id="' + d.id + '">+ Add</button></div>').join('') + '</section>';
     }
+
+    html += viewBrowse();
 
     const held = D().held || [];
     if (held.length) {
@@ -368,6 +419,64 @@
         '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + (r.status === 'bought' ? 'Bought' : r.status === 'have' ? 'Had it' + (haveLevel(r) ? ' (' + esc(haveLevel(r)) + ')' : '') + ', not bought' : 'Removed') + '</span></div>' +
         '<button class="btn btn-plain" data-act="restore" data-id="' + r.id + '">Put back</button></div>').join('') + '</section>';
     }
+    html += '<p class="hint">Tap an item to change how many, say we have it, or push it to next week. In the store, tap 🛒 Shop to check things off as they go in the cart.</p>';
+    return html;
+  }
+
+  // This week's dinners at the top of Need, so meals and the list live together.
+  function viewDinnersStrip() {
+    const byDay = {};
+    D().plan.forEach((p) => (byDay[p.day] = p.meal_id));
+    const todayIdx = new Date(D().today + 'T12:00:00').getDay();
+    const days = DAYS.filter((d, i) => i >= todayIdx && byDay[d] && mealById(byDay[d]));
+    const body = days.length
+      ? days.map((d) => '<span class="dinner"><b>' + d + '</b> ' + esc(mealById(byDay[d]).name) + '</span>').join('')
+      : '<span class="dinner muted">None picked yet</span>';
+    return '<button class="dinners" data-act="tab" data-tab="meals"><span class="dinners-label">Dinners this week</span><span class="dinners-list">' + body + '</span><span class="dinners-go">Plan ›</span></button>';
+  }
+
+  // "Browse what we buy" is the old Staples tab, folded into Need.
+  function viewBrowse() {
+    if (!S.browse) return '<button class="btn btn-plain btn-block" data-act="browse">Browse what we buy</button>';
+    return '<section class="card browse"><div class="card-head"><span>WHAT WE BUY</span><button class="btn btn-plain" data-act="browse">Close</button></div>' +
+      '<div class="browse-body">' + viewStaplesFilters() + viewStaples() + '</div></section>';
+  }
+
+  /* ---------- shop mode ---------- */
+  function viewShopPicker() {
+    const pill = (v, label, cls) => '<button class="pill ' + (cls || '') + (S.shop === v ? ' on' : '') + '" data-act="shop-store" data-v="' + v + '">' + label + '</button>';
+    return '<div class="chips-row">' + pill('GE', 'Giant Eagle', 'ge') + pill('WF', 'Whole Foods', 'wf') + pill('TGT', 'Target', 'tgt') + pill('all', 'All') + '</div>';
+  }
+
+  const inShop = (r) => {
+    const code = r.store || 'Either';
+    return S.shop === 'all' || code === S.shop || (code === 'Either' && takesEither(S.shop));
+  };
+  // Bought today counts as "in the cart", so a shared shop shows everyone's checks.
+  const boughtToday = (r) => r.status === 'bought' && String(r.updated_at || '').slice(0, 10) === D().today;
+
+  function viewShop() {
+    const open = D().list.filter(inShop);
+    const done = D().recent.filter((r) => boughtToday(r) && inShop(r));
+    const rows = open.map((r) => ({ r: r, done: false })).concat(done.map((r) => ({ r: r, done: true })));
+    if (!rows.length) return '<div class="empty">Nothing on the list for ' + esc(S.shop === 'all' ? 'any store' : storeOf(S.shop).name) + '.</div>';
+    const groupOf = (r) => { const it = itemById(r.item_id); return (it && it.group) || 'Other'; };
+    let html = '<div class="shop-progress"><span>' + done.length + ' of ' + rows.length + ' in the cart</span><div class="bar"><i style="width:' + Math.round(100 * done.length / rows.length) + '%"></i></div></div>';
+    GROUPS.concat(Array.from(new Set(rows.map((x) => groupOf(x.r)))).filter((g) => GROUPS.indexOf(g) < 0)).forEach((g) => {
+      const inG = rows.filter((x) => groupOf(x.r) === g);
+      if (!inG.length) return;
+      html += '<section class="card"><div class="card-head">' + esc(g.toUpperCase()) + '</div>' + inG.map((x) => {
+        const r = x.r;
+        const meta = rowMeta(r);
+        if (S.shop === 'all' || (r.store || 'Either') !== S.shop) meta.unshift(esc(storeOf(r.store).name));
+        if (r.status === 'requested') meta.unshift('asked by ' + esc(wantedBy(r).join(' + ')));
+        return '<button class="row shop-row' + (x.done ? ' done' : '') + '" data-act="' + (x.done ? 'shop-uncheck' : 'shop-check') + '" data-id="' + r.id + '" aria-pressed="' + x.done + '">' +
+          '<span class="check' + (x.done ? ' on' : '') + '" aria-hidden="true">' + (x.done ? '✓' : '') + '</span>' +
+          '<span class="row-main"><span class="row-name">' + esc(r.name) + '</span>' + (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + '</span>' +
+          (wantedBy(r).length > 1 && !x.done ? whoHtml(r) : '') + '</button>';
+      }).join('') + '</section>';
+    });
+    html += '<p class="hint">Tap to put it in the cart, tap again to take it out. Everyone shopping sees the same checks. Tap Done when you check out.</p>';
     return html;
   }
 
@@ -376,7 +485,7 @@
     const pill = (v, label, cls) => '<button class="pill ' + (cls || '') + (S.storeFilter === v ? ' on' : '') + '" data-act="filter" data-v="' + v + '">' + label + '</button>';
     return '<div class="chips-row">' + pill('all', 'All') + pill('GE', 'Giant Eagle', 'ge') + pill('WF', 'Whole Foods', 'wf') + pill('TGT', 'Target', 'tgt') +
       (amParent() ? '<button class="pill edit' + (S.editMode ? ' on' : '') + '" data-act="edit-mode" style="margin-left:auto">' + (S.editMode ? 'Done' : 'Edit') + '</button>' : '') + '</div>' +
-      '<div class="addbar"><label class="sr" for="sq">Find a staple</label><input id="sq" class="field" placeholder="Find a staple…" value="' + esc(S.staplesQuery) + '" data-input="staples-q"></div>';
+      '<div class="addbar"><label class="sr" for="sq">Find a staple</label><input id="sq" class="field" placeholder="Find something we buy…" value="' + esc(S.staplesQuery) + '" data-input="staples-q"></div>';
   }
 
   function viewStaples() {
@@ -399,7 +508,7 @@
     });
     if (!html) html = '<div class="empty">No staples match.</div>';
     html += '<p class="hint">' + (S.editMode ? 'Tap a staple to change its store, brand, or whether a swap is OK.' :
-      'Tap to add to the List, tap again to take it off. Orange edge = Giant Eagle, green = Whole Foods, red = Target, gray = either grocery store.') + '</p>';
+      'Tap to add it. Tap a filled one to open it. Orange edge = Giant Eagle, green = Whole Foods, red = Target, gray = either grocery store.') + '</p>';
     return html;
   }
 
@@ -416,7 +525,7 @@
       let row = '<div class="day"><div class="day-row"><span class="day-label' + (idx === todayIdx ? ' today' : '') + '">' + day + '</span>' +
         '<label class="sr" for="plan-' + day + '">Dinner on ' + day + '</label><select id="plan-' + day + '" class="select" data-input="plan" data-day="' + day + '">' +
         '<option value="">—</option>' + meals.map((m) => '<option value="' + m.id + '"' + (m.id === mealId ? ' selected' : '') + '>' + esc(m.name) + '</option>').join('') +
-        '</select>' + (meal ? '<button class="btn btn-plain" data-act="toggle-day" data-day="' + day + '">' + (open ? 'Hide' : 'Shop') + '</button>' : '') + '</div>';
+        '</select>' + (meal ? '<button class="btn btn-plain" data-act="toggle-day" data-day="' + day + '">' + (open ? 'Hide' : 'Ingredients') + '</button>' : '') + '</div>';
       if (open) row += viewIngredients(day, meal);
       return row + '</div>';
     }).join('') + '</section>';
@@ -425,7 +534,7 @@
       (meals.length ? meals.map((m) => '<div class="row"><button class="row-main" data-act="edit-meal" data-id="' + m.id + '"><span class="row-name">' + esc(m.name) + '</span>' +
         '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span></button></div>').join('')
         : '<div class="empty">No meals yet.</div>') + '</section>';
-    html += '<p class="hint">Pick dinners for the week, tap Shop to see what you need, and add the rest to the List in one tap.</p>';
+    html += '<p class="hint">Pick dinners for the week, tap Ingredients to see what you need, and add the rest to Need in one tap.</p>';
     return html;
   }
 
@@ -442,7 +551,7 @@
       return '<div class="ing-row"><span class="row-name">' + esc(item.name) + '</span><button class="tag ' + (need ? 'tag-need' : 'tag-have') + '" data-act="ing" data-day="' + day + '" data-id="' + id + '">' +
         (need ? 'Need' : 'Have it') + '</button></div>';
     }).join('');
-    return '<div class="ing">' + rows + (toAdd ? '<button class="btn btn-primary btn-block" data-act="add-meal" data-day="' + day + '" data-id="' + meal.id + '">Add ' + toAdd + ' to the List</button>'
+    return '<div class="ing">' + rows + (toAdd ? '<button class="btn btn-primary btn-block" data-act="add-meal" data-day="' + day + '" data-id="' + meal.id + '">Add ' + toAdd + ' to Need</button>'
       : '<div class="note">Everything for ' + esc(meal.name) + ' is covered.</div>') + '</div>';
   }
 
@@ -587,7 +696,7 @@
     const stat = (n, label) => '<div class="stat"><b>' + n + '</b><span>' + label + '</span></div>';
     let html = '<div class="stats">' + stat(count('GE'), 'Giant Eagle') + stat(count('WF'), 'Whole Foods') + stat(count('TGT'), 'Target') +
       stat(count('Either'), 'either grocery') + '</div>';
-    if (req) html += '<p class="note">' + req + ' request' + (req > 1 ? 's' : '') + ' still waiting on the List tab.</p>';
+    if (req) html += '<p class="note">' + req + ' request' + (req > 1 ? 's' : '') + ' still waiting on the Need tab.</p>';
 
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
@@ -614,7 +723,10 @@
     const storeOpts = [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['Either', 'Either']];
 
     if (sh.type === 'row') {
+      const sr = rowById(sh.id);
+      const asked = sr ? wantedBy(sr) : [];
       inner = '<h2>' + esc(sh.name) + '</h2>' +
+        (asked.length ? '<p class="note asked">Asked by ' + esc(asked.join(', ')) + (asked.length > 1 ? '. Same one, or one each? Set how many below.' : '') + '</p>' : '') +
         '<div><label>How many</label><div class="stepper"><button type="button" data-act="qty" data-d="-1" aria-label="Fewer">−</button><b>' + sh.qty + '</b><button type="button" data-act="qty" data-d="1" aria-label="More">+</button></div></div>' +
         '<div><label for="sh-note">Note</label><input id="sh-note" class="field" style="width:100%" data-input="draft" data-field="note" value="' + esc(sh.note) + '" placeholder="Brand, size, flavor…"></div>' +
         '<div><label>Store</label>' + seg('store', storeOpts, sh.store) + '</div>' +
@@ -672,6 +784,23 @@
   const handlers = {
     'pick-me': (el) => { S.me = el.dataset.name; store.set('ff_me', S.me); render(); },
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
+    'shop-start': () => { S.shop = store.get('ff_shop_last') || 'GE'; store.set('ff_shop', S.shop); S.query = ''; S.browse = false; S.tab = 'need'; render(); window.scrollTo(0, 0); },
+    'shop-store': (el) => { S.shop = el.dataset.v; store.set('ff_shop', S.shop); store.set('ff_shop_last', S.shop); render(); },
+    'shop-done': () => {
+      const n = D().recent.filter((r) => boughtToday(r) && inShop(r)).length;
+      store.set('ff_shop_last', S.shop); S.shop = ''; store.del('ff_shop');
+      showToast(n ? n + ' bought' : 'Back home'); render(); window.scrollTo(0, 0);
+    },
+    'shop-check': (el) => { const r = D().list.find((x) => x.id === el.dataset.id); if (r) setStatus(r, 'bought'); },
+    'shop-uncheck': (el) => {
+      const r = D().recent.find((x) => x.id === el.dataset.id);
+      if (!r) return;
+      act('update', { id: r.id, fields: { status: 'needed' } }, () => {
+        D().recent = D().recent.filter((x) => x.id !== r.id);
+        D().list.push(Object.assign({}, r, { status: 'needed' }));
+      });
+    },
+    browse: () => { S.browse = !S.browse; render(); },
     tab: (el) => { if (el.dataset.tab === 'ask' && S.tab !== 'ask') { S.askAnswered = 0; resetAskCard(); } S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
     'ask-pick': (el) => answerQuestion(el.dataset.id, el.dataset.v, el.dataset.v === 'Yes' || /^yes/i.test(el.dataset.v) ? 'right' : 'left'),
     'ask-type': (el) => { S.askTyping = el.dataset.id; render(); const f = document.getElementById('ask-in'); if (f) f.focus(); },
@@ -709,7 +838,7 @@
       if (!it) return;
       if (S.editMode) { openItem(it); return; }
       const row = listRowFor(it.id);
-      if (row) setStatus(row, 'skipped', 'Took ' + it.name + ' off');
+      if (row) handlers['open-row']({ dataset: { id: row.id } });
       else addItem(it);
     },
     'new-item': () => openItem(null),

@@ -216,7 +216,7 @@ function getState() {
     .slice(-20);
 
   return {
-    api: 3, // bump when the app needs a newer backend; 2 = reviewPass + Review audience; 3 = listHave/listHold
+    api: 4, // bump when the app needs a newer backend; 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by
     today: today,
     items: items.map(stripRow),
     list: active.map(stripRow),
@@ -233,6 +233,7 @@ function getState() {
       ge_order_day: settings.ge_order_day || '',
       wf_order_day: settings.wf_order_day || '',
       order_requested: settings.order_requested || '',
+      admins: String(settings.admins || '').split(',').map((s) => s.trim()).filter(String),
     },
   };
 }
@@ -297,8 +298,15 @@ function addToList(req) {
       setFields(TABS.list, existing._row, { hold_until: '', updated_at: nowStamp() });
       return { id: existing.id, merged: true, unheld: true };
     }
-    setFields(TABS.list, existing._row, { qty: (Number(existing.qty) || 1) + (req.bump === false ? 0 : qty), updated_at: nowStamp() });
-    return { id: existing.id, merged: true };
+    // Someone else asking for the same thing is recorded by name, not as a silent qty bump,
+    // so the family can see "Mike + Joni" and decide whether that means one or two.
+    const wanted = wantedList(existing);
+    const f = { updated_at: nowStamp() };
+    const already = wanted.map((w) => w.toLowerCase()).indexOf(String(req.by).toLowerCase()) >= 0;
+    if (!already) f.wanted_by = wanted.concat([req.by]).join(';');
+    if (req.bump === true) f.qty = (Number(existing.qty) || 1) + qty;
+    setFields(TABS.list, existing._row, f);
+    return { id: existing.id, merged: true, already: already };
   }
 
   const id = nextId(list, 'id', 'L', 5);
@@ -314,8 +322,15 @@ function addToList(req) {
     status: isKid(req.by) ? 'requested' : 'needed',
     updated_at: nowStamp(),
     meal_id: req.meal_id || '',
+    wanted_by: req.by,
   });
   return { id: id, merged: false };
+}
+
+// Everyone who asked for a List row: wanted_by (Mike;Joni), falling back to added_by for older rows.
+function wantedList(row) {
+  const names = String(row.wanted_by || '').split(';').map((s) => s.trim()).filter(String);
+  return names.length ? names : [String(row.added_by || '').trim()].filter(String);
 }
 
 function updateListRow(req) {

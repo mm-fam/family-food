@@ -327,3 +327,44 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 /* "Already have some?" box on a List item */
 .have-box { border: 1px dashed var(--field); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .have-box .stepper .note { margin-left: 4px; }
+
+/* ---------- header actions (Shop, admin) ---------- */
+.top-right { display: flex; align-items: center; gap: 8px; }
+.shop-btn, .shop-done { min-height: 36px; border-radius: 999px; padding: 0 14px; font-size: 14px; font-weight: 600; }
+.gear {
+  width: 36px; height: 36px; border-radius: 18px; border: 1px solid var(--line); background: var(--card);
+  color: var(--muted); font-size: 17px; padding: 0;
+}
+.gear.on { background: var(--ink); color: #FFFFFF; border-color: var(--ink); }
+
+/* ---------- who asked ---------- */
+.who-names {
+  flex: none; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: var(--badge); color: var(--muted);
+}
+.who-names.kid { background: var(--kid-badge); color: var(--req-ink); }
+.who-names.many { background: #FDF0C4; color: #7A4F01; }
+.note.asked { margin: -4px 0 0; }
+
+/* ---------- dinners strip ---------- */
+.dinners {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 10px 14px;
+}
+.dinners-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); flex: none; width: 64px; line-height: 1.2; }
+.dinners-list { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; }
+.dinner b { color: var(--accent); font-weight: 700; margin-right: 2px; }
+.dinner.muted { color: var(--muted); }
+.dinners-go { flex: none; font-size: 13px; font-weight: 600; color: var(--accent); }
+
+/* ---------- browse (old Staples) ---------- */
+.browse-body { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ---------- shop mode ---------- */
+.shop-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+.shop-progress .bar { flex: 1; height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.shop-progress .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width 300ms ease; }
+.shop-row { width: 100%; background: transparent; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; min-height: 56px; }
+.shop-row .check { width: 30px; height: 30px; font-size: 16px; font-weight: 700; }
+.shop-row.done .row-name { text-decoration: line-through; color: var(--muted); }
+.shop-row.done .row-meta { opacity: 0.7; }
