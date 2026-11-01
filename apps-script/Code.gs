@@ -36,6 +36,7 @@ const POINTS_HEAD = ['at', 'to', 'pts', 'why', 'ref', 'by', 'note'];
 // picks it up and writes back status + result. Created on first use.
 const JOBS_HEAD = ['id', 'at', 'by', 'store', 'kind', 'status', 'started_at', 'finished_at', 'result', 'notes'];
 const JOB_STORES = ['GE', 'WF', 'TGT', 'AMZ'];
+const STORE_NAMES = { GE: 'Giant Eagle', WF: 'Whole Foods', TGT: 'Target', AMZ: 'Amazon' };
 const JOB_KINDS = ['build', 'check'];
 const JOB_OPEN = ['queued', 'running', 'waiting']; // waiting = runner tried, computer/Chrome/sign-in not ready; it retries
 const JOB_SHOW_DAYS = 14;
@@ -54,7 +55,7 @@ const STILL_EVERY_DAYS = 7;
 const STILL_REASK_DAYS = 90;
 // Inbox points (api 13). Every answered card earns points for whoever answered it; a "Did <kid> help with
 // dinner?" card (type helped) earns points for the kid it's about (Review points_to). Skips earn nothing.
-const POINTS = { task: 5, task_late: 2, check: 3, rate: 2, still: 2, helped_cooked: 10, helped_helped: 5, other: 1 };
+const POINTS = { task: 5, task_late: 2, check: 3, settle: 3, rate: 2, still: 2, helped_cooked: 10, helped_helped: 5, other: 1 };
 const POINTS_GOAL = 10; // daily goal; Settings points_goal overrides
 // The scoring rules as the family reads them (Inbox → How points work). One line per way to score, in the
 // order shown; `key` is what Review points_why stores. Keep in step with POINTS and cardPoints().
@@ -62,6 +63,7 @@ const POINT_RULES = [
   { key: 'task', icon: '⏰', label: 'Due soon, answered on time', pts: POINTS.task, to: 'you' },
   { key: 'task_late', icon: '⏰', label: 'Due soon, answered after it was due', pts: POINTS.task_late, to: 'you' },
   { key: 'check', icon: '🔎', label: 'Mission (go check something)', pts: POINTS.check, to: 'you' },
+  { key: 'settle', icon: '🧾', label: 'Did we get it? (settling the List)', pts: POINTS.settle, to: 'you' },
   { key: 'rate', icon: '🍽', label: 'How was it?', pts: POINTS.rate, to: 'you' },
   { key: 'still', icon: '🍽', label: 'Still eating it?', pts: POINTS.still, to: 'you' },
   { key: 'other', icon: '💬', label: 'Any other card: questions, dinner votes, decisions', pts: POINTS.other, to: 'you' },
@@ -83,6 +85,18 @@ const MISSION_PLAN_DAYS = 3;       // ingredients for meals planned today + the 
 const MISSION_OPTIONS = 'Plenty; Some; A little; Out';
 const MISSION_LEVEL = { plenty: 'plenty', some: 'some', 'a little': 'low', low: 'low', out: 'out', none: 'out' };
 const NON_FOOD = ['Personal care', 'Household', 'Paper & cleaning', 'Other'];
+// Settling the List without a receipt (api 17, Mike Nov 1): daily "Did we get it?" cards.
+// Kids go look (It's here / Not here); parents decide (Got it / Still need it / Don't need it).
+// After a cart was built, one "Did the <store> order come?" card to the parents settles the whole cart.
+const SETTLE_STALE_DAYS = 7;       // a needed row untouched this long gets asked about
+const SETTLE_CART_DAYS = 2;        // carted rows this long after the cart was filled: did the order come?
+const SETTLE_REASK_DAYS = 5;       // don't ask about the same row (or store order) again sooner
+const SETTLE_EXPIRE_DAYS = 3;      // unanswered settle cards close
+const SETTLE_PER_KID = 2;
+const SETTLE_PARENTS = 4;          // per day, shared by both parents
+const SETTLE_KID_OPTIONS = "It's here; Not here";
+const SETTLE_PARENT_OPTIONS = "Got it; Still need it; Don't need it";
+const SETTLE_ORDER_OPTIONS = 'Yes, all of it; Some of it; Not yet';
 
 // Stock is an append-only log of "we have it" sightings (created on first use).
 const STOCK_HEAD = ['at', 'item_id', 'level', 'expires', 'who', 'source', 'list_id'];
@@ -116,7 +130,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      (a kid's answer as requested, a parent's as needed).
 // 16 = points for helping plan and shop (Points tab ledger): adding to the List (1; kids when a parent approves;
 //      up to 5 a day), asking for a meal (2, up to 2 a day), a parent handling a kid's List or meal request (1).
-const API_VERSION = 16;
+// 17 = settling the List: daily "Did we get it?" cards (type settle, a List id in the text) for stale needed rows,
+//      rows someone saw at home, and carted rows; one "Did the <store> order come?" card (type settle_order) per
+//      filled cart. Answers set the List row bought / have / skipped or keep it; 3 points.
+const API_VERSION = 17;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -661,6 +678,144 @@ function missionAnswer(r, answer, who) {
   return { level: level };
 }
 
+/* ---------------------------------------------------------------- settling the List (api 17) */
+
+const LIST_ID_RE = /\((L\d{4,})\)/;
+const rowStamp = (r, k) => stampOf(r[k]).slice(0, 10);
+// When a List row was last touched: updated_at, else added_at.
+const rowTouched = (r) => rowStamp(r, 'updated_at') || rowStamp(r, 'added_at');
+
+// Which List rows need a human to say what happened, picked once a day:
+//  1. a filled cart a couple of days old → one "Did the <store> order come?" card to the parents (3+ rows), else per row;
+//  2. rows someone saw at home (a Plenty / Some / count sighting after the row was added): it was probably bought;
+//  3. needed rows nobody has touched in SETTLE_STALE_DAYS.
+// Kids get the go-look ones (food and household they can see at home); parents get the rest.
+// Never a held row, a kid's unapproved request, or a row (or store order) asked about in SETTLE_REASK_DAYS.
+function makeSettle(today, kids, review) {
+  const list = readTab(TABS.list).filter((r) => (r.status === 'needed' || r.status === 'carted') && !(String(r.hold_until || '') > today));
+  if (!list.length) return [];
+  const asked = {};
+  review.forEach((r) => {
+    if ((r.type !== 'settle' && r.type !== 'settle_order') || !r.created) return;
+    if (r.status !== 'open' && daysBetween(String(r.created).slice(0, 10), today) >= SETTLE_REASK_DAYS) return;
+    const m = String(r.detail).match(LIST_ID_RE); if (m) asked[m[1]] = true;
+    const o = String(r.detail).match(/\(order (\w+)\)/); if (o) asked['order ' + o[1]] = true;
+  });
+  const seen = {};
+  if (SpreadsheetApp.getActive().getSheetByName(TABS.stock)) {
+    readTab(TABS.stock).forEach((x) => {
+      const lv = String(x.level || '').toLowerCase();
+      if (x.item_id && x.at && (lv === 'plenty' || lv === 'some' || (/^\d+$/.test(lv) && Number(lv) > 0))) {
+        const d = stampOf(x.at).slice(0, 10) || String(x.at).slice(0, 10);
+        if (!seen[x.item_id] || d > seen[x.item_id]) seen[x.item_id] = d;
+      }
+    });
+  }
+  const out = [];
+  const used = {};
+  const since = (iso) => { const d = new Date(iso + 'T12:00:00'); return isNaN(d) ? '' : DAY_NAMES[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.getDate(); };
+
+  // 1. Filled carts.
+  const carted = list.filter((r) => r.status === 'carted' && rowStamp(r, 'cart_at') && daysBetween(rowStamp(r, 'cart_at'), today) >= SETTLE_CART_DAYS);
+  const byStore = {};
+  carted.forEach((r) => { const st = String(r.cart || r.store || ''); (byStore[st] = byStore[st] || []).push(r); });
+  const parentRows = [];
+  Object.keys(byStore).forEach((st) => {
+    const rows = byStore[st];
+    if (rows.length >= 3) {
+      rows.forEach((r) => (used[r.id] = true));
+      if (asked['order ' + st]) return;
+      const name = STORE_NAMES[st] || st;
+      const when = rows.map((r) => rowStamp(r, 'cart_at')).sort()[0];
+      out.push({ type: 'settle_order', audience: 'parents',
+        detail: 'Did the ' + name + ' order come? ' + rows.length + ' things went in the cart ' + since(when) + ': ' +
+          rows.slice(0, 6).map((r) => r.name).join(', ') + (rows.length > 6 ? ', …' : '') + '. (order ' + st + ') Options: ' + SETTLE_ORDER_OPTIONS });
+    } else rows.forEach((r) => { if (!asked[r.id]) { used[r.id] = true; parentRows.push({ r: r, why: 'cart' }); } });
+  });
+
+  // 2 + 3. Seen at home, then stale.
+  const kidRows = [];
+  list.forEach((r) => {
+    if (used[r.id] || asked[r.id]) return;
+    const added = rowStamp(r, 'added_at') || rowTouched(r);
+    const sawIt = r.item_id && seen[r.item_id] && added && seen[r.item_id] >= added && r.status === 'needed';
+    const stale = r.status === 'needed' && rowTouched(r) && daysBetween(rowTouched(r), today) >= SETTLE_STALE_DAYS;
+    if (!sawIt && !stale) return;
+    const x = { r: r, why: sawIt ? 'seen' : 'stale', added: added };
+    if (kids.length) kidRows.push(x); else parentRows.push(x);
+  });
+  // Seen-at-home first, oldest first.
+  const order = (a, b) => (a.why !== b.why ? (a.why === 'seen' ? -1 : 1) : (a.added < b.added ? -1 : 1));
+  kidRows.sort(order);
+  // Kids take up to SETTLE_PER_KID each, the rest go to the parents.
+  kidRows.forEach((x, i) => {
+    const kid = kids[i % kids.length];
+    if (i < SETTLE_PER_KID * kids.length) {
+      out.push({ type: 'settle', audience: kid,
+        detail: 'Did we get the ' + x.r.name + '? It\'s been on the List since ' + since(x.added) + '. Go look and tell us. (' + x.r.id + ')' + (x.r.item_id ? ' (' + x.r.item_id + ')' : '') + ' Options: ' + SETTLE_KID_OPTIONS });
+    } else parentRows.push(x);
+  });
+  parentRows.sort(order).slice(0, SETTLE_PARENTS).forEach((x) => {
+    const why = x.why === 'cart' ? 'It went in the ' + (STORE_NAMES[String(x.r.cart || x.r.store)] || 'store') + ' cart ' + since(rowStamp(x.r, 'cart_at')) + '.'
+      : x.why === 'seen' ? 'Someone saw some at home since it was added.' : 'It\'s been on the List since ' + since(x.added) + '.';
+    out.push({ type: 'settle', audience: 'parents',
+      detail: 'Did we get the ' + x.r.name + '? ' + why + ' (' + x.r.id + ')' + (x.r.item_id ? ' (' + x.r.item_id + ')' : '') + ' Options: ' + SETTLE_PARENT_OPTIONS });
+  });
+  return out;
+}
+
+// One "Did we get it?" answer → the List row.
+//  It's here / Got it → done (bought if it was in a cart or a parent says got it, else have) + a Stock sighting;
+//  Not here / Still need it → stays on the List (touched, so it isn't asked again for a week); Not here logs "out";
+//  Don't need it → skipped. A row that's already done (receipt, In store) is left alone.
+function settleAnswer(r, answer, who) {
+  const id = (String(r.detail).match(LIST_ID_RE) || [])[1];
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!id || !a || a === 'skip') return null;
+  const row = readTab(TABS.list).find((x) => x.id === id);
+  if (!row || ACTIVE.indexOf(row.status) < 0) return { list: id, status: row ? row.status : '', already: true };
+  const stamp = nowStamp();
+  const note = (t) => listNote(row, t + ' (' + who + ')');
+  let f;
+  if (/^(it'?s here|got it|yes)/.test(a)) {
+    const status = row.status === 'carted' || /^got it/.test(a) ? 'bought' : 'have';
+    f = { status: status, hold_until: '', updated_at: stamp, note: note(status === 'bought' ? 'got it' : 'it\'s here') };
+    if (row.item_id) logStock({ item_id: row.item_id, level: 'some', who: who, source: 'settle', list_id: row.id });
+  } else if (/^don'?t need/.test(a)) {
+    f = { status: 'skipped', hold_until: '', updated_at: stamp, note: note('didn\'t need it') };
+  } else if (/^(not here|still need|no)/.test(a)) {
+    f = { updated_at: stamp };
+    if (/^not here/.test(a) && row.item_id) logStock({ item_id: row.item_id, level: 'out', who: who, source: 'settle', list_id: row.id });
+  } else return null; // typed text: the morning check reads it
+  setFields(TABS.list, row._row, f);
+  return { list: id, status: f.status || row.status };
+}
+
+// "Did the <store> order come?" → Yes: every carted row for that store (filled before the card) is bought.
+// Some of it: one "Did we get the …?" card per row to the parents. Not yet: nothing (asked again in a few days).
+function settleOrderAnswer(r, answer, who) {
+  const st = (String(r.detail).match(/\(order (\w+)\)/) || [])[1];
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!st || !a || a === 'skip') return null;
+  const created = stampOf(r.created).slice(0, 10) || String(r.created).slice(0, 10);
+  const rows = readTab(TABS.list).filter((x) => x.status === 'carted' && String(x.cart || x.store) === st && (!created || rowStamp(x, 'cart_at') <= created));
+  if (/^yes/.test(a)) {
+    const stamp = nowStamp();
+    rows.forEach((x) => setFields(TABS.list, x._row, { status: 'bought', hold_until: '', updated_at: stamp, note: listNote(x, 'order came (' + who + ')') }));
+    return { store: st, bought: rows.length };
+  }
+  if (/^some/.test(a)) {
+    const review = readTab(TABS.review);
+    let n = nextIdNum(review);
+    rows.forEach((x) => {
+      appendObj(TABS.review, { id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), status: 'open', answer: '', type: 'settle', audience: 'parents',
+        detail: 'Did we get the ' + x.name + ' in the ' + (STORE_NAMES[st] || st) + ' order? (' + x.id + ')' + (x.item_id ? ' (' + x.item_id + ')' : '') + ' Options: ' + SETTLE_PARENT_OPTIONS });
+    });
+    return { store: st, asked: rows.length };
+  }
+  return { store: st };
+}
+
 function answerReview(req) {
   const r = readTab(TABS.review).find((x) => x.id === req.id);
   if (!r) throw new Error('Review item not found');
@@ -674,7 +829,8 @@ function answerReview(req) {
     points: pts, points_to: r.type === 'helped' ? String(r.points_to || '') : who, points_why: why,
   });
   const mission = r.type === 'check' ? missionAnswer(r, answer, who) : null;
-  return { id: r.id, points: pts, why: why, mission: mission };
+  const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : null;
+  return { id: r.id, points: pts, why: why, mission: mission, settled: settled };
 }
 
 // Which rule (POINT_RULES key) a card scores under when answered, or '' for no points: "skip" (Don't care),
@@ -692,6 +848,7 @@ function pointsWhy(r, answer) {
     return due && nowStamp() > due ? 'task_late' : 'task';
   }
   if (t === 'check' || t === 'mission') return 'check';
+  if (t === 'settle' || t === 'settle_order') return 'settle';
   if (t === 'rate') return 'rate';
   if (t === 'still') return 'still';
   return 'other';
@@ -992,7 +1149,7 @@ function dailyCards() {
     review.forEach((r) => {
       const age = r.created ? daysBetween(String(r.created).slice(0, 10), today) : 0;
       if (r.status === 'open' && ((r.type === 'rate' && age > RATE_EXPIRE_DAYS) || (r.type === 'helped' && age > HELPED_EXPIRE_DAYS) ||
-        (r.type === 'check' && age > MISSION_EXPIRE_DAYS))) {
+        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order') && age > SETTLE_EXPIRE_DAYS))) {
         setFields(TABS.review, r._row, { status: 'closed' });
       }
     });
@@ -1037,6 +1194,9 @@ function dailyCards() {
 
     // Missions: a few "go check" cards per kid, every day (see makeMissions).
     makeMissions(today, kids, review, plan, mealOf).forEach((m) => add(m));
+
+    // Did we get it? Settle List rows that no receipt will close (see makeSettle).
+    makeSettle(today, kids, review).forEach((m) => add(m));
 
     // Still eating? Weekly, a couple per person, from things we buy regularly.
     if (!st.still_through || daysBetween(String(st.still_through).slice(0, 10), today) >= STILL_EVERY_DAYS) {

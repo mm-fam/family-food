@@ -490,9 +490,37 @@
     return '<span class="who-names' + (many ? ' many' : '') + (kid ? ' kid' : '') + '" title="Asked by ' + esc(names.join(', ')) + '">' + esc(names.join(' + ')) + '</span>';
   }
 
+  // Which meal a List row is for: the meal it was added for (meal_id), or else a meal planned in the next
+  // 7 days that uses this item (Mike, Nov 1: filter the List to meal items vs just stock).
+  function mealFor(r) {
+    if (!r) return null;
+    const m = r.meal_id && mealById(r.meal_id);
+    if (m) return { meal: m, date: '', planned: false };
+    if (!r.item_id) return null;
+    const today = D().today, last = addDays(today, 6);
+    let best = null;
+    (D().plan || []).forEach((p) => {
+      const d = planDate(p);
+      if (!d || d < today || d > last || isLeftover(p) || !p.meal_id) return;
+      const meal = mealById(p.meal_id);
+      if (meal && mealItems(meal).indexOf(r.item_id) >= 0 && (!best || d < best.date)) best = { meal: meal, date: d, planned: true };
+    });
+    return best;
+  }
+  const forMeal = (r) => !!mealFor(r);
   function mealTag(r) {
-    const m = r && r.meal_id && mealById(r.meal_id);
-    return m ? '<span class="meal-tag">🍽 ' + esc(m.name) + '</span>' : '';
+    const f = mealFor(r);
+    if (!f) return '';
+    return f.planned ? '<span class="meal-tag soft">🍽 ' + esc(shortDay(f.date).split(' ')[0]) + ' · ' + esc(f.meal.name) + '</span>'
+      : '<span class="meal-tag">🍽 ' + esc(f.meal.name) + '</span>';
+  }
+  // List filter pills: All · For meals · Stock (not tied to a meal). Starts on All each time the app opens.
+  S.listKind = 'all';
+  const kindOk = (r) => S.listKind === 'all' || (S.listKind === 'meal' ? forMeal(r) : !forMeal(r));
+  function viewListKinds(rows) {
+    const nMeal = rows.filter(forMeal).length;
+    const pill = (v, label, n) => '<button class="pill' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
+    return '<div class="chips-row list-kinds">' + pill('all', 'All', rows.length) + pill('meal', '🍽 For meals', nMeal) + pill('stock', '🧺 Stock', rows.length - nMeal) + '</div>';
   }
 
   function rowMeta(r) {
@@ -580,13 +608,16 @@
     const faded = fadingRows();
     const fadedIds = {};
     faded.forEach((f) => (fadedIds[f.row.id] = f));
-    const all = active.concat(faded.map((f) => f.row));
+    if (active.length) html += viewListKinds(active);
+    const shown = active.filter(kindOk);
+    const all = shown.concat(faded.map((f) => f.row).filter(kindOk));
     const aisles = groupsIn(all);
     if (active.length || faded.length) {
       const allClosed = aisles.every((g) => isClosed('a:' + g));
-      const only = active.filter(storeOnly).length;
-      html += '<div class="list-tools"><span>' + active.length + ' item' + (active.length === 1 ? '' : 's') + (only ? ' · ' + only + ' store-only' : '') + '</span>' +
+      const only = shown.filter(storeOnly).length;
+      html += '<div class="list-tools"><span>' + shown.length + ' item' + (shown.length === 1 ? '' : 's') + (S.listKind === 'meal' ? ' for meals' : S.listKind === 'stock' ? ' to stock up' : '') + (only ? ' · ' + only + ' store-only' : '') + '</span>' +
         '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
+      if (!shown.length && !faded.length) html += '<div class="empty">' + (S.listKind === 'meal' ? 'Nothing on the List is for a planned meal this week.' : 'Everything on the List is for a meal.') + '</div>';
     }
     aisles.forEach((g) => {
       const rows = all.filter((r) => groupOf(r) === g);
@@ -615,7 +646,7 @@
           '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    html += '<p class="hint">One list for every store: wherever you shop, grab what you can. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
+    html += '<p class="hint">One list for every store: wherever you shop, grab what you can. 🍽 For meals = added for a meal or used in a meal planned this week; 🧺 Stock = everything else. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
     return html;
   }
 
@@ -1227,6 +1258,10 @@
     const review = D().review || [];
     return review.filter((r) => {
       if (r.type === 'meal_request') return false; // shown on the Meals tab instead
+      if (r.type === 'settle') { // "Did we get it?": gone once the row is settled some other way (receipt, In store)
+        const m = String(r.detail).match(/\((L\d{4,})\)/);
+        if (m && !D().list.some((x) => x.id === m[1])) return false;
+      }
       const aud = String(r.audience || 'parents').trim();
       if (aud === 'all') return true;
       if (aud === 'parents') return amParent();
@@ -1268,15 +1303,17 @@
     decision: { icon: '⚖', label: 'Decisions' },
     rate: { icon: '🍽', label: 'How was it?' },
     mission: { icon: '🔎', label: 'Missions' },
+    settle: { icon: '🧾', label: 'Did we get it?' },
     question: { icon: '💬', label: 'Quick questions' },
     helped: { icon: '🧑‍🍳', label: 'Kitchen help' },
   };
-  const sectionOrder = () => amParent() ? ['decision', 'due', 'helped', 'rate', 'mission', 'question'] : ['due', 'rate', 'mission', 'question'];
+  const sectionOrder = () => amParent() ? ['decision', 'due', 'settle', 'helped', 'rate', 'mission', 'question'] : ['due', 'settle', 'rate', 'mission', 'question'];
   function sectionOf(r) {
     const sec = String(r.section || '').toLowerCase();
     if (SECTIONS[sec]) return sec;
     const t = String(r.type || '').toLowerCase(), d = String(r.detail || '');
     if (t === 'helped') return 'helped';
+    if (t === 'settle' || t === 'settle_order') return 'settle';
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
     if (t === 'check' || t === 'mission') return 'mission';
@@ -1323,6 +1360,7 @@
     { key: 'task', icon: '⏰', label: 'Due soon, answered on time', pts: 5, to: 'you' },
     { key: 'task_late', icon: '⏰', label: 'Due soon, answered after it was due', pts: 2, to: 'you' },
     { key: 'check', icon: '🔎', label: 'Mission (go check something)', pts: 3, to: 'you' },
+    { key: 'settle', icon: '🧾', label: 'Did we get it? (settling the List)', pts: 3, to: 'you' },
     { key: 'rate', icon: '🍽', label: 'How was it?', pts: 2, to: 'you' },
     { key: 'still', icon: '🍽', label: 'Still eating it?', pts: 2, to: 'you' },
     { key: 'other', icon: '💬', label: 'Any other card: questions, dinner votes, decisions', pts: 1, to: 'you' },
@@ -1343,6 +1381,7 @@
     const sec = sectionOf(r);
     if (sec === 'due') return rulePts(r.due_at && new Date() > new Date(String(r.due_at)) ? 'task_late' : 'task');
     if (sec === 'mission') return rulePts('check');
+    if (sec === 'settle') return rulePts('settle') || 3;
     if (t === 'rate' || t === 'still') return rulePts(t);
     return rulePts('other');
   }
@@ -1535,14 +1574,15 @@
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
       '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : '+' + cardPoints(r)) + '</span>' : '') + '</div>' +
-      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
+      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
       (canPass() ? '<button type="button" class="btn btn-plain" data-act="ask-pass" data-id="' + r.id + '">Pass ↗</button>' : '') +
       (deck.length > 1 ? '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' : '') + '</div>') + '</section>';
     if (deck.length > 1) html += '<div class="deck-edge"></div>';
-    html += '<p class="hint">' + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
+    const isSettle = r.type === 'settle' || r.type === 'settle_order';
+    html += '<p class="hint">' + (isSettle ? (r.type === 'settle_order' ? 'Yes takes the whole cart off the List. Some of it asks about each thing. ' : isKid(S.me) ? 'Go look where it lives (fridge, pantry, bathroom). It’s here takes it off the List. ' : 'Got it or Don’t need it takes it off the List; Still need it keeps it there. ') : '') + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
     return html;
   }
 
@@ -1916,8 +1956,9 @@
       if (r && r.store !== fields.store) act('update', { id: r.id, fields: { store: fields.store } }, () => { r.store = fields.store; });
     },
     fold: (el) => { const k = el.dataset.key; setClosed(k, !isClosed(k)); render(); },
+    'list-kind': (el) => { S.listKind = el.dataset.v || 'all'; render(); },
     'fold-all': () => {
-      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested')).map((g) => 'a:' + g);
+      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested' && kindOk(r))).map((g) => 'a:' + g);
       const close = !keys.every((k) => isClosed(k));
       keys.forEach((k) => setClosed(k, close));
       render();
