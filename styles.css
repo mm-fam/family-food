@@ -177,14 +177,6 @@ main { flex: 1; padding: 14px 12px 110px; display: flex; flex-direction: column;
 .chip.dropped { opacity: 0.5; text-decoration: line-through; }
 
 /* ---------- meals ---------- */
-.day { border-top: 1px solid var(--line-soft); }
-.day:first-of-type { border-top: 0; }
-.day-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-height: 54px; }
-.day-label { width: 44px; font-size: 13px; font-weight: 700; color: var(--muted); flex: none; line-height: 1.2; }
-.day-label small { display: block; font-size: 11px; font-weight: 500; }
-.day-label.today { color: var(--accent); }
-.week-div { padding: 10px 14px 6px; border-top: 1px solid var(--line-soft); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-.week-div + .day { border-top: 0; }
 .select {
   flex: 1; min-width: 0; height: 40px; padding: 0 10px; border-radius: 10px;
   border: 1px solid var(--field); background: var(--card); font-size: 15px;
@@ -463,3 +455,38 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .idea-status.done { background: var(--accent-soft); color: var(--accent-deep); }
 .idea-status.new, .idea-status.asked { background: #E6EEF9; color: #234A7A; }
 .toast.top { top: calc(12px + env(safe-area-inset-top)); bottom: auto; }
+
+/* ---------- meals: week strips (swipe through the days) ---------- */
+.week-strip {
+  display: flex; gap: 8px; overflow-x: auto; padding: 4px 14px 14px; scroll-snap-type: x mandatory;
+  scroll-padding: 0 14px; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: none;
+}
+.week-strip::-webkit-scrollbar { display: none; }
+.day-tile {
+  flex: 0 0 40%; min-width: 128px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 6px;
+  border: 1px solid var(--field); border-radius: 12px; padding: 10px; background: var(--card);
+}
+.day-tile.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.day-tile.set { background: var(--accent-soft); border-color: transparent; }
+.day-tile.today.set { border-color: var(--accent); }
+.day-tile.open { box-shadow: inset 0 0 0 2px var(--accent); }
+.dt-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.dt-head b { font-size: 14px; }
+.day-tile.today .dt-head b { color: var(--accent); }
+.dt-head small { font-size: 12px; color: var(--muted); }
+.dt-pick { position: relative; min-height: 40px; display: flex; align-items: center; }
+.dt-meal {
+  font-size: 15px; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.day-tile:not(.set) .dt-meal { color: var(--muted); font-weight: 500; }
+/* The real picker sits invisibly over the meal name: tapping the name opens the phone's own list. */
+.dt-pick select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
+.dt-ing {
+  align-self: flex-start; border: 0; background: transparent; padding: 4px 0; min-height: 28px;
+  font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer;
+}
+.dt-ing.ghost { visibility: hidden; }
+.strip-ing { border-top: 1px solid var(--line-soft); }
+.strip-ing-head { padding: 10px 14px 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+@media (prefers-color-scheme: dark) { .day-tile.set .dt-meal { color: var(--accent-deep); } }
+.strip-ing .ing { padding: 6px 14px 12px; }

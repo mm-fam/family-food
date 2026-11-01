@@ -264,11 +264,14 @@
   function render() {
     const root = document.getElementById('app');
     const focus = captureFocus();
+    const scrolls = {};
+    root.querySelectorAll('[data-keep-scroll]').forEach((el) => { if (el.id) scrolls[el.id] = el.scrollLeft; });
     if (!apiUrl()) root.innerHTML = viewNoBackend();
     else if (S.pass && !S.data) root.innerHTML = viewLoading();
     else if (!S.pass) root.innerHTML = viewSetup();
     else if (!S.me) root.innerHTML = viewPickPerson();
     else root.innerHTML = viewApp();
+    Object.keys(scrolls).forEach((id) => { const el = document.getElementById(id); if (el) el.scrollLeft = scrolls[id]; });
     restoreFocus(focus);
   }
 
@@ -726,22 +729,58 @@
   }
 
   /* ---------- meals ---------- */
-  // Rolling window: today + the next 13 days, with a divider at each new week (Sunday).
+  // Dinner plan as two swipeable week strips: this week (today → Saturday) on top, next week
+  // (Sun → Sat) below, folded until tapped. Days past next Saturday stay reachable from the meal card.
+  function planWeeks() {
+    const today = D().today;
+    const sun = addDays(today, 7 - DAYS.indexOf(dayName(today)));
+    const all = planDates();
+    return {
+      thisWeek: all.filter((d) => d < sun),
+      nextWeek: all.filter((d) => d >= sun && d < addDays(sun, 7)),
+      nextSun: sun,
+    };
+  }
+
+  function dayTile(day, plan, meals) {
+    const meal = mealById(plan[day] || '');
+    const isToday = day === D().today;
+    const open = S.openDay === day && meal;
+    return '<div class="day-tile' + (meal ? ' set' : '') + (isToday ? ' today' : '') + (open ? ' open' : '') + '">' +
+      '<div class="dt-head"><b>' + (isToday ? 'Today' : dayName(day)) + '</b><small>' + md(day) + '</small></div>' +
+      '<div class="dt-pick"><span class="dt-meal">' + (meal ? esc(meal.name) : '+ Pick dinner') + '</span>' +
+      '<label class="sr" for="plan-' + day + '">Dinner on ' + dayName(day) + ' ' + md(day) + '</label><select id="plan-' + day + '" data-input="plan" data-day="' + day + '">' +
+      '<option value="">—</option>' + meals.map((m) => '<option value="' + m.id + '"' + (meal && m.id === meal.id ? ' selected' : '') + '>' + esc(m.name) + '</option>').join('') +
+      '</select></div>' +
+      (meal ? '<button class="dt-ing" data-act="toggle-day" data-day="' + day + '" aria-expanded="' + !!open + '">' + (open ? 'Hide' : 'Ingredients') + '</button>' : '<span class="dt-ing ghost"></span>') +
+      '</div>';
+  }
+
+  function weekStrip(id, days, plan, meals) {
+    let h = '<div class="week-strip" id="strip-' + id + '" data-keep-scroll>' + days.map((d) => dayTile(d, plan, meals)).join('') + '</div>';
+    const openDay = days.indexOf(S.openDay) >= 0 && mealById(plan[S.openDay] || '') ? S.openDay : null;
+    if (openDay) h += '<div class="strip-ing"><div class="strip-ing-head">' + esc(shortDay(openDay) + ' · ' + mealById(plan[openDay]).name) + '</div>' + viewIngredients(openDay, mealById(plan[openDay])) + '</div>';
+    return h;
+  }
+
   function viewMeals() {
     const plan = planByDate();
     const meals = D().meals.slice().sort((a, b) => String(a.name).localeCompare(b.name));
-    let html = '<section class="card">' + planDates().map((day, idx) => {
-      const mealId = plan[day] || '';
-      const meal = mealById(mealId);
-      const open = S.openDay === day && meal;
-      const divider = idx > 0 && dayName(day) === 'Sun' ? '<div class="week-div">Week of ' + md(day) + '</div>' : '';
-      let row = divider + '<div class="day"><div class="day-row"><span class="day-label' + (idx === 0 ? ' today' : '') + '">' + (idx === 0 ? 'Today' : dayName(day)) + '<small>' + md(day) + '</small></span>' +
-        '<label class="sr" for="plan-' + day + '">Dinner on ' + dayName(day) + ' ' + md(day) + '</label><select id="plan-' + day + '" class="select" data-input="plan" data-day="' + day + '">' +
-        '<option value="">—</option>' + meals.map((m) => '<option value="' + m.id + '"' + (m.id === mealId ? ' selected' : '') + '>' + esc(m.name) + '</option>').join('') +
-        '</select>' + (meal ? '<button class="btn btn-plain" data-act="toggle-day" data-day="' + day + '">' + (open ? 'Hide' : 'Ingredients') + '</button>' : '') + '</div>';
-      if (open) row += viewIngredients(day, meal);
-      return row + '</div>';
-    }).join('') + '</section>';
+    const w = planWeeks();
+    const planned = (days) => days.filter((d) => mealById(plan[d] || ''));
+    let html = '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + ' planned</span></div>' +
+      weekStrip('this', w.thisWeek, plan, meals) + '</section>';
+
+    if (w.nextWeek.length) {
+      const closed = isClosed('w:next');
+      const pn = planned(w.nextWeek);
+      html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="w:next" aria-expanded="' + !closed + '">' +
+        '<span>NEXT WEEK · ' + md(w.nextSun) + '–' + md(addDays(w.nextSun, 6)) + '</span><span class="head-btns"><span class="sub">' + pn.length + ' planned</span>' + chev(closed) + '</span></button>';
+      html += closed
+        ? '<button class="peek" data-act="fold" data-key="w:next">' + (pn.length ? esc(pn.map((d) => dayName(d) + ' ' + mealById(plan[d]).name).join(', ')) : 'Nothing planned yet. Tap to plan.') + '</button>'
+        : weekStrip('next', w.nextWeek, plan, meals);
+      html += '</section>';
+    }
 
     html += viewIdeas();
 
@@ -1408,10 +1447,13 @@
   });
 
   /* ------------------------------------------------------------ boot */
+  let stripTouched = 0;
+  document.addEventListener('scroll', (ev) => { if (ev.target && ev.target.classList && ev.target.classList.contains('week-strip')) stripTouched = Date.now(); }, true);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   setInterval(() => {
     // Don't redraw under someone mid-edit.
     if (document.hidden || S.sheet || S.query) return;
+    if (Date.now() - stripTouched < 3000) return; // mid-swipe through a week strip
     const a = document.activeElement;
     if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT')) return;
     refresh();
