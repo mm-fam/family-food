@@ -2,7 +2,7 @@
 
 The app is named **Poppy 2.0** (the family's name for its earlier AI project). The repo and URL keep the `family-food` name so existing home-screen links keep working.
 
-_Last updated: Nov 1 2026 (api 10: Q&A loop)_
+_Last updated: Nov 1 2026 (api 11: Products tab, In-cart tag, aisles, Amazon store)_
 
 ## Purpose
 A shared phone app where anyone in the family adds what we need, picks dinners, and taps staples, with Claude behind it closing the loop from receipts and filling store carts. Design goal from day one: **it must never become a chore or go stale.** Automation (receipts, "probably due", draft lists) does the upkeep, not the family.
@@ -19,7 +19,8 @@ A shared phone app where anyone in the family adds what we need, picks dinners, 
 - **Giant Eagle (GE):** kid lunches, snacks, everyday dinners. Curbside/delivery. myPerks rewards account.
 - **Whole Foods (WF):** ordered through Amazon. Premium items, produce, specialty (Nounos yogurt, Creminelli salami, brie bites, pizza dough).
 - **Target (TGT):** toiletries, personal care, paper and household. Drive Up / pickup about once a month (online orders also ship). Mostly non-food.
-- `Either` = either grocery store (GE or WF), whichever order is next. Never Target; Target items are always tagged TGT.
+- **Amazon (AMZ):** fourth store (app plumbing since api 11; cart building not started). Like Target, never part of `Either`.
+- `Either` = either grocery store (GE or WF), whichever order is next. Never Target or Amazon.
 
 ## Architecture
 ```
@@ -50,7 +51,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 - "Ask Claude to build the cart" (admin screen) only sets `Settings.order_requested`.
 
 ### Backend API (`action` in POST body, plus `pass`)
-`ping`, `state`, `add`, `update`, `addMeal`, `planSet`, `mealSave`, `itemSave`, `reviewAnswer`, `reviewPass`, `listHave`, `listHold`, `requestOrder`, `itemInfo`, `stockLog`, `mealIdea`, `mealRequest`, `feedback`, `reviewLater` {id}, plus `version` (no passcode; returns only `api`). `state` includes `api` (backend version; 2 = reviewPass + Review audience; 3 = listHave/listHold + Stock; 4 = List `wanted_by`, Settings.admins; 5 = `itemInfo` {item_id} → purchases/stock/answers (no state returned), `stockLog` {item_id, level}, `state.stock` = latest sighting per item; 6 = Plan by date: `state.plan` = rows dated today … today+13 (`planDays` 14), `planSet` {date, meal_id} (older apps' week_of + day still work); 7 = `mealIdea` {text} → Meal Ideas row, `state.ideas` (open ideas + ones finished in the last 14 days), `state.mealStats` per meal {voters, votes, score, made, last, next, cost, priced, linked} computed from Review votes, Plan + Plan Archive and Receipts; 8 = meal slots; **9** = Items `store_only` via `itemSave`, `mealRequest` {meal_id, slot, when} → Review `meal_request` row (audience parents, `asked_by`), `feedback` {text, tab} → App Feedback row, kids can't `planSet` / `mealSave`, daily automatic Q&A cards (below), `rate` cards count as votes in mealStats; **10** = `reviewLater`).
+`ping`, `state`, `add`, `update`, `addMeal`, `planSet`, `mealSave`, `itemSave`, `reviewAnswer`, `reviewPass`, `listHave`, `listHold`, `requestOrder`, `itemInfo`, `stockLog`, `mealIdea`, `mealRequest`, `feedback`, `reviewLater` {id}, plus `version` (no passcode; returns only `api`). `state` includes `api` (backend version; 2 = reviewPass + Review audience; 3 = listHave/listHold + Stock; 4 = List `wanted_by`, Settings.admins; 5 = `itemInfo` {item_id} → purchases/stock/answers (no state returned), `stockLog` {item_id, level}, `state.stock` = latest sighting per item; 6 = Plan by date: `state.plan` = rows dated today … today+13 (`planDays` 14), `planSet` {date, meal_id} (older apps' week_of + day still work); 7 = `mealIdea` {text} → Meal Ideas row, `state.ideas` (open ideas + ones finished in the last 14 days), `state.mealStats` per meal {voters, votes, score, made, last, next, cost, priced, linked} computed from Review votes, Plan + Plan Archive and Receipts; 8 = meal slots; **9** = Items `store_only` via `itemSave`, `mealRequest` {meal_id, slot, when} → Review `meal_request` row (audience parents, `asked_by`), `feedback` {text, tab} → App Feedback row, kids can't `planSet` / `mealSave`, daily automatic Q&A cards (below), `rate` cards count as votes in mealStats; **10** = `reviewLater`; **11** = `state.products` = the exact product per item per store from the Products tab ({item_id: {GE: {name, size, aisle}}}, best row: exact > likely > alt, then newest), and List rows may carry `cart` + `cart_at`).
 
 **Automatic Q&A cards (api 9)**, made in `getState` the first time anyone opens the app each day (Settings `cards_through`, no trigger needed): **How was it?** (type `rate`, one per person) the day after a dinner or breakfast that's still new to us (made ≤ 2 times before), max 2 per person per day, catching up at most 3 days; unanswered ones close after 5 days. **Still eating …?** (type `still`, Yes/No) weekly (Settings `still_through`): 2 per person from food items bought 2+ times, not asked to that person in 90 days. `add` on an item already on the list adds the asker to `wanted_by` instead of bumping qty and `held` (rows moved to next week). The app hides features whose backend isn't deployed yet. Writes run under a script lock. GET works too for a quick browser check: `/exec?action=ping&pass=...`.
 
@@ -60,7 +61,8 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 
 ## Sheet tabs
 - **Items:** id | name | store (GE/WF/TGT/Either) | group | brand_size | ok_swap (Y/N/blank=ask) | status (Always/Sometimes/Drop) | aliases (receipt text, `;` separated) | notes | orders | first_bought | last_bought | avg_days | **store_only** (`Y` = only that store carries it; added by the backend the first time someone sets it). **J:M are formulas over Receipts; never type into them.** New rows need the formulas copied down.
-- **List:** id | item_id | name | store | qty | note | added_by | added_at | status | updated_at | meal_id | hold_until | wanted_by (`;`-separated names of everyone who asked; blank = added_by). Status flow: `requested → needed → carted → bought | skipped | have`. `have` = we already had it, nothing bought (item sheet: "We have it"). `hold_until` set = "Next week": the row stays `needed` but is hidden until that date; re-adding the item brings it back now.
+- **List:** id | item_id | name | store | qty | note | added_by | added_at | status | updated_at | meal_id | hold_until | wanted_by (`;`-separated names of everyone who asked; blank = added_by) | **cart** (store code whose online cart holds it, api 11) | **cart_at**. Status flow: `requested → needed → carted → bought | skipped | have`. `carted` + `cart` = Claude put it in that store's online cart (cart building or the cart check); the app shows "🛒 In GE cart". `have` = we already had it, nothing bought (item sheet: "We have it"). `hold_until` set = "Next week": the row stays `needed` but is hidden until that date; re-adding the item brings it back now.
+- **Products** (Claude writes it): item_id | store | product | size | last_bought | match (`exact` / `likely` / `alt`) | source | notes | sku | aisle. The exact product the store sells us for each catalog item, word for word as the store's site names it, one row per item × store × product (flavors and sizes are separate rows of one item). Cart building adds these products; the cart check matches cart lines against them; `aisle` (e.g. "Aisle 17 Dairy" at the family's Giant Eagle) orders In-store mode. Seeded from the Giant Eagle Reorder history (Nov 1).
 - **Stock:** at | item_id | level (plenty/some/low or a count) | expires | who | source | list_id. Append-only log of "we have it" sightings. A plenty/some/count sighting in the last 7 days holds the item out of "probably due". Design: light inventory, never counting sessions.
 - **List Archive / Plan Archive:** same columns as List / Plan; written only by `nightly`.
 - **Meal Ideas** (created by the backend on first use): id (x001…) | at | who | text | status (`new` → `done`, or `asked` = a kid's idea waiting for a parent, or `declined`) | meal_id | notes. Claude processes `new` rows (runbook §8). Never delete rows.
@@ -76,8 +78,9 @@ Groups used by the app: Produce, Dairy, Cheese & deli, Meat, Bakery, Breakfast, 
 
 ## Claude's jobs (details in runbooks)
 1. **Receipt ingest:** new GE/WF receipts → Receipts rows → match by aliases → active List rows to `bought` → unknowns to Review.
-2. **Cart building:** when `order_requested` is set, fill that store's cart in Chrome from List rows, respect ok_swap, report swaps/misses to Review, set rows `carted`. Never check out.
-3. **Catalog upkeep:** new items get next free id + J:M formulas.
+2. **Cart building:** when `order_requested` is set, fill that store's cart in Chrome from List rows, picking each product from Products (added from the store's past purchases), respect ok_swap, report swaps/misses to Review, set rows `carted` + `cart`. Never check out. Needs the owner's computer awake with Chrome open and the store signed in (runbook §2, §12).
+2b. **Cart check** (runbook §12): read a store's online cart and sync it to the List (`carted` + `cart`), so the app shows what's already in the cart.
+3. **Catalog upkeep:** new items get next free id + J:M formulas. Products upkeep from the stores' purchase history (runbook §2).
 4. **Q&A loop** (daily, runbook §11): account for every answer (Items, Meals, Profile, follow-ups), recycle put-off cards, refill each deck to 12–15 (max 8 new per person per day) from follow-ups, data and `docs/question-bank.md`.
 
 ## Baseline data (Oct 2026)

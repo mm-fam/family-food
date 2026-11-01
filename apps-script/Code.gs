@@ -22,6 +22,7 @@ const TABS = {
   stock: 'Stock',
   ideas: 'Meal Ideas',
   feedback: 'App Feedback',
+  products: 'Products',
 };
 
 // App Feedback: anything anyone says about the app from the 💡 button in the header (created on first use).
@@ -55,7 +56,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //     daily "How was it?" (type rate) and weekly "Still eating?" (type still) cards; kids can't planSet / mealSave.
 // 10 = reviewLater: "Later" on a Q&A card is saved (Review later_count + later_at), so put-off cards
 //      stay at the back of the deck across days and the morning check can recycle or retire them.
-const API_VERSION = 10;
+// 11 = products: state.products = the exact product we buy per item per store (Products tab, written by
+//      Claude), with aisle when known, for the item screen and In-store aisle order. List rows can carry
+//      `cart` (store code) + `cart_at` when Claude put them in a store's online cart (status carted).
+const API_VERSION = 11;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -299,6 +303,7 @@ function getState() {
     review: readTab(TABS.review).filter((r) => r.status === 'open').map(stripRow),
     due: due,
     stock: stockLatest,
+    products: productsMap(),
     settings: {
       parents: String(settings.parents || '').split(',').map((s) => s.trim()).filter(String),
       kids: String(settings.kids || '').split(',').map((s) => s.trim()).filter(String),
@@ -314,6 +319,30 @@ function stripRow(o) {
   const c = Object.assign({}, o);
   delete c._row;
   return c;
+}
+
+// Products tab (Claude writes it): the exact product per item per store. For each item + store, keep the
+// best row: exact before likely before alt, then the newest last_bought. Returns
+// { item_id: { GE: { name, size, aisle } } }. Missing tab = {}.
+function productsMap() {
+  if (!SpreadsheetApp.getActive().getSheetByName(TABS.products)) return {};
+  const rank = { exact: 0, likely: 1, alt: 2 };
+  const best = {};
+  readTab(TABS.products).forEach((p) => {
+    if (!p.item_id || !p.store) return;
+    const k = p.item_id + '|' + p.store;
+    const r = rank[String(p.match)] === undefined ? 3 : rank[String(p.match)];
+    const b = best[k];
+    const newer = String(p.last_bought || '') > String((b && b.last_bought) || '');
+    if (!b || r < b._r || (r === b._r && newer)) best[k] = Object.assign({ _r: r }, p);
+  });
+  const out = {};
+  Object.keys(best).forEach((k) => {
+    const p = best[k];
+    out[p.item_id] = out[p.item_id] || {};
+    out[p.item_id][p.store] = { name: String(p.product || ''), size: String(p.size || ''), aisle: String(p.aisle || '') };
+  });
+  return out;
 }
 
 // Weeks start on Sunday.

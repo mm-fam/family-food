@@ -31,18 +31,24 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 
 ## 2. Cart building
 
-**When:** `Settings.order_requested` is set (e.g. `GE` or `WF`) or Mom/Mike asks. Start with one store and get it reliable before doing both.
+**When:** `Settings.order_requested` is set (`GE`, `WF`, `TGT` or `AMZ`) or a parent asks. Start with one store and get it reliable before doing more.
 
-1. Load the Chrome tools; check Mike's tabs; open a new tab. Confirm the store site is signed in. If not, stop and ask. Never enter credentials.
-2. Rows to fill: List rows with status `needed`, store = that store, plus `Either` for GE/WF (never for Target). Skip `requested` (unapproved).
-3. For each row: search by the Item's brand_size/name; prefer the exact past product (Amazon "Buy it again" / Giant Eagle past purchases are good shortcuts). Target: choose Drive Up. Set qty.
+**Needs:** the owner's computer awake, Chrome open with the Claude extension connected, and the store signed in (by a person; never by Claude). A session started from a phone works too: it drives that computer's Chrome. If Chrome can't be reached, stop and say so.
+
+1. Load the Chrome tools; check the tabs; open a new tab. Confirm the store site is signed in. If not, stop and ask. **Never enter credentials.** Look at the cart first: if it holds items nobody from Poppy put there, ask before adding (it may be a live order).
+2. Rows to fill: List rows with status `needed` whose item is usually bought at that store, plus `Either` for GE/WF (never for Target or Amazon), skipping items with `store_only = Y` for another store. Ask about borderline rows rather than guessing. Skip `requested` (unapproved) and held rows.
+3. For each row, pick the product from **Products** (item_id + store): `exact` first, then `likely`, newest `last_bought` wins; `alt` only if those are out. Add it from the store's **past purchases** (GE: Reorder; Amazon/Whole Foods: Buy it again; Target: Buy it again); search by the exact product name only if it isn't listed. No Products row → search by the Item's brand_size/name and report it as a guess. Target: choose Drive Up. Set qty.
 4. Out of stock or not found:
    - ok_swap `Y` → pick the closest equivalent, note it.
    - ok_swap `N` → skip.
    - blank → skip and ask.
-   Each swap/miss → a Review row (type `swap` or `miss`).
-5. Set filled rows to `carted`. Clear `order_requested`.
-6. Hand off: cart total, then a short list of swaps, misses and guesses. **Stop there. Never check out.**
+   Each swap/miss → a Review row (type `swap` or `miss`). Leave the store's per-line substitution setting as it is.
+5. Set filled rows to `carted`, `cart` = store code, `cart_at` = now. Clear `order_requested`. A product added that isn't in Products yet → add a Products row (`match` = `likely`, source `cart build <date>`).
+6. Hand off: cart total (Giant Eagle has a $35 minimum), then a short list of swaps, misses and guesses. **Stop there. Never check out.**
+
+**Refreshing Products from the store's purchase history** (monthly, or when the catalog grew): on Giant Eagle open Reorder and click Load More Results until everything shows (34 per page, slow: wait 3–4 s per click), then read name / size / "Purchased MM/DD" from the page text. javascript_tool output is cut at ~1,000 characters, so write a compact list into the page (`main.innerHTML = <pre>…`) and read it with get_page_text. For each product: add or update its Products row; a product that fits no catalog item becomes a new Item (family-level name, flavors and sizes share one item) with J:M formulas copied down. Ambiguous picks → `likely` + a Review card to a parent; never type a guess as `exact`.
+
+**Aisles and SKUs** (Giant Eagle): each product page (`/<store>/search/product/<UPC>`) shows "Aisle N <section>" for the selected store and the SKU (UPC). Write them to Products `aisle` and `sku`. Product links on search and Reorder pages carry the UPC.
 
 ---
 
@@ -164,3 +170,17 @@ Design and the full steps: `docs/hearth.md`.
 Rules: one Review row per person (one row = one answer); next free `rNNN`; `created` = today; type `clarify` / `preference` / `profile` / `vote`; quick picks as `Options: …` per the card guide (Yes/No when a yes answers it; 1–3 word labels; likely answer first). Never send a person the same question twice unless 90+ days old and the topic can change (seasonal, favorites). Kids get kid-sized cards: votes, favorites, their own lunch and snack items; nothing that changes what's bought.
 
 **Report** (one line): `Q&A: N folded, N follow-ups, refilled <name> +N, …; <name> untouched N days; N retired.`
+
+## 12. Cart check (sync the online cart to the List)
+
+**When:** before an order goes in (e.g. the evening before Giant Eagle order day), after cart building, or when a parent asks "what's in the cart?". Same needs as §2 (owner's computer, Chrome, store signed in). **Read-only on the store side: never add, remove or change anything in the cart during a check.**
+
+1. Open the store's cart page (Giant Eagle: `/cart`) and read it as text: product name, size, qty per line.
+2. Match each line to Products (store + exact product name) → item_id. No match → add a Products row (`likely`) to the closest item, or a Review `clarify` card if none fits.
+3. Sync the List:
+   - A matched item with an active List row (`needed`) → `carted`, `cart` = store, `cart_at` = now (qty from the cart if it differs; note it).
+   - A cart line with no List row → add one: status `carted`, `cart` = store, added_by `Cart`, note "Added on the store site".
+   - A List row `carted` for that store whose item is no longer in the cart → back to `needed`, clear `cart` / `cart_at`.
+4. Receipts still close the loop: when the order's receipt is ingested (§1), `carted` rows become `bought`.
+
+**Report:** "<store> cart: N lines, N matched, N added to the List, N back to needed, $total."

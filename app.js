@@ -10,13 +10,14 @@
   };
 
   const STORES = {
-    GE: { name: 'Giant Eagle', cls: 'ge' },
+    GE: { name: 'Giant Eagle', cls: 'ge', short: 'GE' },
     WF: { name: 'Whole Foods', cls: 'wf' },
     TGT: { name: 'Target', cls: 'tgt' },
+    AMZ: { name: 'Amazon', cls: 'amz' },
     Either: { name: 'Either grocery store', cls: 'either' },
   };
-  const STORE_ORDER = ['GE', 'WF', 'TGT', 'Either'];
-  const CART_STORES = ['GE', 'WF', 'TGT'];
+  const STORE_ORDER = ['GE', 'WF', 'TGT', 'AMZ', 'Either'];
+  const CART_STORES = ['GE', 'WF', 'TGT', 'AMZ'];
   // "Either" means Giant Eagle or Whole Foods. Target is always picked on purpose.
   const takesEither = (code) => code === 'GE' || code === 'WF';
   const GROUPS = ['Produce', 'Dairy', 'Cheese & deli', 'Meat', 'Bakery', 'Breakfast', 'Snacks', 'Pantry', 'Frozen',
@@ -511,13 +512,23 @@
     return s === 'Either' ? '' : '<span class="store-dot ' + storeOf(s).cls + '" title="Usually from ' + esc(storeOf(s).name) + '"></span>';
   }
 
+  // Claude put it in a store's online cart (status carted; List.cart = store code, api 11).
+  const cartStore = (r) => (r && r.status === 'carted' ? String(r.cart || r.store || '') : '');
+  function cartTag(r) {
+    const code = cartStore(r);
+    if (!r || r.status !== 'carted') return '';
+    const s = code && code !== 'Either' ? storeOf(code) : null;
+    return '<span class="cart-tag ' + (s ? s.cls : 'either') + '">🛒 In ' + (s ? esc(s.short || s.name) + ' ' : '') + 'cart</span>';
+  }
+
   // At home a tap opens the item screen. Only In-store mode checks things off.
   function listRow(r) {
     const meta = rowMeta(r);
     const tag = mealTag(r);
     const only = onlyAt(r) ? storeMark(r) : '';
+    const cart = cartTag(r);
     return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + (only ? '' : storeMark(r)) + esc(r.name) + '</span>' +
-      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag || only ? '<span class="tags">' + only + tag + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
+      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag || only || cart ? '<span class="tags">' + cart + only + tag + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
   }
 
   // Just taken off: crossed out for a few seconds with Undo.
@@ -628,8 +639,18 @@
     const rows = open.map((r) => ({ r: r, done: false })).concat(done.map((r) => ({ r: r, done: true })));
     if (!rows.length) return '<div class="empty">Nothing on the list for ' + esc(S.instore === 'all' ? 'any store' : storeOf(S.instore).name) + '.</div>';
     let html = '<div class="shop-progress"><span>' + done.length + ' of ' + rows.length + ' in the cart</span><div class="bar"><i style="width:' + Math.round(100 * done.length / rows.length) + '%"></i></div></div>';
-    groupsIn(rows.map((x) => x.r)).forEach((g) => {
-      const inG = rows.filter((x) => groupOf(x.r) === g);
+    // At a store we know aisles for (Products.aisle, api 11): walk the store in aisle order; the rest by group.
+    const aisleOf = (r) => {
+      if (!S.instore || S.instore === 'all') return '';
+      const p = ((D().products || {})[r.item_id] || {})[S.instore];
+      return (p && p.aisle) || '';
+    };
+    const sectionOf = (r) => aisleOf(r) || groupOf(r);
+    const aisleNum = (a) => { const m = String(a).match(/\d+/); return m ? Number(m[0]) : 999; };
+    const aisles = Array.from(new Set(rows.map((x) => aisleOf(x.r)).filter(String))).sort((a, b) => aisleNum(a) - aisleNum(b) || a.localeCompare(b));
+    const rest = groupsIn(rows.filter((x) => !aisleOf(x.r)).map((x) => x.r));
+    aisles.concat(rest).forEach((g) => {
+      const inG = rows.filter((x) => sectionOf(x.r) === g);
       const left = inG.filter((x) => !x.done).length;
       html += '<section class="card"><div class="card-head"><span>' + esc(g.toUpperCase()) + '</span><span class="sub">' + (left ? left + ' left' : 'done') + '</span></div>' + inG.map((x) => {
         const r = x.r;
@@ -637,6 +658,7 @@
         if (onlyAt(r)) meta.unshift('only at ' + esc(storeOf(onlyAt(r)).name));
         else if ((r.store || 'Either') !== 'Either' && (S.instore === 'all' || r.store !== S.instore)) meta.unshift('usually ' + esc(storeOf(r.store).name));
         if (r.status === 'requested') meta.unshift('asked by ' + esc(wantedBy(r).join(' + ')));
+        if (r.status === 'carted') meta.unshift('in the ' + esc(storeOf(cartStore(r) || r.store).name) + ' online cart');
         return '<button class="row shop-row' + (x.done ? ' done' : '') + '" data-act="' + (x.done ? 'store-uncheck' : 'store-check') + '" data-id="' + r.id + '" aria-pressed="' + x.done + '">' +
           '<span class="check' + (x.done ? ' on' : '') + '" aria-hidden="true">' + (x.done ? '✓' : '') + '</span>' +
           '<span class="row-main"><span class="row-name">' + esc(r.name) + '</span>' + (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') +
@@ -683,7 +705,7 @@
     return '<form class="addbar" data-form="add" autocomplete="off"><label class="sr" for="add">Search or add</label>' +
       '<input id="add" class="field" type="search" placeholder="' + (isKid(S.me) ? 'Search or ask for something…' : 'Search or add something new…') + '" value="' + esc(S.query) + '" enterkeyhint="done"></form>' +
       '<div class="pill-scroll">' + SMART.filter((p) => p[0] === 'all' || sets[p[0]].length).map((p) => pill(p[0], p[1], p[0] === 'all' ? null : sets[p[0]].length)).join('') + '</div>' +
-      '<div class="chips-row">' + spill('all', 'Every store') + spill('GE', 'Giant Eagle', 'ge') + spill('WF', 'Whole Foods', 'wf') + spill('TGT', 'Target', 'tgt') + '</div>';
+      '<div class="chips-row">' + spill('all', 'Every store') + spill('GE', 'Giant Eagle', 'ge') + spill('WF', 'Whole Foods', 'wf') + spill('TGT', 'Target', 'tgt') + spill('AMZ', 'Amazon', 'amz') + '</div>';
   }
 
   function viewShop() {
@@ -771,10 +793,21 @@
     const storeCode = (row && row.store) || (it && it.store) || 'Either';
     let h = '<div class="is-head"><div><h2>' + esc(sh.name) + '</h2><div class="is-sub"><span class="store-dot ' + storeOf(storeCode).cls + '"></span>' + esc(storeOf(storeCode).name) +
       (subs.length ? ' · ' + subs.join(' · ') : '') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
+    // What we actually buy, store by store (Products tab, api 11).
+    const prods = (D().products || {})[sh.item_id] || {};
+    const pk = ['GE', 'WF', 'TGT', 'AMZ'].filter((k) => prods[k]).concat(Object.keys(prods).filter((k) => ['GE', 'WF', 'TGT', 'AMZ'].indexOf(k) < 0));
+    if (pk.length) {
+      h += '<div class="is-products">' + pk.map((k) => {
+        const p = prods[k];
+        return '<div class="is-prod"><span class="store-dot ' + storeOf(k).cls + '"></span><span><b>' + esc(storeOf(k).name) + ':</b> ' + esc(p.name) +
+          (p.size ? ' · ' + esc(p.size) : '') + (p.aisle ? ' <span class="aisle-tag">' + esc(p.aisle) + '</span>' : '') + '</span></div>';
+      }).join('') + '</div>';
+    }
 
     // Where it stands
     if (row) {
-      h += '<div class="is-status on"><b>' + (held ? 'Next week' : row.status === 'requested' ? 'Asked for' : 'On the list') + '</b> · asked by ' + esc(wantedBy(row).join(' + ')) +
+      const inCart = row.status === 'carted' ? (cartStore(row) && cartStore(row) !== 'Either' ? 'In the ' + storeOf(cartStore(row)).name + ' cart' : 'In the cart') : '';
+      h += '<div class="is-status on"><b>' + (held ? 'Next week' : row.status === 'requested' ? 'Asked for' : inCart || 'On the list') + '</b> · asked by ' + esc(wantedBy(row).join(' + ')) +
         (mealTag(row) ? ' ' + mealTag(row) : '') + '</div>';
       if (wantedBy(row).length > 1) h += '<p class="note">' + esc(wantedBy(row).join(' and ')) + ' both asked. Same one, or one each? Set how many.</p>';
       h += '<div class="is-line"><span class="is-label">How many</span><div class="stepper small"><button type="button" data-act="row-qty" data-d="-1" aria-label="Fewer">−</button><b>' + (Number(row.qty) || 1) + '</b><button type="button" data-act="row-qty" data-d="1" aria-label="More">+</button></div></div>';
@@ -830,7 +863,7 @@
       if (sh.details) {
         const seg = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         h += '<div class="is-details">' +
-          '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['Either', 'Either']]) + '</div>' +
+          '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']]) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
           '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
@@ -1331,15 +1364,16 @@
     const req = D().list.filter((r) => r.status === 'requested').length;
     const requested = D().settings.order_requested;
     const stat = (n, label) => '<div class="stat"><b>' + n + '</b><span>' + label + '</span></div>';
-    let html = '<div class="stats">' + stat(count('GE'), 'Giant Eagle') + stat(count('WF'), 'Whole Foods') + stat(count('TGT'), 'Target') +
+    let html = '<div class="stats">' + stat(count('GE'), 'Giant Eagle') + stat(count('WF'), 'Whole Foods') + stat(count('TGT'), 'Target') + stat(count('AMZ'), 'Amazon') +
       stat(count('Either'), 'either grocery') + '</div>';
     if (req) html += '<p class="note">' + req + ' request' + (req > 1 ? 's' : '') + ' still waiting on the List.</p>';
 
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
-      const day = code === 'GE' ? D().settings.ge_order_day : code === 'WF' ? D().settings.wf_order_day : 'monthly Drive Up';
+      const day = code === 'GE' ? D().settings.ge_order_day : code === 'WF' ? D().settings.wf_order_day : code === 'TGT' ? 'monthly Drive Up' : '';
       const n = count(code) + (takesEither(code) ? count('Either') : 0);
-      html += '<section class="card store-card"><div class="store-title"><b class="head-' + st.cls + '">' + st.name + '</b><span class="note">' + count(code) + (count(code) === 1 ? ' item' : ' items') + (day ? ' · usually ' + esc(day) : '') + '</span></div>' +
+      const inCart = D().list.filter((r) => r.status === 'carted' && cartStore(r) === code).length;
+      html += '<section class="card store-card"><div class="store-title"><b class="head-' + st.cls + '">' + st.name + '</b><span class="note">' + count(code) + (count(code) === 1 ? ' item' : ' items') + (day ? ' · usually ' + esc(day) : '') + (inCart ? ' · ' + inCart + ' in the online cart' : '') + '</span></div>' +
         (amParent() ? '<button class="btn ' + (code === 'GE' ? 'btn-primary' : 'btn-outline') + ' btn-block" data-act="request-order" data-store="' + code + '"' + (n ? '' : ' disabled') + '>Ask Claude to build the ' + st.name + ' cart</button>' : '') +
         '</section>';
     });
@@ -1357,7 +1391,7 @@
     if (!sh) return '';
     let inner = '';
     const seg = (field, options, value) => '<div class="seg">' + options.map((o) => '<button type="button" data-act="seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(value) === String(o[0]) ? 'on' : '') + '">' + esc(o[1]) + '</button>').join('') + '</div>';
-    const storeOpts = [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['Either', 'Either']];
+    const storeOpts = [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']];
 
     if (sh.type === 'item') inner = viewItemSheet(sh);
     if (sh.type === 'mealcard') inner = viewMealCard(sh);

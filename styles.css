@@ -16,6 +16,8 @@
   --wf-edge: #2E8B57;
   --tgt: #B91C1C;
   --tgt-edge: #DC2626;
+  --amz: #1F4E79;
+  --amz-edge: #2563A8;
   --either-edge: #8A918D;
   --req-bg: #FFF4EA;
   --req-line: #F3D3B5;
@@ -278,11 +280,12 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
   :root {
     --bg: #121513; --card: #1B1F1D; --ink: #ECEFEC; --muted: #A3ABA6; --line: #2C322F; --line-soft: #242926;
     --field: #3A413D; --accent: #4E9C76; --accent-ink: #0F1411; --accent-soft: #20372B; --accent-deep: #9FE0BC;
-    --ge: #F0A06B; --wf: #8FD3AE; --tgt: #F59A9A; --req-bg: #2B2019; --req-line: #4A3426; --req-ink: #F4C7A4;
+    --ge: #F0A06B; --wf: #8FD3AE; --tgt: #F59A9A; --amz: #93B8E0; --amz-edge: #93B8E0; --req-bg: #2B2019; --req-line: #4A3426; --req-ink: #F4C7A4;
     --badge: #2C322F; --kid-badge: #4A3426; --danger: #F38B80;
   }
   .pill.on { background: var(--ink); color: var(--bg); }
-  .pill.ge.on, .pill.wf.on, .pill.tgt.on { color: var(--bg); }
+  .pill.ge.on, .pill.wf.on, .pill.tgt.on, .pill.amz.on { color: var(--bg); }
+  .cart-tag { color: var(--bg); }
   .seg button.on { color: var(--bg); }
   .toast { background: #ECEFEC; color: #121513; }
   .toast button { color: var(--accent); }
@@ -542,3 +545,20 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .idea-btn { font-size: 16px; }
 .search-close { margin: 0 4px 8px; }
 @media (prefers-color-scheme: dark) { .day-tile.slots4.set { background: var(--card); } }
+
+/* api 11: in a store's online cart; the exact product per store on the item screen; aisle labels */
+.cart-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; margin-right: 6px; color: #fff; background: var(--muted); }
+.cart-tag.ge { background: var(--ge); } .cart-tag.wf { background: var(--wf); } .cart-tag.tgt { background: var(--tgt); }
+.is-products { margin: 4px 0 10px; display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.is-prod { display: flex; gap: 6px; align-items: baseline; line-height: 1.35; }
+.is-prod b { color: var(--ink); font-weight: 600; }
+.aisle-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; border: 1px solid currentColor; margin-left: 4px; white-space: nowrap; }
+
+/* Amazon (AMZ), the fourth store */
+.head-amz { color: var(--amz); }
+.pill.amz { color: var(--amz); }
+.pill.amz.on { background: var(--amz); border-color: var(--amz); color: #FFFFFF; }
+.chip.amz { border-left: 4px solid var(--amz-edge); }
+.store-dot.amz { background: var(--amz-edge); }
+.only-tag.amz { color: var(--amz); }
+.cart-tag.amz { background: var(--amz); }
