@@ -75,13 +75,16 @@ function handle(req) {
     listHave: () => withLock(() => listHave(req)),
     listHold: () => withLock(() => listHold(req)),
     requestOrder: () => withLock(() => requestOrder(req)),
+    itemInfo: () => itemInfo(req),
+    stockLog: () => withLock(() => stockLogAction(req)),
   };
   const fn = actions[req.action];
   if (!fn) return reply({ ok: false, error: 'unknown_action' });
   try {
     const out = fn();
     // Every write returns fresh state so the app never has to guess.
-    const state = req.action === 'state' || req.action === 'ping' ? out : getState();
+    // Reads that don't change anything skip the full state.
+    const state = req.action === 'state' || req.action === 'ping' ? out : req.action === 'itemInfo' ? undefined : getState();
     return reply({ ok: true, result: req.action === 'state' ? undefined : out, state: state });
   } catch (err) {
     return reply({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -193,8 +196,10 @@ function getState() {
 
   // A fresh "we have plenty/some/a count" sighting (last 7 days) holds back "probably due".
   const stocked = {};
+  const stockLatest = {}; // item_id -> latest sighting { level, at, who }
   if (SpreadsheetApp.getActive().getSheetByName(TABS.stock)) {
     readTab(TABS.stock).forEach((s) => {
+      if (s.item_id) stockLatest[s.item_id] = { level: String(s.level), at: String(s.at).slice(0, 10), who: s.who || '' };
       const lvl = String(s.level).toLowerCase();
       const fresh = s.at && daysBetween(String(s.at).slice(0, 10), today) <= 7;
       if (s.item_id && fresh && (lvl === 'plenty' || lvl === 'some' || Number(lvl) > 0)) stocked[s.item_id] = true;
@@ -216,7 +221,7 @@ function getState() {
     .slice(-20);
 
   return {
-    api: 4, // bump when the app needs a newer backend; 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by
+    api: 5, // 5 = itemInfo + stockLog + state.stock; bump when the app needs a newer backend; 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by
     today: today,
     items: items.map(stripRow),
     list: active.map(stripRow),
@@ -227,6 +232,7 @@ function getState() {
     weekOf: weekOf(today),
     review: readTab(TABS.review).filter((r) => r.status === 'open').map(stripRow),
     due: due,
+    stock: stockLatest,
     settings: {
       parents: String(settings.parents || '').split(',').map((s) => s.trim()).filter(String),
       kids: String(settings.kids || '').split(',').map((s) => s.trim()).filter(String),
@@ -477,6 +483,35 @@ function listHold(req) {
   setFields(TABS.list, row._row, f);
   if (level) logStock({ item_id: row.item_id, level: level, who: req.by, source: 'list', list_id: row.id });
   return { id: row.id, hold_until: until };
+}
+
+// History for one item (the app's item screen): purchases, "at home" sightings, answered questions.
+function itemInfo(req) {
+  const id = String(req.item_id || '');
+  if (!id) throw new Error('Missing item');
+  const purchases = readTab(TABS.receipts)
+    .filter((r) => r.item_id === id)
+    .map((r) => ({ date: String(r.date).slice(0, 10), store: r.store, price: r.price, qty: r.qty }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, 6);
+  const stock = SpreadsheetApp.getActive().getSheetByName(TABS.stock)
+    ? readTab(TABS.stock).filter((s) => s.item_id === id).slice(-4).reverse()
+      .map((s) => ({ at: String(s.at).slice(0, 10), level: String(s.level), who: s.who || '' }))
+    : [];
+  const tag = '(' + id + ')';
+  const answers = readTab(TABS.review)
+    .filter((r) => String(r.detail).indexOf(tag) >= 0 && String(r.answer || '').trim() && String(r.answer).indexOf('skip') !== 0)
+    .slice(-5).reverse()
+    .map((r) => ({ q: String(r.detail).replace(/\s*Options:[\s\S]*$/, '').replace(/\s*\(i\d{3,}\)/g, ''), answer: String(r.answer) }));
+  return { item_id: id, purchases: purchases, stock: stock, answers: answers };
+}
+
+// "We have some" from the item screen when it isn't on the List: just log the sighting.
+function stockLogAction(req) {
+  const level = cleanLevel(req.level);
+  if (!req.item_id || !level) throw new Error('Missing item or amount');
+  logStock({ item_id: req.item_id, level: level, who: req.by, source: 'shop' });
+  return { item_id: req.item_id, level: level };
 }
 
 function requestOrder(req) {

@@ -28,9 +28,10 @@
     pass: store.get('ff_pass') || '',
     me: store.get('ff_me') || '',
     data: null,
-    tab: ({ list: 'need', staples: 'need', order: 'need' })[store.get('ff_tab')] || store.get('ff_tab') || 'need',
-    shop: store.get('ff_shop') || '', // Shop mode: store being shopped (GE / WF / TGT / all); '' = at home
-    browse: false,     // Need tab: "Browse what we buy" open
+    tab: ({ need: 'list', staples: 'shop', order: 'list' })[store.get('ff_tab')] || store.get('ff_tab') || 'list',
+    instore: store.get('ff_instore') || '', // In-store mode on the List: store being shopped (GE / WF / TGT / all); '' = at home
+    shopFilter: 'all', // Shop tab smart filter
+    shopStore: 'all',  // Shop tab store filter
     storeFilter: 'all',
     editMode: false,
     query: '',
@@ -84,7 +85,7 @@
   }
 
   /* ------------------------------------------------------------ data helpers */
-  const D = () => S.data || { items: [], list: [], held: [], recent: [], meals: [], plan: [], review: [], due: [], settings: { parents: [], kids: [] } };
+  const D = () => S.data || { items: [], list: [], held: [], recent: [], meals: [], plan: [], review: [], due: [], stock: {}, settings: { parents: [], kids: [] } };
   const itemById = (id) => D().items.find((i) => i.id === id);
   const mealById = (id) => D().meals.find((m) => m.id === id);
   const listRowFor = (itemId) => D().list.find((r) => r.item_id === itemId);
@@ -280,27 +281,30 @@
 
   function viewApp() {
     if (S.tab === 'order') S.tab = 'admin';
-    if (S.tab === 'admin' && !isAdmin()) S.tab = 'need';
-    const shopping = S.tab === 'need' && S.shop;
-    const titles = { need: 'Need', meals: 'Meals', ask: 'Ask', admin: 'Behind the scenes' };
-    const eyebrows = { need: 'Poppy 2.0', meals: 'Week of ' + fmtDate(D().weekOf), ask: 'Your say', admin: 'Just for ' + S.me };
-    const title = shopping ? 'Shopping' : titles[S.tab];
-    const eyebrow = shopping ? (S.shop === 'all' ? 'Every store' : storeOf(S.shop).name) : eyebrows[S.tab];
+    if (S.tab === 'need') S.tab = 'list';
+    if (S.tab === 'admin' && !isAdmin()) S.tab = 'list';
+    const instore = S.tab === 'list' && S.instore;
+    const n = D().list.filter((r) => r.status !== 'requested').length;
+    const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Ask', admin: 'Behind the scenes' };
+    const eyebrows = { list: n + ' thing' + (n === 1 ? '' : 's') + ' we need', shop: 'Add to the List', meals: 'Week of ' + fmtDate(D().weekOf), ask: 'Your say', admin: 'Just for ' + S.me };
+    const title = instore ? 'In store' : titles[S.tab];
+    const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : eyebrows[S.tab];
     let right = '';
-    if (shopping) right = '<button class="btn btn-primary shop-done" data-act="shop-done">Done</button>';
+    if (instore) right = '<button class="btn btn-primary shop-done" data-act="store-done">Done</button>';
     else {
-      if (S.tab === 'need') right += '<button class="btn btn-outline shop-btn" data-act="shop-start">🛒 Shop</button>';
-      if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'need' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
+      if (S.tab === 'list') right += '<button class="btn btn-outline shop-btn" data-act="store-start">🛒 In store</button>';
+      if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'list' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
       right += '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button>';
     }
     let top = '<header class="top"><div class="top-row"><div><div class="eyebrow">' + esc(eyebrow) + '</div><h1>' + title + '</h1></div>' +
       '<div class="top-right">' + right + '</div></div>';
-    if (shopping) top += viewShopPicker();
-    else if (S.tab === 'need') top += viewAddBar();
+    if (instore) top += viewStorePicker();
+    else if (S.tab === 'shop') top += viewShopTop();
     top += '</header>';
 
     let body = '';
-    if (S.tab === 'need') body = shopping ? viewShop() : viewNeed();
+    if (S.tab === 'list') body = instore ? viewInStore() : viewList();
+    if (S.tab === 'shop') body = viewShop();
     if (S.tab === 'meals') body = viewMeals();
     if (S.tab === 'ask') body = viewAsk();
     if (S.tab === 'admin') body = viewOrder();
@@ -314,7 +318,7 @@
     const tab = (id, label, badge) => '<button data-act="tab" data-tab="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + label +
       (badge ? '<span class="dot">' + badge + '</span>' : '') + '</button>';
     return '<nav class="tabs" aria-label="Sections"><div class="inner">' +
-      tab('need', S.shop ? 'Shopping' : 'Need', amParent() ? req : 0) + tab('meals', 'Meals') + tab('ask', 'Ask', review) +
+      tab('list', S.instore ? 'In store' : 'List', amParent() ? req : 0) + tab('shop', 'Shop') + tab('meals', 'Meals') + tab('ask', 'Ask', review) +
       '</div></nav>';
   }
 
@@ -324,22 +328,14 @@
   }
 
   /* ---------- list ---------- */
-  function viewAddBar() {
-    const q = S.query;
-    let sug = '';
-    if (q.trim()) {
-      const hits = searchItems(q, 6);
-      const exact = hits.some((h) => String(h.name).toLowerCase() === q.trim().toLowerCase());
-      sug = '<div class="suggest">' + hits.map((h) => {
-        const onList = listRowFor(h.id);
-        return '<button data-act="add-item" data-id="' + h.id + '"><span class="s-name">' + esc(h.name) + '</span><span class="s-meta">' +
-          (onList ? 'on list' : esc(storeOf(h.store).name)) + '</span></button>';
-      }).join('') + (exact ? '' : '<button data-act="add-new"><span class="s-name">Add “' + esc(q.trim()) + '”</span><span class="s-meta">new item</span></button>') + '</div>';
-    }
-    return '<form class="addbar" data-form="add" autocomplete="off"><label class="sr" for="add">Add an item</label>' +
-      '<input id="add" class="field" placeholder="' + (isKid(S.me) ? 'Ask for something…' : 'Add an item…') + '" value="' + esc(q) + '" enterkeyhint="done">' +
-      '<button class="btn-icon" type="submit" aria-label="Add item">+</button>' + sug + '</form>';
-  }
+  // Accordion state per phone: { 's:GE': true (closed), 'g:GE:Dairy': false (open), ... }
+  S.closed = (() => { try { return JSON.parse(store.get('ff_closed') || '{}'); } catch (e) { return {}; } })();
+  const isClosed = (key, dflt) => (key in S.closed ? !!S.closed[key] : dflt);
+  function setClosed(key, v) { S.closed[key] = v; store.set('ff_closed', JSON.stringify(S.closed)); }
+
+  const groupOf = (r) => { const it = itemById(r.item_id); return (it && it.group) || 'Other'; };
+  const groupsIn = (rows) => GROUPS.concat(Array.from(new Set(rows.map(groupOf))).filter((g) => GROUPS.indexOf(g) < 0))
+    .filter((g) => rows.some((r) => groupOf(r) === g));
 
   // "Mike + Joni": who asked. Two or more names are highlighted so a double ask gets a second look.
   function whoHtml(r) {
@@ -350,31 +346,38 @@
     return '<span class="who-names' + (many ? ' many' : '') + (kid ? ' kid' : '') + '" title="Asked by ' + esc(names.join(', ')) + '">' + esc(names.join(' + ')) + '</span>';
   }
 
+  function mealTag(r) {
+    const m = r && r.meal_id && mealById(r.meal_id);
+    return m ? '<span class="meal-tag">🍽 ' + esc(m.name) + '</span>' : '';
+  }
+
   function rowMeta(r) {
     const meta = [];
     if (Number(r.qty) > 1) meta.push('×' + r.qty);
     if (r.note) meta.push(esc(r.note));
-    if (r.meal_id && mealById(r.meal_id)) meta.push(esc(mealById(r.meal_id).name));
-    const item = itemById(r.item_id);
-    if (item && item.brand_size) meta.push(esc(item.brand_size));
     return meta;
   }
 
-  function rowHtml(r, opts) {
+  // At home a tap opens the item screen. Only In-store mode checks things off.
+  function listRow(r) {
     const meta = rowMeta(r);
-    if (opts && opts.request) {
-      const btns = amParent()
-        ? '<button class="btn btn-primary" data-act="approve" data-id="' + r.id + '">Approve</button><button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Skip</button>'
-        : (iWant(r) ? '<button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Cancel</button>' : '');
-      return '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span>' +
-        '<span class="row-meta">' + ['asked by ' + esc(wantedBy(r).join(' + '))].concat(meta).join(' · ') + '</span></div>' + btns + '</div>';
-    }
-    // At home a tap opens the item (how many / we have it / next week). Only Shop mode checks things off.
+    const tag = mealTag(r);
     return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span>' +
-      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
+      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag ? '<span class="tags">' + tag + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
   }
 
-  function viewNeed() {
+  function requestRow(r) {
+    const btns = amParent()
+      ? '<button class="btn btn-primary" data-act="approve" data-id="' + r.id + '">Approve</button><button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Skip</button>'
+      : (iWant(r) ? '<button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Cancel</button>' : '');
+    return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span>' +
+      '<span class="row-meta">' + ['asked by ' + esc(wantedBy(r).join(' + '))].concat(rowMeta(r)).join(' · ') + '</span>' +
+      (mealTag(r) ? '<span class="tags">' + mealTag(r) + '</span>' : '') + '</button>' + btns + '</div>';
+  }
+
+  const chev = (closed) => '<span class="chev" aria-hidden="true">' + (closed ? '▸' : '▾') + '</span>';
+
+  function viewList() {
     const list = D().list;
     const requests = list.filter((r) => r.status === 'requested');
     const active = list.filter((r) => r.status !== 'requested');
@@ -382,48 +385,62 @@
 
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
-        requests.map((r) => rowHtml(r, { request: true })).join('') + '</section>';
+        requests.map(requestRow).join('') + '</section>';
     }
 
-    STORE_ORDER.forEach((code) => {
+    const codes = STORE_ORDER.filter((code) => active.some((r) => (r.store || 'Either') === code));
+    if (codes.length) {
+      const allClosed = codes.every((c) => isClosed('s:' + c, false));
+      html += '<div class="list-tools"><span>' + active.length + ' item' + (active.length === 1 ? '' : 's') + '</span>' +
+        '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
+    }
+    codes.forEach((code) => {
       const rows = active.filter((r) => (r.store || 'Either') === code);
-      if (!rows.length) return;
       const st = storeOf(code);
-      html += '<section class="card"><div class="card-head head-' + st.cls + '"><span>' + st.name.toUpperCase() + ' · ' + rows.length + '</span>' +
-        (code === 'Either' ? '<span class="sub">tap to pick a store</span>' : '') + '</div>' + rows.map((r) => rowHtml(r)).join('') + '</section>';
+      const key = 's:' + code;
+      const closed = isClosed(key, false);
+      html += '<section class="card acc"><button class="card-head acc-head head-' + st.cls + '" data-act="fold" data-key="' + key + '" aria-expanded="' + !closed + '">' +
+        '<span>' + st.name.toUpperCase() + ' · ' + rows.length + '</span>' + chev(closed) + '</button>';
+      if (closed) {
+        html += '<button class="peek" data-act="fold" data-key="' + key + '">' + esc(rows.slice(0, 6).map((r) => r.name).join(', ')) + (rows.length > 6 ? '…' : '') + '</button>';
+      } else if (rows.length <= 4) {
+        html += rows.map(listRow).join('');
+      } else {
+        groupsIn(rows).forEach((g) => {
+          const inG = rows.filter((r) => groupOf(r) === g);
+          const gk = 'g:' + code + ':' + g;
+          const gc = isClosed(gk, false);
+          html += '<button class="sub-head" data-act="fold" data-key="' + gk + '" aria-expanded="' + !gc + '"><span class="sub-title">' + esc(g) + ' <b>' + inG.length + '</b></span>' +
+            (gc ? '<span class="sub-peek">' + esc(inG.map((r) => r.name).join(', ')) + '</span>' : '<span class="sub-peek"></span>') + chev(gc) + '</button>';
+          if (!gc) html += inG.map(listRow).join('');
+        });
+      }
+      html += '</section>';
     });
 
-    if (!list.length) html += '<div class="empty">Nothing on the list yet.<br>Add something above, or browse what we buy below.</div>';
-
-    const due = D().due.map((d) => Object.assign({}, d, { item: itemById(d.id) })).filter((d) => d.item);
-    if (due.length && !isKid(S.me)) {
-      html += '<section class="card dashed"><div class="card-head head-either">PROBABLY DUE</div>' + due.map((d) =>
-        '<div class="row"><div class="row-main"><span class="row-name">' + esc(d.item.name) + '</span><span class="row-meta">' + esc(storeOf(d.item.store).name) +
-        ' · usually every ~' + d.every + ' days · last ' + esc(daysAgo(d.item.last_bought)) + '</span></div>' +
-        '<button class="btn btn-outline" data-act="add-item" data-id="' + d.id + '">+ Add</button></div>').join('') + '</section>';
-    }
-
-    html += viewBrowse();
+    if (!list.length) html += '<div class="empty">The list is empty.<br><button class="btn btn-outline" style="margin-top:12px" data-act="tab" data-tab="shop">Add things in Shop</button></div>';
 
     const held = D().held || [];
     if (held.length) {
-      html += '<section class="card dashed"><div class="card-head head-either">NEXT WEEK · ' + held.length + '</div>' + held.map((r) =>
-        '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + esc(storeOf(r.store).name) +
-        (r.hold_until ? ' · back ' + esc(shortDay(r.hold_until)) : '') + '</span></div>' +
-        '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('') + '</section>';
+      const c = isClosed('held', true);
+      html += '<section class="card dashed"><button class="card-head acc-head head-either" data-act="fold" data-key="held"><span>NEXT WEEK · ' + held.length + '</span>' + chev(c) + '</button>' +
+        (c ? '' : held.map((r) => '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + esc(storeOf(r.store).name) +
+          (r.hold_until ? ' · back ' + esc(shortDay(r.hold_until)) : '') + '</span></button>' +
+          '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    const recent = D().recent.slice().reverse().slice(0, 8);
+    const recent = D().recent.slice().reverse().slice(0, 12);
     if (recent.length) {
-      html += '<section class="card dashed"><div class="card-head head-either">RECENTLY DONE</div>' + recent.map((r) =>
-        '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + (r.status === 'bought' ? 'Bought' : r.status === 'have' ? 'Had it' + (haveLevel(r) ? ' (' + esc(haveLevel(r)) + ')' : '') + ', not bought' : 'Removed') + '</span></div>' +
-        '<button class="btn btn-plain" data-act="restore" data-id="' + r.id + '">Put back</button></div>').join('') + '</section>';
+      const c = isClosed('recent', true);
+      html += '<section class="card dashed"><button class="card-head acc-head head-either" data-act="fold" data-key="recent"><span>RECENTLY DONE · ' + recent.length + '</span>' + chev(c) + '</button>' +
+        (c ? '' : recent.map((r) => '<div class="row"><div class="row-main"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + (r.status === 'bought' ? 'Bought' : r.status === 'have' ? 'Had it' + (haveLevel(r) ? ' (' + esc(haveLevel(r)) + ')' : '') + ', not bought' : 'Removed') + '</span></div>' +
+          '<button class="btn btn-plain" data-act="restore" data-id="' + r.id + '">Put back</button></div>').join('')) + '</section>';
     }
-    html += '<p class="hint">Tap an item to change how many, say we have it, or push it to next week. In the store, tap 🛒 Shop to check things off as they go in the cart.</p>';
+    html += '<p class="hint">Tap a store or aisle to fold it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
     return html;
   }
 
-  // This week's dinners at the top of Need, so meals and the list live together.
+  // This week's dinners at the top of the List, so meals and the list live together.
   function viewDinnersStrip() {
     const byDay = {};
     D().plan.forEach((p) => (byDay[p.day] = p.meal_id));
@@ -435,81 +452,221 @@
     return '<button class="dinners" data-act="tab" data-tab="meals"><span class="dinners-label">Dinners this week</span><span class="dinners-list">' + body + '</span><span class="dinners-go">Plan ›</span></button>';
   }
 
-  // "Browse what we buy" is the old Staples tab, folded into Need.
-  function viewBrowse() {
-    if (!S.browse) return '<button class="btn btn-plain btn-block" data-act="browse">Browse what we buy</button>';
-    return '<section class="card browse"><div class="card-head"><span>WHAT WE BUY</span><button class="btn btn-plain" data-act="browse">Close</button></div>' +
-      '<div class="browse-body">' + viewStaplesFilters() + viewStaples() + '</div></section>';
-  }
-
-  /* ---------- shop mode ---------- */
-  function viewShopPicker() {
-    const pill = (v, label, cls) => '<button class="pill ' + (cls || '') + (S.shop === v ? ' on' : '') + '" data-act="shop-store" data-v="' + v + '">' + label + '</button>';
+  /* ---------- in-store mode (on the List) ---------- */
+  function viewStorePicker() {
+    const pill = (v, label, cls) => '<button class="pill ' + (cls || '') + (S.instore === v ? ' on' : '') + '" data-act="store-pick" data-v="' + v + '">' + label + '</button>';
     return '<div class="chips-row">' + pill('GE', 'Giant Eagle', 'ge') + pill('WF', 'Whole Foods', 'wf') + pill('TGT', 'Target', 'tgt') + pill('all', 'All') + '</div>';
   }
 
-  const inShop = (r) => {
+  const inStore = (r) => {
     const code = r.store || 'Either';
-    return S.shop === 'all' || code === S.shop || (code === 'Either' && takesEither(S.shop));
+    return S.instore === 'all' || code === S.instore || (code === 'Either' && takesEither(S.instore));
   };
-  // Bought today counts as "in the cart", so a shared shop shows everyone's checks.
+  // Bought today counts as "in the cart", so a shared trip shows everyone's checks.
   const boughtToday = (r) => r.status === 'bought' && String(r.updated_at || '').slice(0, 10) === D().today;
 
-  function viewShop() {
-    const open = D().list.filter(inShop);
-    const done = D().recent.filter((r) => boughtToday(r) && inShop(r));
+  function viewInStore() {
+    const open = D().list.filter(inStore);
+    const done = D().recent.filter((r) => boughtToday(r) && inStore(r));
     const rows = open.map((r) => ({ r: r, done: false })).concat(done.map((r) => ({ r: r, done: true })));
-    if (!rows.length) return '<div class="empty">Nothing on the list for ' + esc(S.shop === 'all' ? 'any store' : storeOf(S.shop).name) + '.</div>';
-    const groupOf = (r) => { const it = itemById(r.item_id); return (it && it.group) || 'Other'; };
+    if (!rows.length) return '<div class="empty">Nothing on the list for ' + esc(S.instore === 'all' ? 'any store' : storeOf(S.instore).name) + '.</div>';
     let html = '<div class="shop-progress"><span>' + done.length + ' of ' + rows.length + ' in the cart</span><div class="bar"><i style="width:' + Math.round(100 * done.length / rows.length) + '%"></i></div></div>';
-    GROUPS.concat(Array.from(new Set(rows.map((x) => groupOf(x.r)))).filter((g) => GROUPS.indexOf(g) < 0)).forEach((g) => {
+    groupsIn(rows.map((x) => x.r)).forEach((g) => {
       const inG = rows.filter((x) => groupOf(x.r) === g);
-      if (!inG.length) return;
-      html += '<section class="card"><div class="card-head">' + esc(g.toUpperCase()) + '</div>' + inG.map((x) => {
+      const left = inG.filter((x) => !x.done).length;
+      html += '<section class="card"><div class="card-head"><span>' + esc(g.toUpperCase()) + '</span><span class="sub">' + (left ? left + ' left' : 'done') + '</span></div>' + inG.map((x) => {
         const r = x.r;
         const meta = rowMeta(r);
-        if (S.shop === 'all' || (r.store || 'Either') !== S.shop) meta.unshift(esc(storeOf(r.store).name));
+        if (S.instore === 'all' || (r.store || 'Either') !== S.instore) meta.unshift(esc(storeOf(r.store).name));
         if (r.status === 'requested') meta.unshift('asked by ' + esc(wantedBy(r).join(' + ')));
-        return '<button class="row shop-row' + (x.done ? ' done' : '') + '" data-act="' + (x.done ? 'shop-uncheck' : 'shop-check') + '" data-id="' + r.id + '" aria-pressed="' + x.done + '">' +
+        return '<button class="row shop-row' + (x.done ? ' done' : '') + '" data-act="' + (x.done ? 'store-uncheck' : 'store-check') + '" data-id="' + r.id + '" aria-pressed="' + x.done + '">' +
           '<span class="check' + (x.done ? ' on' : '') + '" aria-hidden="true">' + (x.done ? '✓' : '') + '</span>' +
-          '<span class="row-main"><span class="row-name">' + esc(r.name) + '</span>' + (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + '</span>' +
+          '<span class="row-main"><span class="row-name">' + esc(r.name) + '</span>' + (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') +
+          (mealTag(r) && !x.done ? '<span class="tags">' + mealTag(r) + '</span>' : '') + '</span>' +
           (wantedBy(r).length > 1 && !x.done ? whoHtml(r) : '') + '</button>';
       }).join('') + '</section>';
     });
-    html += '<p class="hint">Tap to put it in the cart, tap again to take it out. Everyone shopping sees the same checks. Tap Done when you check out.</p>';
+    html += '<p class="hint">Tap to put it in the cart, tap again to take it out. Everyone in the store sees the same checks. Tap Done when you check out.</p>';
     return html;
   }
 
-  /* ---------- staples ---------- */
-  function viewStaplesFilters() {
-    const pill = (v, label, cls) => '<button class="pill ' + (cls || '') + (S.storeFilter === v ? ' on' : '') + '" data-act="filter" data-v="' + v + '">' + label + '</button>';
-    return '<div class="chips-row">' + pill('all', 'All') + pill('GE', 'Giant Eagle', 'ge') + pill('WF', 'Whole Foods', 'wf') + pill('TGT', 'Target', 'tgt') +
-      (amParent() ? '<button class="pill edit' + (S.editMode ? ' on' : '') + '" data-act="edit-mode" style="margin-left:auto">' + (S.editMode ? 'Done' : 'Edit') + '</button>' : '') + '</div>' +
-      '<div class="addbar"><label class="sr" for="sq">Find a staple</label><input id="sq" class="field" placeholder="Find something we buy…" value="' + esc(S.staplesQuery) + '" data-input="staples-q"></div>';
+  /* ---------- shop tab (add things) ---------- */
+  // Smart filters. Each returns item ids; pills with nothing in them are hidden.
+  function smartSets() {
+    const items = D().items.filter((i) => i.status !== 'Drop');
+    const listed = {};
+    D().list.concat(D().held || []).forEach((r) => (listed[r.item_id] = true));
+    const today = D().today;
+    const ago = (iso) => (iso ? Math.round((new Date(today + 'T12:00:00') - new Date(String(iso).slice(0, 10) + 'T12:00:00')) / 86400000) : 9999);
+    const byDay = {};
+    D().plan.forEach((p) => (byDay[p.day] = p.meal_id));
+    const todayIdx = new Date(today + 'T12:00:00').getDay();
+    const dinnerIds = [];
+    DAYS.forEach((d, i) => { if (i >= todayIdx && byDay[d]) mealItems(mealById(byDay[d])).forEach((id) => dinnerIds.indexOf(id) < 0 && dinnerIds.push(id)); });
+    const stock = D().stock || {};
+    return {
+      due: D().due.map((d) => d.id).filter((id) => !listed[id]),
+      usual: items.filter((i) => i.status === 'Always' || Number(i.orders) >= 2).map((i) => i.id),
+      dinners: dinnerIds.filter((id) => itemById(id)),
+      low: Object.keys(stock).filter((id) => (stock[id].level === 'low' || stock[id].level === 'out') && ago(stock[id].at) <= 14),
+      recent: items.filter((i) => ago(i.last_bought) <= 14).map((i) => i.id),
+      onlist: Object.keys(listed).filter((id) => itemById(id)),
+      listed: listed,
+    };
+  }
+  const SMART = [['all', 'All'], ['due', 'Probably due'], ['dinners', 'For dinners'], ['usual', 'Usuals'], ['low', 'Running low'], ['recent', 'Bought lately'], ['onlist', 'On the list']];
+
+  function viewShopTop() {
+    const sets = smartSets();
+    const f = S.shopFilter || 'all';
+    const pill = (v, label, n) => '<button class="pill' + (f === v ? ' on' : '') + '" data-act="shop-filter" data-v="' + v + '">' + label + (n != null ? ' <span class="pill-n">' + n + '</span>' : '') + '</button>';
+    const spill = (v, label, cls) => '<button class="pill small ' + (cls || '') + ((S.shopStore || 'all') === v ? ' on' : '') + '" data-act="shop-store" data-v="' + v + '">' + label + '</button>';
+    return '<form class="addbar" data-form="add" autocomplete="off"><label class="sr" for="add">Search or add</label>' +
+      '<input id="add" class="field" type="search" placeholder="' + (isKid(S.me) ? 'Search or ask for something…' : 'Search or add something new…') + '" value="' + esc(S.query) + '" enterkeyhint="done"></form>' +
+      '<div class="pill-scroll">' + SMART.filter((p) => p[0] === 'all' || sets[p[0]].length).map((p) => pill(p[0], p[1], p[0] === 'all' ? null : sets[p[0]].length)).join('') + '</div>' +
+      '<div class="chips-row">' + spill('all', 'Every store') + spill('GE', 'Giant Eagle', 'ge') + spill('WF', 'Whole Foods', 'wf') + spill('TGT', 'Target', 'tgt') + '</div>';
   }
 
-  function viewStaples() {
-    const q = S.staplesQuery.trim().toLowerCase();
-    let items = D().items.filter((i) => S.editMode || i.status !== 'Drop');
-    if (S.storeFilter !== 'all') items = items.filter((i) => i.store === S.storeFilter || (i.store === 'Either' && takesEither(S.storeFilter)));
-    if (q) items = items.filter((i) => String(i.name).toLowerCase().indexOf(q) >= 0);
-    const groups = GROUPS.concat(Array.from(new Set(items.map((i) => i.group))).filter((g) => GROUPS.indexOf(g) < 0));
+  function viewShop() {
+    const sets = smartSets();
+    const f = S.shopFilter || 'all';
+    const q = S.query.trim().toLowerCase();
+    const st = S.shopStore || 'all';
+    let items = D().items.filter((i) => i.status !== 'Drop' || f === 'onlist');
+    if (f !== 'all') { const ids = sets[f]; items = ids.map(itemById).filter(Boolean); }
+    if (st !== 'all') items = items.filter((i) => i.store === st || (i.store === 'Either' && takesEither(st)));
+    if (q) items = items.filter((i) => String(i.name).toLowerCase().indexOf(q) >= 0 || String(i.brand_size || '').toLowerCase().indexOf(q) >= 0);
+
     let html = '';
-    if (S.editMode) html += '<button class="btn btn-outline btn-block" data-act="new-item">+ New staple</button>';
-    groups.forEach((g) => {
-      const inGroup = items.filter((i) => (i.group || 'Other') === g)
-        .sort((a, b) => (Number(b.orders) || 0) - (Number(a.orders) || 0) || String(a.name).localeCompare(b.name));
-      if (!inGroup.length) return;
-      html += '<div class="group"><div class="group-title">' + esc(g) + '</div><div class="chips">' + inGroup.map((i) => {
-        const on = !!listRowFor(i.id);
-        return '<button class="chip ' + storeOf(i.store).cls + (on ? ' on' : '') + (i.status === 'Drop' ? ' dropped' : '') + '" data-act="chip" data-id="' + i.id + '"' +
-          ' aria-pressed="' + on + '">' + esc(i.name) + '</button>';
-      }).join('') + '</div></div>';
-    });
-    if (!html) html = '<div class="empty">No staples match.</div>';
-    html += '<p class="hint">' + (S.editMode ? 'Tap a staple to change its store, brand, or whether a swap is OK.' :
-      'Tap to add it. Tap a filled one to open it. Orange edge = Giant Eagle, green = Whole Foods, red = Target, gray = either grocery store.') + '</p>';
+    if (q && !D().items.some((i) => String(i.name).toLowerCase() === q)) {
+      html += '<button class="new-item" data-act="add-new"><span class="add-btn" aria-hidden="true">+</span><span>Add “' + esc(S.query.trim()) + '” as something new</span></button>';
+    }
+    const row = (i) => {
+      const on = !!sets.listed[i.id];
+      const meta = ['<span class="store-dot ' + storeOf(i.store).cls + '"></span>' + esc(storeOf(i.store).name)];
+      if (i.last_bought) meta.push('bought ' + esc(daysAgo(i.last_bought)));
+      const stk = (D().stock || {})[i.id];
+      if (stk) meta.push('at home: ' + esc(levelText(stk.level)) + ' (' + esc(daysAgo(stk.at)) + ')');
+      return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + i.id + '"><span class="row-name">' + esc(i.name) + '</span><span class="row-meta">' + meta.join(' · ') + '</span></button>' +
+        (on ? '<button class="add-btn on" data-act="open-item" data-id="' + i.id + '" aria-label="' + esc(i.name) + ' is on the list">✓</button>'
+          : '<button class="add-btn" data-act="add-item" data-id="' + i.id + '" aria-label="Add ' + esc(i.name) + '">+</button>') + '</div>';
+    };
+    if (f === 'due' || f === 'dinners' || f === 'low') {
+      if (items.length) html += '<section class="card">' + items.map(row).join('') + '</section>';
+    } else {
+      const sorted = items.slice().sort((a, b) => (Number(b.orders) || 0) - (Number(a.orders) || 0) || String(a.name).localeCompare(b.name));
+      const groups = GROUPS.concat(Array.from(new Set(sorted.map((i) => i.group || 'Other'))).filter((g) => GROUPS.indexOf(g) < 0));
+      groups.forEach((g) => {
+        const inG = sorted.filter((i) => (i.group || 'Other') === g);
+        if (!inG.length) return;
+        html += '<section class="card"><div class="card-head"><span>' + esc(g.toUpperCase()) + '</span><span class="sub">' + inG.length + '</span></div>' + inG.map(row).join('') + '</section>';
+      });
+    }
+    if (!items.length && !q) html += '<div class="empty">Nothing here right now.</div>';
+    html += '<p class="hint">Tap + to put it on the List. Tap a name to see its history, say we have some, or change its store.</p>';
     return html;
+  }
+
+  /* ---------- item screen (from the List or Shop) ---------- */
+  const canInfo = () => Number(D().api || 0) >= 5;
+
+  function openItemSheet(itemId, rowId, name) {
+    const it = itemById(itemId);
+    S.sheet = {
+      type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
+      d: it ? { store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' } : null,
+    };
+    render();
+    if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
+      const mine = S.sheet;
+      api('itemInfo', { item_id: itemId }).then((j) => { if (S.sheet === mine) { mine.info = j.result || {}; render(); } }).catch(() => { if (S.sheet === mine) { mine.info = { failed: true }; render(); } });
+    }
+  }
+
+  const fmtShort = (iso) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
+  const money = (v) => (v === '' || v == null || isNaN(Number(v)) ? '' : '$' + Number(v).toFixed(2));
+
+  function viewItemSheet(sh) {
+    const it = itemById(sh.item_id);
+    const row = (sh.row_id && (D().list.find((r) => r.id === sh.row_id) || (D().held || []).find((r) => r.id === sh.row_id))) ||
+      (sh.item_id && (listRowFor(sh.item_id) || (D().held || []).find((r) => r.item_id === sh.item_id)));
+    const held = row && (D().held || []).indexOf(row) >= 0;
+    const kid = isKid(S.me);
+    const subs = [];
+    if (it && it.group) subs.push(esc(it.group));
+    if (it && it.brand_size) subs.push(esc(it.brand_size));
+    const storeCode = (row && row.store) || (it && it.store) || 'Either';
+    let h = '<div class="is-head"><div><h2>' + esc(sh.name) + '</h2><div class="is-sub"><span class="store-dot ' + storeOf(storeCode).cls + '"></span>' + esc(storeOf(storeCode).name) +
+      (subs.length ? ' · ' + subs.join(' · ') : '') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
+
+    // Where it stands
+    if (row) {
+      h += '<div class="is-status on"><b>' + (held ? 'Next week' : row.status === 'requested' ? 'Asked for' : 'On the list') + '</b> · asked by ' + esc(wantedBy(row).join(' + ')) +
+        (mealTag(row) ? ' ' + mealTag(row) : '') + '</div>';
+      if (wantedBy(row).length > 1) h += '<p class="note">' + esc(wantedBy(row).join(' and ')) + ' both asked. Same one, or one each? Set how many.</p>';
+      h += '<div class="is-line"><span class="is-label">How many</span><div class="stepper small"><button type="button" data-act="row-qty" data-d="-1" aria-label="Fewer">−</button><b>' + (Number(row.qty) || 1) + '</b><button type="button" data-act="row-qty" data-d="1" aria-label="More">+</button></div></div>';
+      h += '<input class="field" data-input="row-note" data-id="' + row.id + '" value="' + esc(row.note || '') + '" placeholder="Note: brand, size, flavor…">';
+    } else {
+      h += '<button class="btn btn-primary btn-block" data-act="add-item" data-id="' + esc(sh.item_id) + '">' + (kid ? 'Ask for it' : 'Add to the List') + '</button>';
+    }
+
+    // We have some (one tap)
+    if (canStock() && (row ? !held : canInfo())) {
+      const lv = (v, label) => '<button type="button" class="' + (sh.level === v ? 'on' : '') + '" data-act="have-level" data-v="' + v + '">' + label + '</button>';
+      h += '<div class="is-block"><div class="is-label">' + (row ? 'Have some at home already?' : 'How much is at home?') + '</div><div class="seg">' +
+        lv('plenty', 'Plenty') + lv('some', 'Some') + lv('low', 'A little') + lv('count', 'Count…') + '</div>' +
+        (sh.level === 'count' ? '<div class="is-line"><div class="stepper small"><button type="button" data-act="have-count" data-d="-1" aria-label="Fewer">−</button><b>' + sh.count + '</b><button type="button" data-act="have-count" data-d="1" aria-label="More">+</button></div><button class="btn btn-outline" data-act="have-count-save">Save</button></div>' : '') +
+        '<p class="note">' + (row ? 'Takes it off the list, nothing bought.' : 'Logged so Poppy knows; it isn’t added to the list.') + '</p></div>';
+    }
+
+    // Quiet actions
+    if (row) {
+      const acts = [];
+      if (held) acts.push('<button class="btn btn-plain" data-act="unhold" data-id="' + row.id + '">Need it now</button>');
+      else if (canStock()) acts.push('<button class="btn btn-plain" data-act="row-hold">Next week</button>');
+      acts.push('<button class="btn btn-plain" data-act="row-bought">Bought it</button>');
+      acts.push('<button class="btn btn-plain danger" data-act="row-remove">Take off</button>');
+      h += '<div class="is-actions">' + acts.join('') + '</div>';
+    }
+
+    // History
+    if (it) {
+      const facts = [];
+      if (Number(it.orders)) facts.push('Bought in ' + it.orders + ' order' + (Number(it.orders) > 1 ? 's' : ''));
+      if (it.last_bought) facts.push('last ' + esc(daysAgo(it.last_bought)));
+      if (it.avg_days) facts.push('about every ' + it.avg_days + ' days');
+      const info = sh.info;
+      let hist = facts.length ? '<p class="is-fact">' + facts.join(' · ') + '</p>' : '<p class="note">No purchases on record yet.</p>';
+      if (info && info.purchases && info.purchases.length) {
+        hist += '<ul class="is-list">' + info.purchases.map((p) => '<li><span>' + esc(fmtShort(p.date)) + '</span><span>' + esc(storeOf(p.store).name) + '</span><span>' + esc(money(p.price)) + (Number(p.qty) > 1 ? ' ×' + p.qty : '') + '</span></li>').join('') + '</ul>';
+      }
+      const sightings = (info && info.stock) || ((D().stock || {})[it.id] ? [D().stock[it.id]] : []);
+      if (sightings.length) hist += '<p class="is-fact">At home: ' + sightings.slice(0, 3).map((s) => esc(levelText(s.level)) + ' (' + esc(s.who || '?') + ', ' + esc(fmtShort(s.at)) + ')').join(' · ') + '</p>';
+      if (canInfo() && !info) hist += '<p class="note">Loading history…</p>';
+      h += '<div class="is-block"><div class="is-label">History</div>' + hist + '</div>';
+
+      const notes = [];
+      if (it.notes) notes.push('<li>' + esc(it.notes) + '</li>');
+      ((info && info.answers) || []).forEach((a) => notes.push('<li><span class="q">' + esc(a.q) + '</span> <b>' + esc(a.answer) + '</b></li>'));
+      if (notes.length) h += '<div class="is-block"><div class="is-label">What we know</div><ul class="is-notes">' + notes.join('') + '</ul></div>';
+    }
+
+    // Details (store, swaps, how often) folded away
+    if (it && sh.d) {
+      h += '<button class="is-toggle" data-act="toggle-details" aria-expanded="' + !!sh.details + '"><span>Details · store, swaps, how often</span>' + chev(!sh.details) + '</button>';
+      if (sh.details) {
+        const seg = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
+        h += '<div class="is-details">' +
+          '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['Either', 'Either']]) + '</div>' +
+          '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
+          '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
+          '<div><label for="d-brand">Brand / size</label><input id="d-brand" class="field" style="width:100%" data-input="d" data-field="brand_size" value="' + esc(sh.d.brand_size) + '"' + (kid ? ' disabled' : '') + '></div>' +
+          '<div><label for="d-aisle">Aisle</label><select id="d-aisle" class="select" style="width:100%" data-input="d" data-field="group"' + (kid ? ' disabled' : '') + '>' + GROUPS.map((g) => '<option' + (g === sh.d.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
+          '<div><label for="d-notes">Notes</label><input id="d-notes" class="field" style="width:100%" data-input="d" data-field="notes" value="' + esc(sh.d.notes) + '" placeholder="e.g. Gia only eats strawberry"' + (kid ? ' disabled' : '') + '></div>' +
+          (kid ? '<p class="note">A parent can change these.</p>' : '<button class="btn btn-primary btn-block" data-act="save-details">Save details</button>') + '</div>';
+      }
+    }
+    return h;
   }
 
   /* ---------- meals ---------- */
@@ -534,7 +691,7 @@
       (meals.length ? meals.map((m) => '<div class="row"><button class="row-main" data-act="edit-meal" data-id="' + m.id + '"><span class="row-name">' + esc(m.name) + '</span>' +
         '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span></button></div>').join('')
         : '<div class="empty">No meals yet.</div>') + '</section>';
-    html += '<p class="hint">Pick dinners for the week, tap Ingredients to see what you need, and add the rest to Need in one tap.</p>';
+    html += '<p class="hint">Pick dinners for the week, tap Ingredients to see what you need, and add the rest to the List in one tap.</p>';
     return html;
   }
 
@@ -551,7 +708,7 @@
       return '<div class="ing-row"><span class="row-name">' + esc(item.name) + '</span><button class="tag ' + (need ? 'tag-need' : 'tag-have') + '" data-act="ing" data-day="' + day + '" data-id="' + id + '">' +
         (need ? 'Need' : 'Have it') + '</button></div>';
     }).join('');
-    return '<div class="ing">' + rows + (toAdd ? '<button class="btn btn-primary btn-block" data-act="add-meal" data-day="' + day + '" data-id="' + meal.id + '">Add ' + toAdd + ' to Need</button>'
+    return '<div class="ing">' + rows + (toAdd ? '<button class="btn btn-primary btn-block" data-act="add-meal" data-day="' + day + '" data-id="' + meal.id + '">Add ' + toAdd + ' to the List</button>'
       : '<div class="note">Everything for ' + esc(meal.name) + ' is covered.</div>') + '</div>';
   }
 
@@ -696,7 +853,7 @@
     const stat = (n, label) => '<div class="stat"><b>' + n + '</b><span>' + label + '</span></div>';
     let html = '<div class="stats">' + stat(count('GE'), 'Giant Eagle') + stat(count('WF'), 'Whole Foods') + stat(count('TGT'), 'Target') +
       stat(count('Either'), 'either grocery') + '</div>';
-    if (req) html += '<p class="note">' + req + ' request' + (req > 1 ? 's' : '') + ' still waiting on the Need tab.</p>';
+    if (req) html += '<p class="note">' + req + ' request' + (req > 1 ? 's' : '') + ' still waiting on the List.</p>';
 
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
@@ -722,38 +879,7 @@
     const seg = (field, options, value) => '<div class="seg">' + options.map((o) => '<button type="button" data-act="seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(value) === String(o[0]) ? 'on' : '') + '">' + esc(o[1]) + '</button>').join('') + '</div>';
     const storeOpts = [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['Either', 'Either']];
 
-    if (sh.type === 'row') {
-      const sr = rowById(sh.id);
-      const asked = sr ? wantedBy(sr) : [];
-      inner = '<h2>' + esc(sh.name) + '</h2>' +
-        (asked.length ? '<p class="note asked">Asked by ' + esc(asked.join(', ')) + (asked.length > 1 ? '. Same one, or one each? Set how many below.' : '') + '</p>' : '') +
-        '<div><label>How many</label><div class="stepper"><button type="button" data-act="qty" data-d="-1" aria-label="Fewer">−</button><b>' + sh.qty + '</b><button type="button" data-act="qty" data-d="1" aria-label="More">+</button></div></div>' +
-        '<div><label for="sh-note">Note</label><input id="sh-note" class="field" style="width:100%" data-input="draft" data-field="note" value="' + esc(sh.note) + '" placeholder="Brand, size, flavor…"></div>' +
-        '<div><label>Store</label>' + seg('store', storeOpts, sh.store) + '</div>' +
-        (canStock()
-          ? '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-row">Save</button><button class="btn btn-outline" data-act="row-bought">Bought it</button></div>' +
-            '<div class="have-box"><label>Already have some at home?</label>' +
-            seg('level', [['plenty', 'Plenty'], ['some', 'Some'], ['low', 'A little'], ['count', 'Count…']], sh.level) +
-            (sh.level === 'count' ? '<div class="stepper" style="margin-top:8px"><button type="button" data-act="count" data-d="-1" aria-label="Fewer">−</button><b>' + sh.count + '</b><button type="button" data-act="count" data-d="1" aria-label="More">+</button><span class="note">at home</span></div>' : '') +
-            '<div class="sheet-actions" style="margin-top:10px"><button class="btn btn-outline" data-act="row-have"' + (sh.level ? '' : ' disabled') + '>We have it · done</button><button class="btn btn-outline" data-act="row-hold">Next week</button></div>' +
-            '<p class="note">“We have it” takes it off without buying. “Next week” hides it for 7 days, then it comes back.</p></div>'
-          : '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-row">Save</button><button class="btn btn-outline" data-act="row-bought">Got it</button></div>') +
-        '<button class="btn btn-danger btn-block" data-act="row-remove">Take off the list</button>';
-    }
-
-    if (sh.type === 'item') {
-      inner = '<h2>' + (sh.id ? 'Edit staple' : 'New staple') + '</h2>' +
-        '<div><label for="sh-name">Name</label><input id="sh-name" class="field" style="width:100%" data-input="draft" data-field="name" value="' + esc(sh.name) + '"></div>' +
-        '<div><label>Store</label>' + seg('store', storeOpts, sh.store) + '</div>' +
-        '<div><label for="sh-group">Aisle</label><select id="sh-group" class="select" style="width:100%" data-input="draft" data-field="group">' +
-        GROUPS.map((g) => '<option' + (g === sh.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
-        '<div><label for="sh-brand">Brand / size</label><input id="sh-brand" class="field" style="width:100%" data-input="draft" data-field="brand_size" value="' + esc(sh.brand_size) + '"></div>' +
-        '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']], sh.ok_swap) + '</div>' +
-        '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['', 'Not set'], ['Drop', 'Stop buying']], sh.status) + '</div>' +
-        '<div><label for="sh-notes">Notes</label><input id="sh-notes" class="field" style="width:100%" data-input="draft" data-field="notes" value="' + esc(sh.notes) + '" placeholder="e.g. Gia only eats strawberry"></div>' +
-        (sh.orders ? '<p class="note">Bought in ' + sh.orders + ' order' + (sh.orders > 1 ? 's' : '') + (sh.last_bought ? ', last ' + esc(daysAgo(sh.last_bought)) : '') + (sh.avg_days ? ', about every ' + sh.avg_days + ' days' : '') + '.</p>' : '') +
-        '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-item"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
-    }
+    if (sh.type === 'item') inner = viewItemSheet(sh);
 
     if (sh.type === 'meal') {
       const hits = searchItems(sh.q || '', 5).filter((i) => sh.item_ids.indexOf(i.id) < 0);
@@ -768,8 +894,8 @@
         '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-meal"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
     }
 
-    return '<div class="scrim" data-act="close-sheet"><div class="sheet" role="dialog" aria-modal="true">' + inner +
-      '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button></div></div>';
+    return '<div class="scrim" data-act="close-sheet"><div class="sheet' + (sh.type === 'item' ? ' item-sheet' : '') + '" role="dialog" aria-modal="true">' + inner +
+      (sh.type === 'item' ? '' : '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button>') + '</div></div>';
   }
 
   function fmtDate(iso) {
@@ -784,23 +910,6 @@
   const handlers = {
     'pick-me': (el) => { S.me = el.dataset.name; store.set('ff_me', S.me); render(); },
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
-    'shop-start': () => { S.shop = store.get('ff_shop_last') || 'GE'; store.set('ff_shop', S.shop); S.query = ''; S.browse = false; S.tab = 'need'; render(); window.scrollTo(0, 0); },
-    'shop-store': (el) => { S.shop = el.dataset.v; store.set('ff_shop', S.shop); store.set('ff_shop_last', S.shop); render(); },
-    'shop-done': () => {
-      const n = D().recent.filter((r) => boughtToday(r) && inShop(r)).length;
-      store.set('ff_shop_last', S.shop); S.shop = ''; store.del('ff_shop');
-      showToast(n ? n + ' bought' : 'Back home'); render(); window.scrollTo(0, 0);
-    },
-    'shop-check': (el) => { const r = D().list.find((x) => x.id === el.dataset.id); if (r) setStatus(r, 'bought'); },
-    'shop-uncheck': (el) => {
-      const r = D().recent.find((x) => x.id === el.dataset.id);
-      if (!r) return;
-      act('update', { id: r.id, fields: { status: 'needed' } }, () => {
-        D().recent = D().recent.filter((x) => x.id !== r.id);
-        D().list.push(Object.assign({}, r, { status: 'needed' }));
-      });
-    },
-    browse: () => { S.browse = !S.browse; render(); },
     tab: (el) => { if (el.dataset.tab === 'ask' && S.tab !== 'ask') { S.askAnswered = 0; resetAskCard(); } S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
     'ask-pick': (el) => answerQuestion(el.dataset.id, el.dataset.v, el.dataset.v === 'Yes' || /^yes/i.test(el.dataset.v) ? 'right' : 'left'),
     'ask-type': (el) => { S.askTyping = el.dataset.id; render(); const f = document.getElementById('ask-in'); if (f) f.focus(); },
@@ -820,29 +929,9 @@
     'review-skip': (el) => answerQuestion(el.dataset.id, 'skip', 'up', 'Skipped'),
     undo: () => { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); else render(); },
 
-    'add-item': (el) => { const it = itemById(el.dataset.id); S.query = ''; if (it) addItem(it); else render(); },
-    'add-new': () => { const q = S.query; S.query = ''; addNew(q); },
     approve: (el) => { const r = rowById(el.dataset.id); if (r) act('update', { id: r.id, fields: { status: 'needed' } }, () => (r.status = 'needed'), 'Approved ' + r.name); },
     skip: (el) => { const r = rowById(el.dataset.id); if (r) setStatus(r, 'skipped', 'Skipped ' + r.name); },
-    bought: (el) => { const r = rowById(el.dataset.id); if (r) setStatus(r, 'bought', 'Got ' + r.name); },
     restore: (el) => { const r = rowById(el.dataset.id); if (r) restore(r); },
-    'open-row': (el) => {
-      const r = rowById(el.dataset.id);
-      if (r) { S.sheet = { type: 'row', id: r.id, name: r.name, qty: Number(r.qty) || 1, note: r.note || '', store: r.store || 'Either', level: '', count: 1 }; render(); }
-    },
-
-    filter: (el) => { S.storeFilter = el.dataset.v; render(); },
-    'edit-mode': () => { S.editMode = !S.editMode; render(); },
-    chip: (el) => {
-      const it = itemById(el.dataset.id);
-      if (!it) return;
-      if (S.editMode) { openItem(it); return; }
-      const row = listRowFor(it.id);
-      if (row) handlers['open-row']({ dataset: { id: row.id } });
-      else addItem(it);
-    },
-    'new-item': () => openItem(null),
-
     'toggle-day': (el) => { S.openDay = S.openDay === el.dataset.day ? null : el.dataset.day; render(); },
     ing: (el) => { const p = S.mealPick[el.dataset.day] || (S.mealPick[el.dataset.day] = {}); p[el.dataset.id] = p[el.dataset.id] === false; render(); },
     'add-meal': (el) => {
@@ -878,41 +967,93 @@
     'clear-order': () => act('requestOrder', { store: '' }, () => { D().settings.order_requested = ''; }),
 
     seg: (el) => { S.sheet[el.dataset.field] = el.dataset.v; render(); },
-    qty: (el) => { S.sheet.qty = Math.max(1, S.sheet.qty + Number(el.dataset.d)); render(); },
-    'save-row': () => {
-      const sh = S.sheet; const r = rowById(sh.id); S.sheet = null;
-      if (!r) { render(); return; }
-      act('update', { id: r.id, fields: { qty: sh.qty, note: sh.note, store: sh.store } }, () => { r.qty = sh.qty; r.note = sh.note; r.store = sh.store; }, 'Saved');
-    },
-    'row-bought': () => { const r = rowById(S.sheet.id); S.sheet = null; if (r) setStatus(r, 'bought', 'Bought ' + r.name); else render(); },
-    count: (el) => { S.sheet.count = Math.max(1, Math.min(999, S.sheet.count + Number(el.dataset.d))); render(); },
-    'row-have': () => {
-      const sh = S.sheet; const r = rowById(sh.id);
-      if (!sh.level) return;
-      S.sheet = null;
-      if (r) markHave(r, sh.level === 'count' ? String(sh.count) : sh.level); else render();
-    },
-    'row-hold': () => {
-      const sh = S.sheet; const r = rowById(sh.id); S.sheet = null;
-      if (r) holdRow(r, sh.level === 'count' ? String(sh.count) : sh.level); else render();
-    },
     unhold: (el) => { const r = (D().held || []).find((x) => x.id === el.dataset.id); if (r) unhold(r); },
-    'row-remove': () => { const r = rowById(S.sheet.id); S.sheet = null; if (r) setStatus(r, 'skipped', 'Took ' + r.name + ' off'); else render(); },
-    'save-item': () => {
-      const sh = S.sheet;
-      if (!String(sh.name).trim()) return;
-      S.sheet = null;
-      const fields = { name: sh.name.trim(), store: sh.store, group: sh.group, brand_size: sh.brand_size, ok_swap: sh.ok_swap, status: sh.status, notes: sh.notes };
-      act('itemSave', { id: sh.id, fields: fields }, () => {
-        const it = itemById(sh.id);
-        if (it) Object.assign(it, fields);
-        else D().items.push(Object.assign({ id: tmpId() }, fields));
-      }, 'Saved ' + fields.name);
+    'open-row': (el) => {
+      const r = rowById(el.dataset.id) || (D().held || []).find((x) => x.id === el.dataset.id);
+      if (r) openItemSheet(r.item_id, r.id, r.name);
+    },
+    'open-item': (el) => openItemSheet(el.dataset.id),
+    'add-item': (el) => {
+      const it = itemById(el.dataset.id);
+      if (!it) { render(); return; }
+      addItem(it);
+    },
+    'add-new': () => { const q = S.query; S.query = ''; addNew(q); },
+    'close-x': () => { S.sheet = null; render(); },
+    'row-qty': (el) => {
+      const r = sheetRow(); if (!r) return;
+      const q = Math.max(1, (Number(r.qty) || 1) + Number(el.dataset.d));
+      act('update', { id: r.id, fields: { qty: q } }, () => { r.qty = q; });
+    },
+    'have-level': (el) => {
+      const v = el.dataset.v;
+      if (v === 'count') { S.sheet.level = 'count'; render(); return; }
+      haveDone(v);
+    },
+    'have-count': (el) => { S.sheet.count = Math.max(1, Math.min(999, S.sheet.count + Number(el.dataset.d))); render(); },
+    'have-count-save': () => haveDone(String(S.sheet.count)),
+    'row-hold': () => { const r = sheetRow(); S.sheet = null; if (r) holdRow(r, ''); else render(); },
+    'row-bought': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'bought', 'Bought ' + r.name); else render(); },
+    'row-remove': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'skipped', 'Took ' + r.name + ' off'); else render(); },
+    'toggle-details': () => { S.sheet.details = !S.sheet.details; render(); },
+    'd-seg': (el) => { S.sheet.d[el.dataset.field] = el.dataset.v; render(); },
+    'save-details': () => {
+      const sh = S.sheet; const it = itemById(sh.item_id);
+      if (!it || isKid(S.me)) return;
+      const fields = Object.assign({}, sh.d);
+      const r = sheetRow();
+      sh.details = false;
+      act('itemSave', { id: it.id, fields: fields }, () => { Object.assign(it, fields); }, 'Saved');
+      if (r && r.store !== fields.store) act('update', { id: r.id, fields: { store: fields.store } }, () => { r.store = fields.store; });
+    },
+    fold: (el) => { const k = el.dataset.key; const dflt = k === 'held' || k === 'recent'; setClosed(k, !isClosed(k, dflt)); render(); },
+    'fold-all': () => {
+      const codes = STORE_ORDER.filter((c) => D().list.some((r) => r.status !== 'requested' && (r.store || 'Either') === c));
+      const close = !codes.every((c) => isClosed('s:' + c, false));
+      codes.forEach((c) => setClosed('s:' + c, close));
+      render();
+    },
+    'shop-filter': (el) => { S.shopFilter = el.dataset.v; render(); window.scrollTo(0, 0); },
+    'shop-store': (el) => { S.shopStore = el.dataset.v; render(); },
+    'store-start': () => { S.instore = store.get('ff_instore_last') || 'GE'; store.set('ff_instore', S.instore); S.tab = 'list'; render(); window.scrollTo(0, 0); },
+    'store-pick': (el) => { S.instore = el.dataset.v; store.set('ff_instore', S.instore); store.set('ff_instore_last', S.instore); render(); },
+    'store-done': () => {
+      const n = D().recent.filter((r) => boughtToday(r) && inStore(r)).length;
+      store.set('ff_instore_last', S.instore); S.instore = ''; store.del('ff_instore');
+      showToast(n ? n + ' bought' : 'Back home'); render(); window.scrollTo(0, 0);
+    },
+    'store-check': (el) => { const r = D().list.find((x) => x.id === el.dataset.id); if (r) setStatus(r, 'bought'); },
+    'store-uncheck': (el) => {
+      const r = D().recent.find((x) => x.id === el.dataset.id);
+      if (!r) return;
+      act('update', { id: r.id, fields: { status: 'needed' } }, () => {
+        D().recent = D().recent.filter((x) => x.id !== r.id);
+        D().list.push(Object.assign({}, r, { status: 'needed' }));
+      });
     },
     'close-sheet': (el, ev) => { if (ev.target === el) { S.sheet = null; render(); } },
   };
 
+  // The List row the open item screen is about (if any).
+  function sheetRow() {
+    const sh = S.sheet; if (!sh) return null;
+    return (sh.row_id && (D().list.find((r) => r.id === sh.row_id) || (D().held || []).find((r) => r.id === sh.row_id))) ||
+      (sh.item_id && (listRowFor(sh.item_id) || (D().held || []).find((r) => r.item_id === sh.item_id))) || null;
+  }
+
+  // "We have some": on the List it closes the row (status have); otherwise it's just a Stock sighting.
+  function haveDone(level) {
+    const sh = S.sheet; const r = sheetRow();
+    S.sheet = null;
+    if (r) { markHave(r, level); return; }
+    const it = itemById(sh.item_id);
+    act('stockLog', { item_id: sh.item_id, level: level }, () => {
+      (D().stock = D().stock || {})[sh.item_id] = { level: level, at: D().today, who: S.me };
+    }, 'Noted: ' + levelText(level) + ' at home' + (it ? ' (' + it.name + ')' : ''));
+  }
+
   function openItem(it) {
+    if (it && it.id) { openItemSheet(it.id); return; }
     S.sheet = it
       ? { type: 'item', id: it.id, name: it.name, store: it.store || 'Either', group: it.group || 'Other', brand_size: it.brand_size || '', ok_swap: it.ok_swap || '', status: it.status || '', notes: it.notes || '', orders: Number(it.orders) || 0, last_bought: it.last_bought, avg_days: it.avg_days }
       : { type: 'item', id: '', name: '', store: S.storeFilter !== 'all' ? S.storeFilter : 'Either', group: 'Other', brand_size: '', ok_swap: '', status: '', notes: '' };
@@ -922,7 +1063,6 @@
   document.addEventListener('click', (ev) => {
     const el = ev.target.closest('[data-act]');
     if (!el) {
-      if (S.query && !ev.target.closest('.addbar')) { S.query = ''; render(); }
       return;
     }
     const fn = handlers[el.dataset.act];
@@ -938,6 +1078,7 @@
     const kind = el.dataset && el.dataset.input;
     if (kind === 'staples-q') { S.staplesQuery = el.value; render(); }
     if (kind === 'ask-draft') { S.askDraft = el.value; }
+    if (kind === 'd' && S.sheet && S.sheet.d) S.sheet.d[el.dataset.field] = el.value;
     if (kind === 'draft' && S.sheet) {
       S.sheet[el.dataset.field] = el.value;
       // Only the meal search and name-gated Save buttons need a redraw while typing.
@@ -957,6 +1098,11 @@
       });
     }
     if (el.dataset && el.dataset.input === 'ask-sel') { S.askSel = el.value; render(); }
+    if (el.dataset && el.dataset.input === 'd' && S.sheet && S.sheet.d) S.sheet.d[el.dataset.field] = el.value;
+    if (el.dataset && el.dataset.input === 'row-note') {
+      const r = D().list.find((x) => x.id === el.dataset.id) || (D().held || []).find((x) => x.id === el.dataset.id);
+      if (r && r.note !== el.value) { const v = el.value; act('update', { id: r.id, fields: { note: v } }, () => { r.note = v; }, 'Note saved'); }
+    }
     if (el.dataset && el.dataset.input === 'draft' && el.tagName === 'SELECT' && S.sheet) S.sheet[el.dataset.field] = el.value;
   });
 
@@ -981,6 +1127,7 @@
       S.query = '';
       if (hits.length && String(hits[0].name).toLowerCase() === q.toLowerCase()) addItem(hits[0]);
       else addNew(q);
+      render();
       const f = document.getElementById('add'); if (f) f.blur();
     }
     if (form.dataset.form === 'ask-text') {

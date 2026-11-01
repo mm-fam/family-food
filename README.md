@@ -8,7 +8,7 @@ phones (GitHub Pages)  ──POST──▶  Apps Script web app  ──▶  "Pop
                                         Claude (Google connector) ───┘  receipts, carts, review
 ```
 
-- **App** (`index.html`, `app.js`, `styles.css`): Need (with Shop mode), Meals, Ask, plus an admin screen. No build step.
+- **App** (`index.html`, `app.js`, `styles.css`): List (with In-store mode), Shop, Meals, Ask, plus an admin screen. No build step.
 - **Backend** (`apps-script/Code.gs`): lives inside the Sheet. Checks the family passcode, reads and writes the tabs, works out "probably due".
 - **Sheet tabs**: Items (catalog), List, Meals, Plan, Receipts, Review, Settings. Items stats (orders, last bought, average days between buys) are formulas over Receipts.
 
