@@ -297,14 +297,14 @@
     if (isKid(S.me) && Number(D().api || 0) >= 20) {
       act('listHave', { id: row.id, level: level }, () => {
         (D().stock = D().stock || {})[row.item_id] = { level: level, at: D().today, who: S.me };
-      }, 'Asked a parent to take ' + row.name + ' off' + (ptsTag('reconcile') ? ' · +' + rulePts('reconcile') + ' when they agree' : ''));
+      }, 'Asked a parent to take ' + row.name + ' off the List');
       return;
     }
     act('listHave', { id: row.id, level: level }, () => {
       D().list = D().list.filter((r) => r !== row);
       D().recent.push(Object.assign({}, row, { status: 'have', note: 'had ' + level, updated_at: D().today }));
       fadeRow(row, 'We have ' + levelText(level) + ' (' + S.me + ')', before);
-    }, 'Off the list: we have ' + levelText(level) + ptsTag('reconcile'), () => restore(row, before));
+    }, 'Off the list: we have ' + levelText(level), () => restore(row, before));
   }
 
   // A row that just left the List stays in place for a few seconds, crossed out, with Undo,
@@ -321,7 +321,7 @@
     act('listHold', { id: row.id, level: level || '' }, () => {
       D().list = D().list.filter((r) => r !== row);
       (D().held = D().held || []).push(Object.assign({}, row));
-    }, row.name + ' moved to next week' + (level ? ptsTag('reconcile') : ''), () => unhold(row));
+    }, row.name + ' moved to next week', () => unhold(row));
   }
 
   function unhold(row) {
@@ -1363,6 +1363,8 @@
     const t = String(r.type || '').toLowerCase(), d = String(r.detail || '');
     if (t === 'helped') return 'helped';
     if (t === 'have_check') return 'decision';
+    // For the kids, "Did we get it?" is a mission: go look at home (api 21: their "It's here" goes to a parent).
+    if (t === 'settle' && !amParent() && Number(D().api || 0) >= 21) return 'mission';
     if (t === 'settle' || t === 'settle_order' || t === 'settle_meal') return 'settle';
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
@@ -1485,7 +1487,6 @@
         '<div class="pr-table">' + family.map(row).join('') + '</div>' +
         '<ul class="pr-list"><li>A kid’s add is a request: it earns its point when a parent approves it. A skipped request earns nothing.</li>' +
         '<li>Adding something that’s already on the List counts if you weren’t on it yet (you show up as “asked by … + you”).</li>' +
-        (rulePts('reconcile') ? '<li>🏠 On the List, tap an item → “Have some at home already?” → Plenty, Some, A little or a count. A kid’s Plenty or Some goes to a parent first (“Take it off the List?”) and scores when the parent says yes. A little, a count, or Next week with an amount scores right away. One score per item per person.</li>' : '') +
         '<li>Approve and Skip both count for the parent: saying no is a decision too (that includes answering a kid’s “we have it”).</li></ul>' : '') +
       '<h3 class="pr-h">🧑‍🍳 Kitchen help</h3>' +
       '<p class="note">The day after a planned dinner, a parent gets a card for each kid: “Did <i>kid</i> help cook <i>dinner</i>?” The points go to the <b>kid</b>, not to the parent who answers.</p>' +
@@ -1499,6 +1500,7 @@
       '<ul class="pr-list"><li>Typing your own answer (“Something else? Type it”) counts the same as tapping one.</li>' +
       '<li>Each card pays once, to whoever answered it. A card someone passed to you is yours to score.</li>' +
       '<li>Due soon cards pay ' + rulePts('task') + ' until their deadline, then ' + rulePts('task_late') + '.</li>' +
+      (Number(D().api || 0) >= 21 ? '<li>🔎 Missions are how the List gets checked: Poppy picks what to look for. When a kid says we have something (on a mission or on the List), a parent gets “Take it off the List?” and nothing comes off until they say yes. Tapping items on the List yourself earns no points.</li>' : '') +
       '<li>The “+5” on your phone is a preview; Poppy’s server does the real count, so the numbers can shift a little on the next refresh.</li></ul>' +
       '<h3 class="pr-h">🎯 Daily goal</h3>' +
       '<p class="note">' + goal + ' points in one day (midnight to midnight). The ring on top of the Inbox fills as you go.</p>' +
@@ -2084,7 +2086,7 @@
     if (r) {
       act('stockLog', { item_id: sh.item_id, level: level, list_id: r.id }, () => {
         (D().stock = D().stock || {})[sh.item_id] = { level: level, at: D().today, who: S.me };
-      }, 'Noted: a little left. ' + (it ? it.name : 'It') + ' stays on the List.' + ptsTag('reconcile'));
+      }, 'Noted: a little left. ' + (it ? it.name : 'It') + ' stays on the List.');
       return;
     }
     act('stockLog', { item_id: sh.item_id, level: level }, () => {
