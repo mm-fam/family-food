@@ -571,3 +571,19 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .sec-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .sec-chip.on b { color: inherit; }
 .qcard-sec { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+/* Cart jobs (api 12): status lines on the cart screen and a heads-up on the List. */
+.job { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; line-height: 1.4;
+  padding: 8px 10px; border-radius: 10px; background: var(--line-soft); color: var(--ink); }
+.job-wait { background: var(--req-bg); color: var(--req-ink); }
+.job-run { background: var(--accent-soft); color: var(--accent-deep); }
+.job-done { background: var(--accent-soft); color: var(--accent-deep); }
+.job-fail { background: #FDECEA; color: var(--danger); }
+.job-off { color: var(--muted); }
+.job-btns { display: flex; gap: 8px; }
+.job-btns .btn { flex: 1; }
+.job-banner { display: block; width: 100%; text-align: left; margin: 0 0 10px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--req-line); background: var(--req-bg); color: var(--req-ink); font: inherit; font-size: 14px; line-height: 1.4; cursor: pointer; }
+.job-banner.done { border-color: var(--accent-soft); background: var(--accent-soft); color: var(--accent-deep); }
+@media (prefers-color-scheme: dark) {
+  .job-fail { background: #3A1A17; }
+}

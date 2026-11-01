@@ -23,7 +23,17 @@ const TABS = {
   ideas: 'Meal Ideas',
   feedback: 'App Feedback',
   products: 'Products',
+  jobs: 'Cart Jobs',
 };
+
+// Cart Jobs (api 12): a parent taps "Build the cart" / "Check the cart" on a phone; the job waits here until
+// Claude's cart runner (a scheduled task on the owner's computer, which has Chrome signed in to the stores)
+// picks it up and writes back status + result. Created on first use.
+const JOBS_HEAD = ['id', 'at', 'by', 'store', 'kind', 'status', 'started_at', 'finished_at', 'result', 'notes'];
+const JOB_STORES = ['GE', 'WF', 'TGT', 'AMZ'];
+const JOB_KINDS = ['build', 'check'];
+const JOB_OPEN = ['queued', 'running', 'waiting']; // waiting = runner tried, computer/Chrome/sign-in not ready; it retries
+const JOB_SHOW_DAYS = 14;
 
 // App Feedback: anything anyone says about the app from the 💡 button in the header (created on first use).
 const FEEDBACK_HEAD = ['id', 'at', 'who', 'tab', 'text', 'status', 'notes'];
@@ -59,7 +69,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 11 = products: state.products = the exact product we buy per item per store (Products tab, written by
 //      Claude), with aisle when known, for the item screen and In-store aisle order. List rows can carry
 //      `cart` (store code) + `cart_at` when Claude put them in a store's online cart (status carted).
-const API_VERSION = 11;
+// 12 = cart jobs: cartJob {store, kind: build|check} queues a job in the Cart Jobs tab for Claude's cart runner,
+//      cartJobCancel {id} cancels a queued one; state.cartJobs = recent jobs with status + result.
+const API_VERSION = 12;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -116,6 +128,8 @@ function handle(req) {
     listHave: () => withLock(() => listHave(req)),
     listHold: () => withLock(() => listHold(req)),
     requestOrder: () => withLock(() => requestOrder(req)),
+    cartJob: () => withLock(() => addCartJob(req)),
+    cartJobCancel: () => withLock(() => cancelCartJob(req)),
     itemInfo: () => itemInfo(req),
     stockLog: () => withLock(() => stockLogAction(req)),
     mealIdea: () => withLock(() => addMealIdea(req)),
@@ -304,6 +318,7 @@ function getState() {
     due: due,
     stock: stockLatest,
     products: productsMap(),
+    cartJobs: recentCartJobs(today),
     settings: {
       parents: String(settings.parents || '').split(',').map((s) => s.trim()).filter(String),
       kids: String(settings.kids || '').split(',').map((s) => s.trim()).filter(String),
@@ -871,6 +886,51 @@ function requestOrder(req) {
   if (s) setFields(TABS.settings, s._row, { value: value });
   else appendObj(TABS.settings, { key: 'order_requested', value: value });
   return { order_requested: value };
+}
+
+/* ---------------------------------------------------------------- cart jobs (api 12) */
+
+function jobsSheet() {
+  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.jobs);
+  if (!sh) { sh = SpreadsheetApp.getActive().insertSheet(TABS.jobs); sh.appendRow(JOBS_HEAD); sh.setFrozenRows(1); }
+  return sh;
+}
+
+// Parents only. One open job per store + kind: asking again returns the one already waiting.
+function addCartJob(req) {
+  if (isKid(req.by)) throw new Error('Ask a parent to do this');
+  const store = String(req.store || '').toUpperCase();
+  const kind = String(req.kind || 'build').toLowerCase();
+  if (JOB_STORES.indexOf(store) < 0) throw new Error('Unknown store');
+  if (JOB_KINDS.indexOf(kind) < 0) throw new Error('Unknown job');
+  jobsSheet();
+  const rows = readTab(TABS.jobs);
+  const open = rows.find((r) => r.store === store && r.kind === kind && JOB_OPEN.indexOf(String(r.status)) >= 0);
+  if (open) return { id: open.id, already: true };
+  const id = nextId(rows, 'id', 'c', 3);
+  appendObj(TABS.jobs, { id: id, at: nowStamp(), by: req.by || '', store: store, kind: kind, status: 'queued' });
+  return { id: id };
+}
+
+function cancelCartJob(req) {
+  if (isKid(req.by)) throw new Error('Ask a parent to do this');
+  if (!SpreadsheetApp.getActive().getSheetByName(TABS.jobs)) throw new Error('No such job');
+  const row = readTab(TABS.jobs).find((r) => r.id === req.id);
+  if (!row) throw new Error('No such job');
+  if (String(row.status) === 'running') throw new Error('Claude is already working on it');
+  if (JOB_OPEN.indexOf(String(row.status)) < 0) return { id: row.id, status: row.status };
+  setFields(TABS.jobs, row._row, { status: 'cancelled', finished_at: nowStamp(), notes: 'Cancelled by ' + (req.by || 'someone') });
+  return { id: row.id, status: 'cancelled' };
+}
+
+function recentCartJobs(today) {
+  if (!SpreadsheetApp.getActive().getSheetByName(TABS.jobs)) return [];
+  return readTab(TABS.jobs)
+    .filter((r) => JOB_OPEN.indexOf(String(r.status)) >= 0 || daysBetween(String(r.at).slice(0, 10), today) <= JOB_SHOW_DAYS)
+    .map((r) => ({ id: r.id, at: String(r.at), by: r.by, store: r.store, kind: r.kind, status: String(r.status),
+      started_at: String(r.started_at || ''), finished_at: String(r.finished_at || ''), result: String(r.result || '') }))
+    .reverse()
+    .slice(0, 12);
 }
 
 /* ---------------------------------------------------------------- nightly + setup */

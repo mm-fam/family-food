@@ -184,3 +184,21 @@ Rules: one Review row per person (one row = one answer); next free `rNNN`; `crea
 4. Receipts still close the loop: when the order's receipt is ingested (§1), `carted` rows become `bought`.
 
 **Report:** "<store> cart: N lines, N matched, N added to the List, N back to needed, $total."
+
+## 13. Cart runner: phones start cart jobs, the owner's computer runs them (api 12)
+
+**Why:** building or checking a cart needs Chrome signed in to the store (a person signs in; Claude never does), and that Chrome lives on the owner's desktop. Phones can't run it. So a parent queues the job on a phone and a scheduled Claude task on the owner's computer picks it up.
+
+**Phone side:** ⚙ → a store → **Build the cart** or **Check the cart** → `cartJob` → a `queued` row in **Cart Jobs**. The app shows the status line and, on the List, a one-line heads-up.
+
+**Runner:** scheduled task "Poppy Cart Runner", set to require the owner's computer (so it has Chrome), hourly from 8 am to 9 pm Eastern. Each run:
+1. Read Cart Jobs. Also turn a non-blank Settings `order_requested` (older app) into a `build` job (by = whoever it names) and clear it. A job `running` for more than 2 hours → `failed`, result "Stopped partway; nothing was checked out".
+2. **Friday rule:** on Fridays from 6 pm, if no Giant Eagle `check` job was queued or run today, add one (by `Cart runner`). The Saturday order then starts from an up-to-date cart.
+3. Nothing `queued` or `waiting` → stop. No push, no other work.
+4. Take the oldest open job. Check Chrome (`tabs_context`). Not reachable → `waiting`, result "Mike's computer or Chrome was off" (count attempts in notes); after 12 hours of waiting → `failed`. Stop.
+5. Set `running`, `started_at`. Open the store; if it isn't signed in → `failed`, result "<store> isn't signed in on Mike's computer". Stop.
+6. `build` → §2; `check` → §12. One job per run, so a run never takes all afternoon.
+7. Set `done`, `finished_at`, and a short `result`: build "18 items, $142.10, 2 swaps, 1 missing"; check "12 lines, 10 on the List, 2 added, $96.40". Push the same line to the owner.
+8. Close the tabs it opened.
+
+**Rules:** never check out, enter payment or change account settings; never sign in; never touch a cart that holds an order the family is in the middle of placing (ask in the push instead). Reports go only to the owner by push; the family sees the status in the app.

@@ -569,6 +569,7 @@
     let html = '';
 
     html += viewInstallTip();
+    html += viewJobBanner();
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
         requests.map(requestRow).join('') + '</section>';
@@ -1421,6 +1422,57 @@
     });
   }
 
+  /* ---------- cart jobs (api 12) ---------- */
+  const canJobs = () => Number(D().api || 0) >= 12;
+  const JOB_OPEN = ['queued', 'running', 'waiting'];
+  const jobs = () => D().cartJobs || [];
+  function fmtWhen(iso) {
+    const s = String(iso || '');
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+    if (!m) return '';
+    let h = Number(m[2]);
+    const ap = h >= 12 ? 'pm' : 'am';
+    h = h % 12 || 12;
+    const t = h + ':' + m[3] + ' ' + ap;
+    if (m[1] === D().today) return t;
+    return DAYS[new Date(m[1] + 'T12:00:00').getDay()] + ' ' + t;
+  }
+  const daysSince = (iso) => Math.round((new Date(D().today + 'T12:00:00') - new Date(String(iso).slice(0, 10) + 'T12:00:00')) / 86400000);
+  // Latest job for a store + kind (newest first from the backend).
+  const latestJob = (store, kind) => jobs().find((j) => j.store === store && j.kind === kind);
+  function jobLine(j) {
+    const st = storeOf(j.store).name;
+    const what = j.kind === 'check' ? 'check the ' + st + ' cart' : 'build the ' + st + ' cart';
+    if (j.status === 'queued') return { cls: 'wait', text: 'Waiting for Claude to ' + what + ' · asked by ' + j.by + ' ' + fmtWhen(j.at) + '. Claude looks for new jobs every hour on Mike’s computer.' };
+    if (j.status === 'waiting') return { cls: 'wait', text: 'Still waiting to ' + what + (j.result ? ': ' + j.result : '') + '. Claude tries again every hour.' };
+    if (j.status === 'running') return { cls: 'run', text: 'Claude is working on it now (' + what + ')…' };
+    if (j.status === 'done') return { cls: 'done', text: (j.kind === 'check' ? 'Cart checked ' : 'Cart built ') + fmtWhen(j.finished_at || j.at) + (j.result ? ': ' + j.result : '') };
+    if (j.status === 'failed') return { cls: 'fail', text: 'Couldn’t ' + what + (j.result ? ': ' + j.result : '') };
+    if (j.status === 'cancelled') return { cls: 'off', text: 'Cancelled ' + fmtWhen(j.finished_at || j.at) };
+    return { cls: 'off', text: j.status };
+  }
+  function jobRow(j) {
+    const l = jobLine(j);
+    const cancel = amParent() && (j.status === 'queued' || j.status === 'waiting') ? '<button class="btn btn-plain btn-sm" data-act="job-cancel" data-id="' + esc(j.id) + '">Cancel</button>' : '';
+    return '<div class="job job-' + l.cls + '"><span>' + esc(l.text) + '</span>' + cancel + '</div>';
+  }
+  // A one-line heads-up on the List while a job is open, or for 12 hours after a build finishes.
+  function viewJobBanner() {
+    if (!canJobs()) return '';
+    const now = Date.now();
+    const recent = (j) => j.status === 'done' && j.kind === 'build' && j.finished_at && now - new Date(String(j.finished_at)).getTime() < 12 * 3600000;
+    const shown = jobs().filter((j) => JOB_OPEN.indexOf(j.status) >= 0 || recent(j));
+    if (!shown.length) return '';
+    return shown.map((j) => {
+      const st = storeOf(j.store).name;
+      let text;
+      if (j.status === 'running') text = '🛒 Claude is ' + (j.kind === 'check' ? 'checking' : 'filling') + ' the ' + st + ' cart now';
+      else if (j.status === 'done') text = '🛒 ' + st + ' cart is ready' + (j.result ? ': ' + j.result : '') + '. Review it and check out on the ' + st + ' site or app.';
+      else text = '🛒 ' + st + ' cart ' + (j.kind === 'check' ? 'check' : 'build') + ' is waiting for Claude';
+      return '<button class="job-banner' + (j.status === 'done' ? ' done' : '') + '" data-act="tab" data-tab="' + (isAdmin() ? 'admin' : 'list') + '">' + esc(text) + '</button>';
+    }).join('');
+  }
+
   /* ---------- order ---------- */
   function viewOrder() {
     const list = D().list.filter((r) => r.status !== 'requested');
@@ -1437,15 +1489,27 @@
       const day = code === 'GE' ? D().settings.ge_order_day : code === 'WF' ? D().settings.wf_order_day : code === 'TGT' ? 'monthly Drive Up' : '';
       const n = count(code) + (takesEither(code) ? count('Either') : 0);
       const inCart = D().list.filter((r) => r.status === 'carted' && cartStore(r) === code).length;
-      html += '<section class="card store-card"><div class="store-title"><b class="head-' + st.cls + '">' + st.name + '</b><span class="note">' + count(code) + (count(code) === 1 ? ' item' : ' items') + (day ? ' · usually ' + esc(day) : '') + (inCart ? ' · ' + inCart + ' in the online cart' : '') + '</span></div>' +
+      const head = '<div class="store-title"><b class="head-' + st.cls + '">' + st.name + '</b><span class="note">' + count(code) + (count(code) === 1 ? ' item' : ' items') + (day ? ' · usually ' + esc(day) : '') + (inCart ? ' · ' + inCart + ' in the online cart' : '') + '</span></div>';
+      if (canJobs()) {
+        const b = latestJob(code, 'build');
+        const c = latestJob(code, 'check');
+        const busy = (j) => j && JOB_OPEN.indexOf(j.status) >= 0;
+        const lines = [b, c].filter((j) => j && j.status !== 'cancelled' && (busy(j) || daysSince(String(j.finished_at || j.at).slice(0, 10)) <= 3)).map(jobRow).join('');
+        html += '<section class="card store-card">' + head + lines +
+          (amParent() ? '<div class="job-btns"><button class="btn ' + (code === 'GE' ? 'btn-primary' : 'btn-outline') + '" data-act="cart-job" data-kind="build" data-store="' + code + '"' + (n && !busy(b) ? '' : ' disabled') + '>Build the cart</button>' +
+            '<button class="btn btn-outline" data-act="cart-job" data-kind="check" data-store="' + code + '"' + (busy(c) ? ' disabled' : '') + '>Check the cart</button></div>' : '') +
+          '</section>';
+        return;
+      }
+      html += '<section class="card store-card">' + head +
         (amParent() ? '<button class="btn ' + (code === 'GE' ? 'btn-primary' : 'btn-outline') + ' btn-block" data-act="request-order" data-store="' + code + '"' + (n ? '' : ' disabled') + '>Ask Claude to build the ' + st.name + ' cart</button>' : '') +
         '</section>';
     });
-    if (requested) {
+    if (requested && !canJobs()) {
       html += '<section class="card store-card"><div class="note"><b>Cart requested:</b> ' + esc(requested) + '. Claude fills the cart on Mike’s computer, then any swaps show up in Ask.</div>' +
         (amParent() ? '<button class="btn btn-plain" data-act="clear-order">Clear</button>' : '') + '</section>';
     }
-    html += '<p class="hint">Carts are filled for you to review. A person always taps checkout.</p>';
+    html += '<p class="hint">' + (canJobs() ? '<b>Build</b> fills the store’s online cart from the List. <b>Check</b> reads what’s in the cart (even things added on the store’s site) and tags those List rows “In cart”. Claude does both on Mike’s computer, so it needs to be on with Chrome open; jobs wait until it is. ' : '') + 'Carts are filled for you to review. A person always taps checkout.</p>';
     return html;
   }
 
@@ -1629,6 +1693,21 @@
       act('requestOrder', { store: storeOf(code).name }, () => { D().settings.order_requested = storeOf(code).name + ' requested by ' + S.me; }, 'Cart requested');
     },
     'clear-order': () => act('requestOrder', { store: '' }, () => { D().settings.order_requested = ''; }),
+    'cart-job': (el) => {
+      const code = el.dataset.store;
+      const kind = el.dataset.kind;
+      act('cartJob', { store: code, kind: kind }, () => {
+        if (!latestJob(code, kind) || JOB_OPEN.indexOf(latestJob(code, kind).status) < 0) {
+          D().cartJobs = [{ id: tmpId(), at: new Date().toISOString().slice(0, 19), by: S.me, store: code, kind: kind, status: 'queued' }].concat(jobs());
+        }
+      }, kind === 'check' ? 'Cart check queued' : 'Cart build queued');
+    },
+    'job-cancel': (el) => {
+      act('cartJobCancel', { id: el.dataset.id }, () => {
+        const j = jobs().find((x) => x.id === el.dataset.id);
+        if (j) j.status = 'cancelled';
+      }, 'Cancelled');
+    },
 
     seg: (el) => { S.sheet[el.dataset.field] = el.dataset.v; render(); },
     unhold: (el) => { const r = (D().held || []).find((x) => x.id === el.dataset.id); if (r) unhold(r); },
