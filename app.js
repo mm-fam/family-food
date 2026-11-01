@@ -1225,10 +1225,15 @@
     return 'text';
   }
 
-  // Deck order: questions put off with "Later" go to the back for this session.
+  // Deck order: cards never put off first (sheet order), then saved "Later" cards, oldest Later first
+  // (api 10), then anything put off in this session.
   function askDeck() {
     const later = S.askLater || [];
-    const qs = myQuestions();
+    const qs = myQuestions().map((q, i) => ({ q: q, i: i })).sort((a, b) => {
+      const la = String(a.q.later_at || ''), lb = String(b.q.later_at || '');
+      if (!la !== !lb) return la ? 1 : -1;
+      return la < lb ? -1 : la > lb ? 1 : a.i - b.i;
+    }).map((x) => x.q);
     return qs.filter((q) => later.indexOf(q.id) < 0).concat(later.map((id) => qs.find((q) => q.id === id)).filter(Boolean));
   }
 
@@ -1273,7 +1278,7 @@
     let html = '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
-      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,})\)/g, '')) + '</div>' + control + (typing ? textBox :
+      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,})\)/g, '')) + '</div>' + control + (typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
@@ -1416,7 +1421,20 @@
         }, 'Passed to ' + to);
       });
     },
-    'ask-later': (el) => { S.askLater = (S.askLater || []).filter((x) => x !== el.dataset.id).concat([el.dataset.id]); flyCard('left', () => { resetAskCard(); render(); }); },
+    'ask-later': (el) => {
+      const id = el.dataset.id;
+      S.askLater = (S.askLater || []).filter((x) => x !== id).concat([id]);
+      flyCard('left', () => {
+        resetAskCard();
+        // api 10 saves it, so the card stays at the back tomorrow too and can be recycled.
+        if (Number(D().api || 0) >= 10) {
+          act('reviewLater', { id: id }, () => {
+            const q = D().review.find((x) => x.id === id);
+            if (q) { q.later_count = (Number(q.later_count) || 0) + 1; q.later_at = new Date().toISOString(); }
+          });
+        } else render();
+      });
+    },
     'review-skip': (el) => answerQuestion(el.dataset.id, 'skip', 'up', 'Skipped'),
     undo: () => { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); else render(); },
 

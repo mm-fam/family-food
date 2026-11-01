@@ -53,7 +53,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 8 = meal slots: Plan slot (breakfast/lunch/snack/dinner) + note (e.g. leftovers), Meals kind, planSet {slot, note}.
 // 9 = Items store_only, mealRequest (kids ask for a meal; Review type meal_request + asked_by), feedback (App Feedback tab),
 //     daily "How was it?" (type rate) and weekly "Still eating?" (type still) cards; kids can't planSet / mealSave.
-const API_VERSION = 9;
+// 10 = reviewLater: "Later" on a Q&A card is saved (Review later_count + later_at), so put-off cards
+//      stay at the back of the deck across days and the morning check can recycle or retire them.
+const API_VERSION = 10;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -106,6 +108,7 @@ function handle(req) {
     itemSave: () => withLock(() => saveItem(req)),
     reviewAnswer: () => withLock(() => answerReview(req)),
     reviewPass: () => withLock(() => passReview(req)),
+    reviewLater: () => withLock(() => laterReview(req)),
     listHave: () => withLock(() => listHave(req)),
     listHold: () => withLock(() => listHold(req)),
     requestOrder: () => withLock(() => requestOrder(req)),
@@ -509,6 +512,17 @@ function answerReview(req) {
   const r = readTab(TABS.review).find((x) => x.id === req.id);
   if (!r) throw new Error('Review item not found');
   setFields(TABS.review, r._row, { answer: req.answer || '', status: 'answered' });
+  return { id: r.id };
+}
+
+// "Later" on a Q&A card: count it and stamp when, so the card stays at the back of the deck
+// (app sorts by later_at) and the morning check can retire cards put off 3+ times.
+function laterReview(req) {
+  const r = readTab(TABS.review).find((x) => x.id === req.id);
+  if (!r) throw new Error('Review item not found');
+  ensureColumn(TABS.review, 'later_count');
+  ensureColumn(TABS.review, 'later_at');
+  setFields(TABS.review, r._row, { later_count: (Number(r.later_count) || 0) + 1, later_at: "'" + nowStamp() });
   return { id: r.id };
 }
 

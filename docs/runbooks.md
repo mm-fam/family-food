@@ -128,3 +128,39 @@ Design and the full steps: `docs/hearth.md`.
 2. **Still eating? = No** (answered `still` rows): add one card to the parents: `<who> isn't eating <item> anymore. Stop buying it? (iNNN) Options: Yes; No, others eat it` (type `preference`, audience `parents`), then close the `still` row. A parent's Yes to "Stop buying it?": append "Parent says stop (<date>)" to the item's notes and report it to the owner; a parent sets Drop in the app (item screen → Details → How often → Stop buying). Never change Items from a kid's answer alone.
 3. **How was it?** (`rate`) answers need nothing: they count as votes in meal tags (they're read like `vote` rows; never edit their answers).
 4. **Meal requests** (`meal_request`) are handled by parents in the app. Report any open longer than 3 days.
+
+## 11. Q&A loop: account, follow up, recycle, refill (daily, api 10)
+
+**When:** the daily morning check, step B (replaces the old "fold in clear cases" step). Runs in this order. Question ideas come from `docs/question-bank.md`. People: the parents and kids in Settings. "Deck" = a person's open Review rows (audience = their name; for parents also `parents` and `all`; blank = parents). `meal_request` rows never count.
+
+**B1. Account for every answered row.** Nothing stays `answered` past one morning, except `vote` and `rate` rows (the app reads them for meal tags: never edit, close or write `outcome` on them) and `meal_request` rows (parents handle them in the app). For every other answered row, apply it, set status `closed`, and write where it went in **`outcome`** (short: `Items i005 notes`, `Profile`, `Meals m41`, `Follow-up r140`, `skip`, `No signal`).
+
+| Answer | Where it goes |
+|---|---|
+| `skip (<name>)` / "Don't care" | Nothing. outcome `skip`. Not re-asked for 90 days. |
+| Profile (habits, favorites, spice, won't-eats, toppings) | One **Profile** row: person, topic, answer (their words, trimmed), review_id, at. |
+| Household or schedule facts (who orders, order days, how many nights we cook, what goes to waste) | Profile row with topic `household: <topic>`. Schedule answers also feed the schedule design (live session). |
+| Item preference from a parent (`(iNNN)`) | Items: `ok_swap` for swap questions (conditional answers → notes + a follow-up, not Y/N); store/group only when the answer says it plainly; everything else appended to notes as `<answer> (<name>, <date>)`. Never set Drop. |
+| Item preference from a kid | Append `<Name>: <answer>` to that item's notes. Nothing else changes. |
+| Shelf life | Item notes `Shelf life: <answer> (<name>)` until Items has `shelf_days`. |
+| A dinner someone wishes we made | Already in Meals → append "<Name> wishes we made it more often (<date>)" to its notes. New → a parent's wish becomes a Meals row per §8 step 3 (+ vote cards, §8 step 5); a kid's wish becomes the parents' "Add it to Our meals?" card (§8 step 4). |
+| An item request inside an answer ("can we add coffee beans") | A follow-up card to the same person for the missing detail (brand, size, store). A parent's clear answer later → new Item per §1 step 4 (status Sometimes). |
+| Unclear or misspelled free text | A follow-up card to the same person that offers the likely readings as options. Never write a guess as fact. |
+| "Idk" / no real answer | outcome `No signal`. Not re-asked for 90 days. |
+| Still eating? | Per §10. |
+
+**B2. Follow-ups.** Up to 3 per person per day, from answers in the last day: the next useful question an answer opens up (a favorite → which product; a "No" on finishing something → a smaller size; a conditional swap → which swaps). End the detail with `(rNNN)` of the answer it follows (the app hides it) and also any `(iNNN)` / `(mNN)` it's about. Write `Follow-up rNNN` in the source row's outcome.
+
+**B3. Recycle.** `later_count` / `later_at` are written by the app when someone taps **Later** (api 10); the app keeps cards put off with Later at the back of the deck, oldest Later first.
+- `later_count` ≥ 3 → status `closed`, outcome `Later ×3, retired`. If a parent decision is waiting on it (clarify, swap, receipt code, stop buying), pass it once to the other parent instead (audience = the other parent, passed_by `Poppy`, clear `later_count` / `later_at`).
+- Open cards created more than 21 days ago → `closed`, outcome `expired`, except `vote` cards (votes keep).
+- Someone who hasn't answered anything in 7 days (or ever, once their deck is full) gets **no new cards**. Their deck waits as it is.
+
+**B4. Refill.** Target **12–15 open cards** per person. For anyone below 12 who answered something in the last 7 days, add up to **8 new cards per person per day** (follow-ups count) to reach 15. Order of preference:
+1. Follow-ups from B2.
+2. Data-driven: vote cards for meals that person hasn't voted on (dinners first), cut-off meal names and unlinked ingredients (to the parent who plans meals), receipt clarifies, shelf life for perishables with none yet, "Still eating?" No → parents.
+3. The question bank (`docs/question-bank.md`), mixed so it never reads like a form.
+
+Rules: one Review row per person (one row = one answer); next free `rNNN`; `created` = today; type `clarify` / `preference` / `profile` / `vote`; quick picks as `Options: …` per the card guide (Yes/No when a yes answers it; 1–3 word labels; likely answer first). Never send a person the same question twice unless 90+ days old and the topic can change (seasonal, favorites). Kids get kid-sized cards: votes, favorites, their own lunch and snack items; nothing that changes what's bought.
+
+**Report** (one line): `Q&A: N folded, N follow-ups, refilled <name> +N, …; <name> untouched N days; N retired.`
