@@ -258,11 +258,12 @@
   }
 
   function viewNoBackend() {
-    return '<div class="setup"><h1>Poppy 2.0</h1><p class="note">The app isn’t connected to its Google Sheet yet. Add the Apps Script URL to <b>config.js</b> (see the README).</p></div>';
+    return '<div class="setup"><img class="setup-logo" src="icons/poppy-logo.png" alt="Poppy 2.0" width="120" height="120"><h1>Poppy 2.0</h1><p class="note">The app isn’t connected to its Google Sheet yet. Add the Apps Script URL to <b>config.js</b> (see the README).</p></div>';
   }
 
   function viewSetup() {
     return '<form class="setup" data-form="unlock">' +
+      '<img class="setup-logo" src="icons/poppy-logo.png" alt="Poppy 2.0" width="120" height="120">' +
       '<div><div class="eyebrow">Welcome to</div><h1>Poppy 2.0</h1></div>' +
       '<p class="note">Enter the family passcode. You only do this once on each phone.</p>' +
       '<label class="sr" for="pass">Family passcode</label>' +
@@ -274,7 +275,9 @@
 
   function viewPickPerson() {
     const people = D().settings.parents.concat(D().settings.kids);
-    return '<div class="setup"><div><div class="eyebrow">Poppy 2.0</div><h1>Who’s this?</h1></div>' +
+    return '<div class="setup">' +
+      '<img class="setup-logo" src="icons/poppy-logo.png" alt="Poppy 2.0" width="120" height="120">' +
+      '<div><div class="eyebrow">Poppy 2.0</div><h1>Who’s this?</h1></div>' +
       '<p class="note">Pick your name so everyone knows who added what.</p>' +
       '<div class="people">' + people.map((p) => '<button data-act="pick-me" data-name="' + esc(p) + '">' + esc(p) + '</button>').join('') + '</div></div>';
   }

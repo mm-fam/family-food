@@ -248,6 +248,7 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 /* ---------- setup ---------- */
 .setup { padding: calc(48px + env(safe-area-inset-top)) 20px 40px; display: flex; flex-direction: column; gap: 16px; }
 .setup h1 { font-size: 30px; }
+.setup-logo { width: 120px; height: 120px; display: block; }
 .people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .people button { min-height: 72px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); font-size: 18px; font-weight: 600; }
 .error { color: var(--danger); font-size: 14px; }
