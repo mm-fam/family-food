@@ -1274,7 +1274,7 @@
     const sec = String(r.section || '').toLowerCase();
     if (SECTIONS[sec]) return sec;
     const t = String(r.type || '').toLowerCase(), d = String(r.detail || '');
-    if (t === 'task' || r.due_at || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
+    if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
     if (t === 'check' || t === 'mission') return 'mission';
     if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code'].indexOf(t) >= 0 ||
