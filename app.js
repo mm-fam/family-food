@@ -147,10 +147,33 @@
     const n = D().planDays || 14;
     return Array.from({ length: n }, (_, i) => addDays(D().today, i));
   }
-  function planByDate() {
+  // Meal slots (api 8). Plan rows and meals without one are dinners.
+  const SLOTS = [['breakfast', 'Breakfast', '🥣'], ['lunch', 'Lunch', '🥪'], ['snack', 'Snack', '🍎'], ['dinner', 'Dinner', '🍽']];
+  const canSlots = () => Number(D().api || 0) >= 8;
+  const slotOf = (p) => { const v = String(p.slot || '').toLowerCase(); return SLOTS.some((x) => x[0] === v) ? v : 'dinner'; };
+  const kindOf = (m) => { const v = String((m && m.kind) || '').toLowerCase(); return SLOTS.some((x) => x[0] === v) ? v : 'dinner'; };
+  const slotLabel = (k) => (SLOTS.find((x) => x[0] === k) || SLOTS[3])[1];
+  const slotIcon = (k) => (SLOTS.find((x) => x[0] === k) || SLOTS[3])[2];
+  const isLeftover = (p) => /^leftover/i.test(String(p.note || ''));
+  // date -> meal_id for one slot (dinner by default).
+  function planByDate(slot) {
+    const want = slot || 'dinner';
     const m = {};
-    D().plan.forEach((p) => { const d = planDate(p); if (d) m[d] = p.meal_id; });
+    D().plan.forEach((p) => { const d = planDate(p); if (d && slotOf(p) === want && p.meal_id) m[d] = p.meal_id; });
     return m;
+  }
+  // The rows planned on one date, by slot.
+  function planDay(date) {
+    const o = {};
+    D().plan.forEach((p) => { if (planDate(p) === date) o[slotOf(p)] = p; });
+    return o;
+  }
+  // What a plan row says: the meal's name, "Leftover <meal>" or its note.
+  function planText(p) {
+    if (!p) return '';
+    const m = mealById(p.meal_id || '');
+    if (isLeftover(p)) return m ? 'Leftover ' + m.name : String(p.note);
+    return m ? m.name : String(p.note || '');
   }
 
   function shortDay(iso) {
@@ -391,7 +414,7 @@
 
   function viewToast() {
     // Inside a sheet only the meal card shows toasts (so planning a night can be undone); they sit at the top there.
-    if (!S.toast || (S.sheet && S.sheet.type !== 'mealcard')) return '';
+    if (!S.toast || (S.sheet && ['mealcard', 'hearth', 'day'].indexOf(S.sheet.type) < 0)) return '';
     return '<div class="toast' + (S.sheet ? ' top' : '') + '" role="status"><span>' + esc(S.toast.text) + '</span>' + (S.toast.undo ? '<button data-act="undo">Undo</button>' : '') + '</div>';
   }
 
@@ -549,9 +572,12 @@
     D().list.concat(D().held || []).forEach((r) => (listed[r.item_id] = true));
     const today = D().today;
     const ago = (iso) => (iso ? Math.round((new Date(today + 'T12:00:00') - new Date(String(iso).slice(0, 10) + 'T12:00:00')) / 86400000) : 9999);
-    const byDate = planByDate();
+    const window = planDates();
     const dinnerIds = [];
-    planDates().forEach((d) => { if (byDate[d]) mealItems(mealById(byDate[d])).forEach((id) => dinnerIds.indexOf(id) < 0 && dinnerIds.push(id)); });
+    D().plan.forEach((p) => {
+      if (isLeftover(p) || !p.meal_id || window.indexOf(planDate(p)) < 0) return;
+      mealItems(mealById(p.meal_id)).forEach((id) => dinnerIds.indexOf(id) < 0 && dinnerIds.push(id));
+    });
     const stock = D().stock || {};
     return {
       due: D().due.map((d) => d.id).filter((id) => !listed[id]),
@@ -563,7 +589,7 @@
       listed: listed,
     };
   }
-  const SMART = [['all', 'All'], ['due', 'Probably due'], ['dinners', 'For dinners'], ['usual', 'Usuals'], ['low', 'Running low'], ['recent', 'Bought lately'], ['onlist', 'On the list']];
+  const SMART = [['all', 'All'], ['due', 'Probably due'], ['dinners', 'For meals'], ['usual', 'Usuals'], ['low', 'Running low'], ['recent', 'Bought lately'], ['onlist', 'On the list']];
 
   function viewShopTop() {
     const sets = smartSets();
@@ -746,14 +772,89 @@
     const meal = mealById(plan[day] || '');
     const isToday = day === D().today;
     const open = S.openDay === day && meal;
+    const rows = canSlots() ? planDay(day) : {};
+    const others = canSlots() ? SLOTS.slice(0, 3).map((x) => {
+      const t = planText(rows[x[0]]);
+      return '<span class="dt-slot' + (t ? '' : ' none') + '"><i aria-hidden="true">' + x[2] + '</i>' + esc(t || x[1]) + '</span>';
+    }).join('') : '';
     return '<div class="day-tile' + (meal ? ' set' : '') + (isToday ? ' today' : '') + (open ? ' open' : '') + '">' +
-      '<div class="dt-head"><b>' + (isToday ? 'Today' : dayName(day)) + '</b><small>' + md(day) + '</small></div>' +
+      (canSlots()
+        ? '<button class="dt-head dt-day" data-act="open-day" data-day="' + day + '" aria-label="Whole day: ' + dayName(day) + ' ' + md(day) + '"><b>' + (isToday ? 'Today' : dayName(day)) + '</b><small>' + md(day) + ' ›</small></button>'
+        : '<div class="dt-head"><b>' + (isToday ? 'Today' : dayName(day)) + '</b><small>' + md(day) + '</small></div>') +
       '<div class="dt-pick"><span class="dt-meal">' + (meal ? esc(meal.name) : '+ Pick dinner') + '</span>' +
       '<label class="sr" for="plan-' + day + '">Dinner on ' + dayName(day) + ' ' + md(day) + '</label><select id="plan-' + day + '" data-input="plan" data-day="' + day + '">' +
-      '<option value="">—</option>' + meals.map((m) => '<option value="' + m.id + '"' + (meal && m.id === meal.id ? ' selected' : '') + '>' + esc(m.name) + '</option>').join('') +
+      mealOptions(meals, 'dinner', meal ? meal.id : '') +
       '</select></div>' +
+      (others ? '<button class="dt-slots" data-act="open-day" data-day="' + day + '" aria-label="Breakfast, lunch and snack on ' + dayName(day) + '">' + others + '</button>' : '') +
       (meal ? '<button class="dt-ing" data-act="toggle-day" data-day="' + day + '" aria-expanded="' + !!open + '">' + (open ? 'Hide' : 'Ingredients') + '</button>' : '<span class="dt-ing ghost"></span>') +
       '</div>';
+  }
+
+  // Picker options: meals of this slot's kind first, the rest under "Other meals".
+  function mealOptions(meals, slot, selected) {
+    const opt = (m) => '<option value="' + m.id + '"' + (m.id === selected ? ' selected' : '') + '>' + esc(m.name) + '</option>';
+    if (!canSlots()) return '<option value="">—</option>' + meals.map(opt).join('');
+    const mine = meals.filter((m) => kindOf(m) === slot);
+    const rest = meals.filter((m) => kindOf(m) !== slot);
+    return '<option value="">—</option>' + mine.map(opt).join('') + (rest.length ? '<optgroup label="Other meals">' + rest.map(opt).join('') + '</optgroup>' : '');
+  }
+
+  // One day, all four meals: pick each, open its card.
+  function viewDaySheet(sh) {
+    const rows = planDay(sh.day);
+    const meals = D().meals.slice().sort((a, b) => String(a.name).localeCompare(b.name));
+    return '<div class="is-head"><div><h2>' + esc((sh.day === D().today ? 'Today · ' : '') + dayName(sh.day) + ' ' + md(sh.day)) + '</h2></div>' +
+      '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      SLOTS.map((x) => {
+        const p = rows[x[0]];
+        const m = p && mealById(p.meal_id || '');
+        const t = planText(p);
+        return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
+          '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '+ Pick ' + x[1].toLowerCase()) + '</span>' +
+          '<label class="sr" for="slot-' + x[0] + '">' + x[1] + '</label><select id="slot-' + x[0] + '" data-input="slot-plan" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
+          mealOptions(meals, x[0], m ? m.id : '') + '</select></div>' +
+          (m ? '<button class="btn btn-plain slot-open" data-act="open-meal" data-id="' + m.id + '" aria-label="Open ' + esc(m.name) + '">↗</button>' : '<span class="slot-open"></span>') + '</div>';
+      }).join('') +
+      '<p class="note">Picking a meal replaces what was there. Leftovers come over from Hearth as they are.</p>';
+  }
+
+  // Text for Hearth Helper: one block per day, Breakfast / Lunch / Snack / Dinner.
+  function hearthText(days) {
+    const out = [];
+    days.forEach((d) => {
+      const rows = planDay(d);
+      const lines = SLOTS.map((x) => (planText(rows[x[0]]) ? x[1] + ': ' + planText(rows[x[0]]) : '')).filter(String);
+      if (lines.length) out.push(dayName(d) + ' ' + fmtLong(d) + '\n' + lines.join('\n'));
+    });
+    if (!out.length) return '';
+    const first = days[0]; const last = days[days.length - 1];
+    return 'Please update our Hearth Meal Plan for ' + fmtLong(first) + ' – ' + fmtLong(last) + ', ' + first.slice(0, 4) + '.\n' +
+      'Use these exact meal names in the Breakfast, Lunch, Snack and Dinner rows, for the whole family. ' +
+      'Replace whatever is already in those spots. Leave any spot I don\'t list as it is. Meal plan only: no calendar events or reminders.\n\n' +
+      out.join('\n\n');
+  }
+  function fmtLong(iso) {
+    const d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  function hearthDays(which) {
+    const w = planWeeks();
+    return which === 'next' ? w.nextWeek : w.thisWeek;
+  }
+  function viewHearthSheet(sh) {
+    const days = hearthDays(sh.week);
+    const text = hearthText(days);
+    const w = planWeeks();
+    return '<div class="is-head"><div><h2>Send to Hearth</h2><div class="is-sub">Paste this to Hearth Helper in the Hearth app.</div></div>' +
+      '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      '<div class="seg">' + [['this', 'This week'], ['next', 'Next week · ' + md(w.nextSun)]].map((o) =>
+        '<button type="button" data-act="hearth-week" data-v="' + o[0] + '" class="' + (sh.week === o[0] ? 'on' : '') + '">' + esc(o[1]) + '</button>').join('') + '</div>' +
+      (text
+        ? '<label class="sr" for="hearth-text">Text for Hearth Helper</label><textarea id="hearth-text" class="field hearth-text" rows="12" readonly>' + esc(text) + '</textarea>' +
+          '<div class="sheet-actions"><button class="btn btn-primary" data-act="hearth-copy">Copy</button>' +
+          (navigator.share ? '<button class="btn btn-outline" data-act="hearth-share">Share…</button>' : '') + '</div>' +
+          '<p class="note">Copy, open Hearth → Hearth Helper, paste and send. Check its preview before you approve. ' + (sh.week === 'this' ? 'This week starts today; earlier days stay as they are in Hearth.' : '') + '</p>'
+        : '<p class="note">Nothing planned for that week yet.</p>');
   }
 
   function weekStrip(id, days, plan, meals) {
@@ -768,7 +869,8 @@
     const meals = D().meals.slice().sort((a, b) => String(a.name).localeCompare(b.name));
     const w = planWeeks();
     const planned = (days) => days.filter((d) => mealById(plan[d] || ''));
-    let html = '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + ' planned</span></div>' +
+    const hearthBtn = canSlots() && amParent() ? '<button class="btn btn-outline btn-sm" data-act="open-hearth">→ Hearth</button>' : '';
+    let html = '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="head-btns"><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + ' dinners</span>' + hearthBtn + '</span></div>' +
       weekStrip('this', w.thisWeek, plan, meals) + '</section>';
 
     if (w.nextWeek.length) {
@@ -784,17 +886,23 @@
 
     html += viewIdeas();
 
-    const sorted = sortMeals(meals);
+    const kinds = canSlots() ? SLOTS.filter((x) => meals.some((m) => kindOf(m) === x[0])) : [];
+    if (S.mealKind && S.mealKind !== 'all' && !kinds.some((x) => x[0] === S.mealKind)) S.mealKind = 'all';
+    const shown = kinds.length > 1 && S.mealKind && S.mealKind !== 'all' ? meals.filter((m) => kindOf(m) === S.mealKind) : meals;
+    const sorted = sortMeals(shown);
+    const kindPill = (v, label, n) => '<button class="pill small' + ((S.mealKind || 'all') === v ? ' on' : '') + '" data-act="meal-kind" data-v="' + v + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
+    const kindRow = kinds.length > 1 ? '<div class="chips-row meal-kinds">' + kindPill('all', 'All', meals.length) +
+      kinds.slice(-1).concat(kinds.slice(0, -1).filter((x) => x[0] !== 'dinner')).filter((x, i, arr) => arr.indexOf(x) === i).map((x) => kindPill(x[0], x[1] === 'Lunch' ? 'Lunches' : x[1] + 's', meals.filter((m) => kindOf(m) === x[0]).length)).join('') + '</div>' : '';
     const sortPill = (v, label) => '<button class="pill small' + (S.mealSort === v ? ' on' : '') + '" data-act="meal-sort" data-v="' + v + '">' + label + '</button>';
     html += '<section class="card"><div class="card-head"><span>OUR MEALS · ' + meals.length + '</span><span class="head-btns">' +
       (canIdeas() ? '<button class="btn btn-outline" data-act="new-idea">💡 Idea</button>' : '') +
-      '<button class="btn btn-outline" data-act="new-meal">+ New</button></span></div>' +
+      '<button class="btn btn-outline" data-act="new-meal">+ New</button></span></div>' + kindRow +
       (canStats() && meals.length > 3 ? '<div class="chips-row meal-sorts">' + sortPill('az', 'A–Z') + sortPill('top', 'Favorites') + sortPill('cost', 'Cheapest') + sortPill('stale', 'Not lately') + '</div>' : '') +
-      (sorted.length ? sorted.map((m) => '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + esc(m.name) + '</span>' +
+      (sorted.length ? sorted.map((m) => '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (canSlots() && kindOf(m) !== 'dinner' ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
         '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span>' +
         (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') + '</button></div>').join('')
         : '<div class="empty">No meals yet.</div>') + '</section>';
-    html += '<p class="hint">Tap a meal to put it on a night, see its ingredients or edit it.' + (canIdeas() ? ' Found a good one online? Tap 💡 Idea and paste it; Poppy adds it to Our meals.' : '') + '</p>';
+    html += '<p class="hint">Tap a meal to put it on a day, see its ingredients or edit it.' + (canSlots() ? ' Tap a day for breakfast, lunch and snack.' : '') + '' + (canIdeas() ? ' Found a good one online? Tap 💡 Idea and paste it; Poppy adds it to Our meals.' : '') + '</p>';
     return html;
   }
 
@@ -855,7 +963,8 @@
   function viewMealCard(sh) {
     const m = mealById(sh.id);
     if (!m) return '<p class="note">That meal is gone.</p>';
-    const plan = planByDate();
+    const slot = canSlots() ? kindOf(m) : 'dinner';
+    const plan = planByDate(slot);
     const weeks = [];
     planDates().forEach((d) => {
       const wk = addDays(d, -DAYS.indexOf(dayName(d)));
@@ -866,7 +975,7 @@
     const wkLabel = (wk) => (wk === thisWk ? 'This week' : wk === addDays(thisWk, 7) ? 'Next week' : 'Week of ' + md(wk));
     let h = '<div class="is-head"><div><h2>' + esc(m.name) + '</h2>' + (mealTags(m).length ? '<div class="tags">' + mealTags(m).join('') + '</div>' : '') + '</div>' +
       '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
-    h += '<div class="is-block first"><div class="is-label">Put it on a night</div>' + weeks.map((w) =>
+    h += '<div class="is-block first"><div class="is-label">' + (slot === 'dinner' ? 'Put it on a night' : 'Put it on a day · ' + slotLabel(slot)) + '</div>' + weeks.map((w) =>
       '<div class="wk"><div class="wk-label">' + wkLabel(w.wk) + '</div><div class="day-chips">' + w.days.map((d) => {
         const other = plan[d] && plan[d] !== m.id && mealById(plan[d]);
         const mine = plan[d] === m.id;
@@ -874,7 +983,7 @@
           ' aria-label="' + esc(dayName(d) + ' ' + md(d) + (mine ? ', planned' : other ? ', ' + other.name + ' planned' : '')) + '">' +
           '<b>' + (d === D().today ? 'Today' : dayName(d)) + '</b><small>' + (mine ? '✓' : other ? esc(other.name) : md(d)) + '</small></button>';
       }).join('') + '</div></div>').join('') +
-      '<p class="note">Tap a night to plan it, tap again to take it off. A night with something else on it gets swapped.</p></div>';
+      '<p class="note">Tap a ' + (slot === 'dinner' ? 'night' : 'day') + ' to plan it, tap again to take it off. One with something else on it gets swapped.</p></div>';
 
     const ids = mealItems(m).filter((id) => itemById(id));
     const need = ids.filter((id) => !listRowFor(id));
@@ -905,14 +1014,15 @@
   }
 
   function planMeal(date, mealId) {
-    const before = planByDate()[date] || '';
+    const slot = canSlots() ? kindOf(mealById(mealId)) : 'dinner';
+    const before = planByDate(slot)[date] || '';
     const to = before === mealId ? '' : mealId;
     const wk = addDays(date, -DAYS.indexOf(dayName(date)));
     const m = mealById(mealId); const prev = before && before !== mealId ? mealById(before) : null;
     const msg = to ? m.name + ' on ' + (date === D().today ? 'tonight' : shortDay(date)) + (prev ? ' (instead of ' + prev.name + ')' : '') : 'Took ' + m.name + ' off ' + shortDay(date);
-    const send = (meal) => act('planSet', { date: date, day: dayName(date), week_of: wk, meal_id: meal }, () => {
-      D().plan = D().plan.filter((p) => planDate(p) !== date);
-      if (meal) D().plan.push({ date: date, week_of: wk, day: dayName(date), meal_id: meal });
+    const send = (meal) => act('planSet', { date: date, day: dayName(date), week_of: wk, meal_id: meal, slot: slot, note: '' }, () => {
+      D().plan = D().plan.filter((p) => !(planDate(p) === date && slotOf(p) === slot));
+      if (meal) D().plan.push({ date: date, week_of: wk, day: dayName(date), meal_id: meal, slot: slot });
     }, meal === to ? msg : null, meal === to ? () => send(before) : null);
     send(to);
   }
@@ -1105,11 +1215,14 @@
     if (sh.type === 'mealcard') inner = viewMealCard(sh);
     if (sh.type === 'idea') inner = viewIdeaSheet(sh);
     if (sh.type === 'ideaview') inner = viewIdeaView(sh);
+    if (sh.type === 'day') inner = viewDaySheet(sh);
+    if (sh.type === 'hearth') inner = viewHearthSheet(sh);
 
     if (sh.type === 'meal') {
       const hits = searchItems(sh.q || '', 5).filter((i) => sh.item_ids.indexOf(i.id) < 0);
       inner = '<h2>' + (sh.id ? 'Edit meal' : 'New meal') + '</h2>' +
         '<div><label for="sh-mname">Name</label><input id="sh-mname" class="field" style="width:100%" data-input="draft" data-field="name" value="' + esc(sh.name) + '" placeholder="e.g. Taco night"></div>' +
+        (canSlots() ? '<div><label>Usually for</label>' + seg('kind', SLOTS.map((x) => [x[0], x[1]]), sh.kind || 'dinner') + '</div>' : '') +
         '<div><label>Ingredients</label><div class="ing-edit">' + (sh.item_ids.length ? sh.item_ids.map((id) => {
           const it = itemById(id);
           return it ? '<button type="button" data-act="ing-remove" data-id="' + id + '" aria-label="Remove ' + esc(it.name) + '">' + esc(it.name) + ' ✕</button>' : '';
@@ -1119,7 +1232,7 @@
         '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-meal"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
     }
 
-    const hasX = sh.type === 'item' || sh.type === 'mealcard' || sh.type === 'ideaview';
+    const hasX = ['item', 'mealcard', 'ideaview', 'day', 'hearth'].indexOf(sh.type) >= 0;
     return '<div class="scrim" data-act="close-sheet"><div class="sheet' + (hasX ? ' item-sheet' : '') + '" role="dialog" aria-modal="true">' + inner +
       (hasX ? '' : '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button>') + '</div></div>';
   }
@@ -1194,18 +1307,30 @@
         (D().ideas = D().ideas || []).push({ id: tmpId(), at: D().today, who: S.me, text: text.slice(0, 160), status: 'new', meal_id: '', notes: '' });
       }, 'Sent. Poppy will add it to Our meals.');
     },
-    'new-meal': () => { S.sheet = { type: 'meal', id: '', name: '', item_ids: [], q: '' }; render(); },
-    'edit-meal': (el) => { const m = mealById(el.dataset.id); if (m) { S.sheet = { type: 'meal', id: m.id, name: m.name, item_ids: mealItems(m), q: '' }; render(); } },
+    'new-meal': () => { S.sheet = { type: 'meal', id: '', name: '', item_ids: [], q: '', kind: S.mealKind && S.mealKind !== 'all' ? S.mealKind : 'dinner' }; render(); },
+    'edit-meal': (el) => { const m = mealById(el.dataset.id); if (m) { S.sheet = { type: 'meal', id: m.id, name: m.name, item_ids: mealItems(m), q: '', kind: kindOf(m) }; render(); } },
+    'meal-kind': (el) => { S.mealKind = el.dataset.v; render(); },
+    'open-day': (el) => { S.sheet = { type: 'day', day: el.dataset.day }; render(); },
+    'open-hearth': () => { S.sheet = { type: 'hearth', week: 'this' }; render(); },
+    'hearth-week': (el) => { S.sheet.week = el.dataset.v; render(); },
+    'hearth-copy': async () => {
+      const text = hearthText(hearthDays(S.sheet.week));
+      try { await navigator.clipboard.writeText(text); showToast('Copied. Paste it to Hearth Helper.'); }
+      catch (e) { const f = document.getElementById('hearth-text'); if (f) { f.focus(); f.select(); } showToast('Select all and copy'); }
+    },
+    'hearth-share': async () => {
+      try { await navigator.share({ text: hearthText(hearthDays(S.sheet.week)) }); } catch (e) { /* cancelled */ }
+    },
     'ing-add': (el) => { S.sheet.item_ids.push(el.dataset.id); S.sheet.q = ''; render(); const f = document.getElementById('sh-mq'); if (f) f.focus(); },
     'ing-remove': (el) => { S.sheet.item_ids = S.sheet.item_ids.filter((id) => id !== el.dataset.id); render(); },
     'save-meal': () => {
       const sh = S.sheet;
       if (!String(sh.name).trim()) return;
       S.sheet = null;
-      act('mealSave', { id: sh.id, name: sh.name.trim(), item_ids: sh.item_ids }, () => {
+      act('mealSave', { id: sh.id, name: sh.name.trim(), item_ids: sh.item_ids, kind: sh.kind || 'dinner' }, () => {
         const m = mealById(sh.id);
-        if (m) { m.name = sh.name.trim(); m.item_ids = sh.item_ids.join(';'); }
-        else D().meals.push({ id: tmpId(), name: sh.name.trim(), item_ids: sh.item_ids.join(';') });
+        if (m) { m.name = sh.name.trim(); m.item_ids = sh.item_ids.join(';'); m.kind = sh.kind || 'dinner'; }
+        else D().meals.push({ id: tmpId(), name: sh.name.trim(), item_ids: sh.item_ids.join(';'), kind: sh.kind || 'dinner' });
       }, 'Saved ' + sh.name.trim());
     },
 
@@ -1350,9 +1475,17 @@
       S.mealPick[day] = {};
       // day here is the ISO date. week_of + day ride along so an older backend files it correctly.
       const wk = addDays(day, -DAYS.indexOf(dayName(day)));
-      act('planSet', { date: day, day: dayName(day), week_of: wk, meal_id: mealId }, () => {
-        D().plan = D().plan.filter((p) => planDate(p) !== day);
-        if (mealId) D().plan.push({ date: day, week_of: wk, day: dayName(day), meal_id: mealId });
+      act('planSet', { date: day, day: dayName(day), week_of: wk, meal_id: mealId, slot: 'dinner', note: '' }, () => {
+        D().plan = D().plan.filter((p) => !(planDate(p) === day && slotOf(p) === 'dinner'));
+        if (mealId) D().plan.push({ date: day, week_of: wk, day: dayName(day), meal_id: mealId, slot: 'dinner' });
+      });
+    }
+    if (el.dataset && el.dataset.input === 'slot-plan') {
+      const day = el.dataset.day; const slot = el.dataset.slot; const mealId = el.value;
+      const wk = addDays(day, -DAYS.indexOf(dayName(day)));
+      act('planSet', { date: day, day: dayName(day), week_of: wk, meal_id: mealId, slot: slot, note: '' }, () => {
+        D().plan = D().plan.filter((p) => !(planDate(p) === day && slotOf(p) === slot));
+        if (mealId) D().plan.push({ date: day, week_of: wk, day: dayName(day), meal_id: mealId, slot: slot });
       });
     }
     if (el.dataset && el.dataset.input === 'ask-sel') { S.askSel = el.value; render(); }

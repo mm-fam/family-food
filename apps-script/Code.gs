@@ -34,8 +34,10 @@ const IDEA_MAX = 6000; // characters kept from a pasted idea
 const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // Backend version. Bump when the app needs something new from the backend.
 // 2 = reviewPass + Review audience; 3 = listHave/listHold; 4 = wanted_by; 5 = itemInfo + stockLog + state.stock;
-// 6 = Plan by date (rolling planDays window, planSet {date}); 7 = mealIdea + state.ideas + state.mealStats.
-const API_VERSION = 7;
+// 6 = Plan by date (rolling planDays window, planSet {date}); 7 = mealIdea + state.ideas + state.mealStats;
+// 8 = meal slots: Plan slot (breakfast/lunch/snack/dinner) + note (e.g. leftovers), Meals kind, planSet {slot, note}.
+const API_VERSION = 8;
+const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -249,7 +251,7 @@ function getState() {
     mealStats: mealStats(meals, today),
     ideas: recentIdeas(today),
     plan: readTab(TABS.plan)
-      .map((p) => Object.assign(stripRow(p), { date: planDate(p) }))
+      .map((p) => Object.assign(stripRow(p), { date: planDate(p), slot: planSlot(p) }))
       .filter((p) => p.date && daysBetween(today, p.date) >= 0 && daysBetween(today, p.date) < PLAN_DAYS),
     planDays: PLAN_DAYS,
     weekOf: weekOf(today),
@@ -291,6 +293,17 @@ function planDate(p) {
   if (p.date) return String(p.date).slice(0, 10);
   const idx = DAY_NAMES.indexOf(String(p.day));
   return p.week_of && idx >= 0 ? addDays(String(p.week_of).slice(0, 10), idx) : '';
+}
+
+// A Plan row's meal slot. Rows from before the slot column are dinners.
+function planSlot(p) {
+  const s = String(p.slot || '').trim().toLowerCase();
+  return SLOTS.indexOf(s) >= 0 ? s : 'dinner';
+}
+
+// Leftover rows (note starts with "Leftover") don't count as made and add no ingredients.
+function isLeftover(p) {
+  return /^leftover/i.test(String(p.note || ''));
 }
 
 /* ---------------------------------------------------------------- writes */
@@ -396,22 +409,28 @@ function addMealToList(req) {
   return { added: ids.length };
 }
 
-// One dinner per date. Older apps send week_of + day instead of date.
+// One meal per date and slot (slot defaults to dinner). Older apps send week_of + day instead of date.
+// A row can carry a note ("Leftover wraps") with or without a meal.
 function setPlan(req) {
   const date = req.date
     ? String(req.date).slice(0, 10)
     : planDate({ week_of: req.week_of || weekOf(isoDate(new Date())), day: req.day });
   if (!date) throw new Error('Plan needs a date');
   const plan = readTab(TABS.plan);
-  const existing = plan.find((p) => planDate(p) === date);
+  const slot = SLOTS.indexOf(String(req.slot || '').toLowerCase()) >= 0 ? String(req.slot).toLowerCase() : 'dinner';
+  const existing = plan.find((p) => planDate(p) === date && planSlot(p) === slot);
   const fields = { week_of: "'" + weekOf(date), day: DAY_NAMES[new Date(date + 'T12:00:00').getDay()], date: "'" + date };
+  if (headers(TABS.plan).indexOf('slot') >= 0) fields.slot = slot;
+  const note = req.note === undefined ? null : String(req.note || '');
+  if (note !== null && headers(TABS.plan).indexOf('note') >= 0) fields.note = note;
+  const keep = req.meal_id || (note !== null ? note : existing && existing.note);
   if (existing) {
-    if (!req.meal_id) sheet(TABS.plan).deleteRow(existing._row);
-    else setFields(TABS.plan, existing._row, Object.assign(fields, { meal_id: req.meal_id }));
-  } else if (req.meal_id) {
-    appendObj(TABS.plan, Object.assign(fields, { meal_id: req.meal_id }));
+    if (!keep) sheet(TABS.plan).deleteRow(existing._row);
+    else setFields(TABS.plan, existing._row, Object.assign(fields, { meal_id: req.meal_id || '' }));
+  } else if (keep) {
+    appendObj(TABS.plan, Object.assign(fields, { meal_id: req.meal_id || '' }));
   }
-  return { date: date, day: fields.day };
+  return { date: date, day: fields.day, slot: slot };
 }
 
 function saveMeal(req) {
@@ -419,11 +438,15 @@ function saveMeal(req) {
   const ids = (req.item_ids || []).join(';');
   const existing = req.id ? meals.find((m) => m.id === req.id) : null;
   if (existing) {
-    setFields(TABS.meals, existing._row, { name: req.name || existing.name, item_ids: ids, notes: req.notes || existing.notes });
+    const f = { name: req.name || existing.name, item_ids: ids, notes: req.notes || existing.notes };
+    if (req.kind && headers(TABS.meals).indexOf('kind') >= 0) f.kind = String(req.kind).toLowerCase();
+    setFields(TABS.meals, existing._row, f);
     return { id: existing.id };
   }
   const id = nextId(meals, 'id', 'm', 2);
-  appendObj(TABS.meals, { id: id, name: req.name, item_ids: ids, notes: req.notes || '' });
+  const row = { id: id, name: req.name, item_ids: ids, notes: req.notes || '' };
+  if (headers(TABS.meals).indexOf('kind') >= 0) row.kind = SLOTS.indexOf(String(req.kind || '').toLowerCase()) >= 0 ? String(req.kind).toLowerCase() : 'dinner';
+  appendObj(TABS.meals, row);
   return { id: id };
 }
 
@@ -521,7 +544,7 @@ function mealStats(meals, today) {
   if (SpreadsheetApp.getActive().getSheetByName('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
   plan.forEach((p) => {
     const st = out[p.meal_id]; const d = planDate(p);
-    if (!st || !d) return;
+    if (!st || !d || isLeftover(p)) return;
     if (d < today) { st.made++; if (d > st.last) st.last = d; }
     else if (!st.next || d < st.next) st.next = d;
   });
@@ -683,6 +706,8 @@ function archivePlan() {
   if (!archive) {
     archive = SpreadsheetApp.getActive().insertSheet('Plan Archive');
     archive.appendRow(head);
+  } else if (archive.getLastColumn() < head.length) {
+    archive.getRange(1, 1, 1, head.length).setValues([head]); // new Plan columns (slot, note) reach the archive too
   }
   readTab(TABS.plan)
     .filter((p) => planDate(p) && daysBetween(planDate(p), today) > PLAN_KEEP_DAYS)
