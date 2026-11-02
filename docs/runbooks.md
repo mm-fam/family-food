@@ -33,6 +33,13 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 
 **When:** `Settings.order_requested` is set (`GE`, `WF`, `TGT` or `AMZ`) or a parent asks. Start with one store and get it reliable before doing more.
 
+**Line by line (api 25, Mike Nov 2):** parents put single List rows in a cart, take them out or move them, from the item screen, "Put … in carts" on the List, or a store on the Carts screen. Each sets List `cart_want` and queues that store's `build` job. A build job for store X does exactly this, in this order:
+- **Moves in:** rows with `cart_want` = X that are `carted` in another store Y → remove that line from Y's cart first.
+- **Removes:** rows (any status) with `cart` = X and `cart_want` = `out` → remove the line from X's cart. Then: status `carted` → `needed`; a done row (taken off, We have it, grabbed in store) keeps its status. Clear `cart`, `cart_at`, `cart_want`. Remove only lines Poppy has a row for.
+- **Adds:** rows with status `needed` or `carted` and `cart_want` = X → add as in steps 3–4 below → `carted`, `cart` = X, `cart_at` = now, `cart_want` and `cart_note` cleared. Couldn't add (out of stock, no match, ok_swap not Y) → status `needed`, `cart_want` cleared, `cart_note` = "X: <short reason>" (e.g. "GE: out of stock"); the app shows ⚠ Not added.
+- **No `cart_want` rows at all for X** (an older app's Build the cart): fill every row as in step 2.
+- Then reconcile (§12) and set the result: "Added 4 · took out 1 · 18 in the cart, $142.10 · 1 not added".
+
 **Needs:** the owner's computer awake, Chrome open with the Claude extension connected, and the store signed in (by a person; never by Claude). A session started from a phone works too: it drives that computer's Chrome. If Chrome can't be reached, stop and say so.
 
 1. Load the Chrome tools; check the tabs; open a new tab. Confirm the store site is signed in. If not, stop and ask. **Never enter credentials.** Look at the cart first: if it holds items nobody from Poppy put there, ask before adding (it may be a live order).
@@ -196,6 +203,7 @@ Rules: one Review row per person (one row = one answer); next free `rNNN`; `crea
 3. Sync the List:
    - A matched item with an active List row (`needed`) → `carted`, `cart` = store, `cart_at` = now (qty from the cart if it differs; note it).
    - A cart line with no List row → add one: status `carted`, `cart` = store, added_by `Cart`, note "Added on the store site".
+   - Except: a cart line whose item has a List row with `cart_want` = `out` (or moving away) is waiting to come out; leave it for the build job, don't add a row.
    - A List row `carted` for that store whose item is no longer in the cart → back to `needed`, clear `cart` / `cart_at`.
 4. Receipts still close the loop: when the order's receipt is ingested (§1), `carted` rows become `bought`.
 

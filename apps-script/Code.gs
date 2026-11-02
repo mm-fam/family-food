@@ -166,7 +166,12 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      store sites); each store can carry `sb` = the cheapest priced store-brand row (Products store_brand = Y).
 //      The app compares unit prices across stores (item screen, List tag, before Build the cart).
 // 24 = cartJobsOpen: light read of open cart jobs for the cart watcher on the owner's PC (polls every minute).
-const API_VERSION = 24;
+// 25 = carts by line (Mike, Nov 2): List cart_want / cart_by / cart_note. cartPush {rows: [{id, store}]} puts List
+//      rows in a store's online cart (or moves them there from another cart); cartRemove {ids} takes them out (or
+//      cancels a push that hasn't run). Each queues that store's build job; the cart runner does the line-level
+//      adds and removes. A carted row taken off the List (Take off, We have it, Don't need it) comes out of the
+//      cart too. Parents only; kids see carts read-only.
+const API_VERSION = 25;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -223,9 +228,11 @@ function handle(req) {
     listHave: () => withLock(() => listHave(req)),
     listHold: () => withLock(() => listHold(req)),
     requestOrder: () => withLock(() => requestOrder(req)),
-    cartJob: () => withLock(() => addCartJob(req)),
+    cartJob: () => withLock(() => addCartJob(Object.assign({}, req, { _system: false }))),
     cartJobCancel: () => withLock(() => cancelCartJob(req)),
     cartJobsOpen: () => openCartJobs(),
+    cartPush: () => withLock(() => cartPush(req)),
+    cartRemove: () => withLock(() => cartRemove(req)),
     itemInfo: () => itemInfo(req),
     pointsLog: () => pointsLog(req),
     stockLog: () => withLock(() => stockLogAction(req)),
@@ -602,6 +609,8 @@ function updateListRow(req) {
   if (f.status && ACTIVE.concat(DONE).indexOf(f.status) < 0) throw new Error('Bad status');
   if (f.status === 'needed' && row.status === 'requested' && isKid(req.by)) throw new Error('Only parents can approve');
   f.updated_at = nowStamp();
+  // A carted row taken off the List (or grabbed in the store) comes out of the online cart too.
+  if (row.status === 'carted' && (f.status === 'skipped' || f.status === 'have' || (f.status === 'bought' && req.cart_out))) Object.assign(f, cartOutFields(row, req.by));
   setFields(TABS.list, row._row, f);
   // A parent handling a kid's request: the parent scores for deciding; the kid scores once it's approved.
   if (row.status === 'requested' && f.status && f.status !== 'requested' && !isKid(req.by)) {
@@ -911,6 +920,7 @@ function settleAnswer(r, answer, who) {
     if (row.item_id) logStock({ item_id: row.item_id, level: 'some', who: who, source: 'settle', list_id: row.id });
   } else if (/^don'?t need/.test(a)) {
     f = { status: 'skipped', hold_until: '', updated_at: stamp, note: note('didn\'t need it') };
+    if (row.status === 'carted') Object.assign(f, cartOutFields(row, who));
   } else if (/^(not here|still need|no)/.test(a)) {
     f = { updated_at: stamp };
     if (/^not here/.test(a) && row.item_id) logStock({ item_id: row.item_id, level: 'out', who: who, source: 'settle', list_id: row.id });
@@ -1430,7 +1440,8 @@ function listHave(req) {
     });
     return { id: row.id, level: level, pending: id };
   }
-  setFields(TABS.list, row._row, { status: 'have', hold_until: '', note: listNote(row, 'had ' + level + ' (' + (req.by || '?') + ')'), updated_at: nowStamp() });
+  setFields(TABS.list, row._row, Object.assign({ status: 'have', hold_until: '', note: listNote(row, 'had ' + level + ' (' + (req.by || '?') + ')'), updated_at: nowStamp() },
+    row.status === 'carted' ? cartOutFields(row, req.by) : {}));
   if (!req._approved) logStock({ item_id: row.item_id, level: level, expires: req.expires, who: req.by, source: 'list', list_id: row.id }); // a kid's was logged when they said it
   return { id: row.id, level: level };
 }
@@ -1568,7 +1579,7 @@ function jobsSheet() {
 
 // Parents only. One open job per store + kind: asking again returns the one already waiting.
 function addCartJob(req) {
-  if (isKid(req.by)) throw new Error('Ask a parent to do this');
+  if (!req._system && isKid(req.by)) throw new Error('Ask a parent to do this');
   const store = String(req.store || '').toUpperCase();
   const kind = String(req.kind || 'build').toLowerCase();
   if (JOB_STORES.indexOf(store) < 0) throw new Error('Unknown store');
@@ -1591,6 +1602,71 @@ function cancelCartJob(req) {
   if (JOB_OPEN.indexOf(String(row.status)) < 0) return { id: row.id, status: row.status };
   setFields(TABS.jobs, row._row, { status: 'cancelled', finished_at: nowStamp(), notes: 'Cancelled by ' + (req.by || 'someone') });
   return { id: row.id, status: 'cancelled' };
+}
+
+/* ---------------------------------------------------------------- carts by line (api 25) */
+// List rows carry the cart they should be in: cart_want = a store code (put it there, or move it there from
+// another cart) or 'out' (take it out of the cart it's in). The cart runner does it, then clears cart_want and
+// sets status / cart / cart_at, or leaves a reason in cart_note when it couldn't. cart_by = who asked.
+const CART_COLS = ['cart', 'cart_at', 'cart_want', 'cart_by', 'cart_note'];
+function ensureCartCols() { CART_COLS.forEach((c) => ensureColumn(TABS.list, c)); }
+
+// Fields that send a carted row's line out of its store cart, and queue that store's job.
+function cartOutFields(row, by) {
+  const st = String(row.cart || '');
+  if (JOB_STORES.indexOf(st) < 0) return {};
+  ensureCartCols();
+  addCartJob({ store: st, kind: 'build', by: by || 'Poppy', _system: true });
+  return { cart_want: 'out', cart_by: by || '', cart_note: '' };
+}
+
+// {rows: [{id, store}]}: put each row in that store's cart. Returns { done: n, stores: {GE: n}, skipped: [ids] }.
+function cartPush(req) {
+  if (isKid(req.by)) throw new Error('Ask a parent to do this');
+  const want = (req.rows || []).filter((x) => x && x.id);
+  if (!want.length) throw new Error('Nothing to put in a cart');
+  ensureCartCols();
+  const list = readTab(TABS.list);
+  const today = isoDate(new Date());
+  const stores = {};
+  const skipped = [];
+  const stamp = nowStamp();
+  want.forEach((x) => {
+    const st = String(x.store || '').toUpperCase();
+    const row = list.find((r) => r.id === x.id);
+    if (!row || JOB_STORES.indexOf(st) < 0 || (row.status !== 'needed' && row.status !== 'carted') || String(row.hold_until || '').slice(0, 10) > today) { skipped.push(x.id); return; }
+    if (row.status === 'carted' && String(row.cart) === st) {
+      // Already in that cart: this cancels a pending removal or move, if any.
+      if (row.cart_want) setFields(TABS.list, row._row, { cart_want: '', cart_note: '', updated_at: stamp });
+      return;
+    }
+    setFields(TABS.list, row._row, { cart_want: st, cart_by: req.by || '', cart_note: '', updated_at: stamp });
+    stores[st] = (stores[st] || 0) + 1;
+  });
+  Object.keys(stores).forEach((st) => addCartJob({ store: st, kind: 'build', by: req.by, _system: true }));
+  return { done: Object.keys(stores).reduce((t, k) => t + stores[k], 0), stores: stores, skipped: skipped };
+}
+
+// {ids}: take rows out of their cart (they stay on the List as needed), or cancel a push that hasn't run yet.
+function cartRemove(req) {
+  if (isKid(req.by)) throw new Error('Ask a parent to do this');
+  ensureCartCols();
+  const ids = (req.ids || (req.id ? [req.id] : [])).map(String);
+  const list = readTab(TABS.list);
+  const stamp = nowStamp();
+  let out = 0, cancelled = 0;
+  ids.forEach((id) => {
+    const row = list.find((r) => r.id === id);
+    if (!row) return;
+    if (row.status === 'carted') {
+      const f = cartOutFields(row, req.by);
+      if (f.cart_want) { setFields(TABS.list, row._row, Object.assign(f, { updated_at: stamp })); out++; }
+    } else if (row.cart_want || row.cart_note) {
+      setFields(TABS.list, row._row, { cart_want: '', cart_note: '', updated_at: stamp });
+      cancelled++;
+    }
+  });
+  return { out: out, cancelled: cancelled };
 }
 
 // api 24: what the cart watcher asks every minute. Read-only and small; no full state.

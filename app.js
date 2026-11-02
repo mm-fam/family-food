@@ -426,19 +426,23 @@
   function viewApp() {
     if (S.tab === 'order') S.tab = 'admin';
     if (S.tab === 'need') S.tab = 'list';
+    if (S.tab === 'admin' && canCarts()) S.tab = 'carts';
     if (S.tab === 'admin' && !isAdmin()) S.tab = 'list';
+    if (S.tab === 'carts' && !canCarts()) S.tab = isAdmin() ? 'admin' : 'list';
     const instore = S.tab === 'list' && S.instore;
     const n = D().list.filter((r) => r.status !== 'requested').length;
-    const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Inbox', admin: 'Behind the scenes' };
-    const eyebrows = { list: n + ' on the list', shop: 'Add to the List', meals: 'Next 2 weeks', ask: inboxEyebrow(), admin: 'Just for ' + S.me };
+    const titles = { list: 'List', shop: 'Shop', meals: 'Meals', ask: 'Inbox', admin: 'Behind the scenes', carts: S.cartOpen ? storeOf(S.cartOpen).name : 'Carts' };
+    const inCarts = D().list.filter((r) => r.status === 'carted').length;
+    const eyebrows = { list: n + ' on the list', shop: 'Add to the List', meals: 'Next 2 weeks', ask: inboxEyebrow(), admin: 'Just for ' + S.me, carts: inCarts + ' in online carts' };
     const title = instore ? 'In store' : titles[S.tab];
     const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : eyebrows[S.tab];
     let right = '';
     if (instore) right = '<button class="btn btn-primary shop-done" data-act="store-done">Done</button>';
     else {
-      if (S.tab === 'list') right += '<button class="btn btn-outline shop-btn" data-act="store-start">🛒 In store</button>';
+      if (S.tab === 'list') right += '<button class="btn btn-outline shop-btn" data-act="store-start">' + (canCarts() ? '🏪' : '🛒') + ' In store</button>';
       if (canV9()) right += '<button class="gear idea-btn" data-act="open-feedback" aria-label="Idea or feedback about the app">💡</button>';
-      if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'list' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
+      if (canCarts()) right += '<button class="gear' + (S.tab === 'carts' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'carts' ? 'list' : 'carts') + '" aria-label="Online carts">🛒</button>';
+      else if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'list' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
       right += '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button>';
     }
     let top = '<header class="top"><div class="top-row"><div><div class="eyebrow">' + esc(eyebrow) + '</div><h1>' + title + '</h1></div>' +
@@ -453,6 +457,7 @@
     if (S.tab === 'meals') body = viewMeals();
     if (S.tab === 'ask') body = viewAsk();
     if (S.tab === 'admin') body = viewOrder();
+    if (S.tab === 'carts') body = viewCarts();
 
     return top + '<main>' + body + '</main>' + viewNav() + viewSheet() + viewToast();
   }
@@ -537,6 +542,30 @@
     return '<div class="chips-row list-kinds">' + pill('all', 'All', rows.length) + pill('meal', '🍽 For meals', nMeal) + pill('stock', '🧺 Stock', rows.length - nMeal) + '</div>';
   }
 
+  // Cart filter (api 25): '' = any · none = not in a cart · going = on its way in or out · in:GE = in that cart.
+  S.listCart = '';
+  function cartOk(r) {
+    if (!S.listCart || !canCarts()) return true;
+    const c = cartState(r);
+    if (S.listCart === 'none') return c.kind === 'none' || c.kind === 'failed';
+    if (S.listCart === 'going') return c.kind === 'going' || c.kind === 'moving' || c.kind === 'leaving';
+    const code = S.listCart.slice(3);
+    return ((c.kind === 'in' || c.kind === 'leaving') && c.store === code) || (c.kind === 'moving' && c.from === code);
+  }
+  function viewListCarts(rows) {
+    if (!canCarts()) return '';
+    const count = (v) => { const keep = S.listCart; S.listCart = v; const n = rows.filter(cartOk).length; S.listCart = keep; return n; };
+    const pill = (v, label, cls) => {
+      const n = count(v);
+      if (!n && S.listCart !== v) return '';
+      return '<button class="pill small' + (cls ? ' ' + cls : '') + (S.listCart === v ? ' on' : '') + '" data-act="list-cart" data-v="' + v + '" aria-pressed="' + (S.listCart === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
+    };
+    const pills = pill('none', 'Not in a cart') + pill('going', '⏳ On the way') + CART_STORES.map((k) => pill('in:' + k, '🛒 ' + esc(sName(k)), storeOf(k).cls)).join('');
+    const push = amParent() ? rows.filter(cartOk).filter(needsCart).length : 0;
+    return '<div class="pill-scroll list-carts">' + pills + '</div>' +
+      (push ? '<button class="btn btn-outline btn-block push-all" data-act="push-all">🛒 Put ' + push + (push === 1 ? ' item' : ' items') + ' in carts…</button>' : '');
+  }
+
   function rowMeta(r) {
     const meta = [];
     if (Number(r.qty) > 1) meta.push('×' + r.qty);
@@ -556,11 +585,80 @@
 
   // Claude put it in a store's online cart (status carted; List.cart = store code, api 11).
   const cartStore = (r) => (r && r.status === 'carted' ? String(r.cart || r.store || '') : '');
+  /* Carts by line (api 25, Mike Nov 2): each List row knows where it stands with the online carts.
+     cart_want = the store a parent asked for (or 'out'); the cart runner on Mike's computer does it, then
+     sets status carted + cart, or leaves a reason in cart_note ("GE: out of stock"). Tags only say "In the
+     cart" once the runner has seen it there. */
+  const canCarts = () => Number(D().api || 0) >= 25;
+  function cartState(r) {
+    if (!r) return { kind: 'none' };
+    const want = String(r.cart_want || '');
+    const inCart = cartStore(r);
+    if (inCart && want === 'out') return { kind: 'leaving', store: inCart };
+    if (inCart && want && want !== inCart && CART_STORES.indexOf(want) >= 0) return { kind: 'moving', store: want, from: inCart };
+    if (inCart) return { kind: 'in', store: inCart };
+    if (r.status === 'needed' && CART_STORES.indexOf(want) >= 0) return { kind: 'going', store: want };
+    if (r.status === 'needed' && r.cart_note) {
+      const m = String(r.cart_note).match(/^(GE|WF|TGT|AMZ):\s*(.*)$/);
+      return { kind: 'failed', store: m ? m[1] : '', note: m ? m[2] : String(r.cart_note) };
+    }
+    return { kind: 'none' };
+  }
+  // A row that could go in a cart now: on the List (not a request, not next week) and in no cart.
+  const needsCart = (r) => r.status === 'needed' && (cartState(r).kind === 'none' || cartState(r).kind === 'failed');
+  const sName = (code) => { const s = storeOf(code); return s.short || s.name; };
+  const sCls = (code) => (code && code !== 'Either' ? storeOf(code).cls : 'either');
   function cartTag(r) {
-    const code = cartStore(r);
-    if (!r || r.status !== 'carted') return '';
-    const s = code && code !== 'Either' ? storeOf(code) : null;
-    return '<span class="cart-tag ' + (s ? s.cls : 'either') + '">🛒 In ' + (s ? esc(s.short || s.name) + ' ' : '') + 'cart</span>';
+    if (!r) return '';
+    const c = cartState(r);
+    if (c.kind === 'in') return '<span class="cart-tag ' + sCls(c.store) + '">🛒 In ' + (c.store && c.store !== 'Either' ? esc(sName(c.store)) + ' ' : '') + 'cart</span>';
+    if (c.kind === 'going') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Going to ' + esc(sName(c.store)) + ' cart</span>';
+    if (c.kind === 'moving') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Moving to ' + esc(sName(c.store)) + ' cart</span>';
+    if (c.kind === 'leaving') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Coming out of ' + esc(sName(c.store)) + ' cart</span>';
+    if (c.kind === 'failed') return '<span class="cart-tag warn" title="' + esc(c.note) + '">⚠ Not added' + (c.store ? ' to ' + esc(sName(c.store)) : '') + '</span>';
+    return '';
+  }
+  // Which cart Poppy would put a row in, and why (shown before anything happens).
+  function pickCart(r) {
+    const it = itemById(r.item_id);
+    const prods = (D().products || {})[r.item_id] || {};
+    const only = onlyAt(r);
+    if (CART_STORES.indexOf(only) >= 0) return { store: only, why: 'only sold there', guess: !prods[only] };
+    const s = r.store && r.store !== 'Either' ? r.store : (it && it.store) || 'Either';
+    if (CART_STORES.indexOf(s) >= 0) return { store: s, why: 'where we usually get it', guess: !prods[s] };
+    // Either grocery store: the one we know the product at, then the cheaper one, then a cart already going.
+    const both = ['GE', 'WF'];
+    const has = both.filter((k) => prods[k]);
+    const busy = both.filter((k) => D().list.some((x) => { const c = cartState(x); return (c.kind === 'in' || c.kind === 'going') && c.store === k; }));
+    if (has.length === 2) {
+      const p = itemPrices(r.item_id).filter((x) => both.indexOf(x.store) >= 0);
+      if (p.length === 2 && p[0].unit === p[1].unit && (Number(p[1].unit_price) - Number(p[0].unit_price)) / Number(p[1].unit_price) >= PRICE_MIN_PCT) return { store: p[0].store, why: 'either store; cheaper there' };
+      if (busy.length === 1) return { store: busy[0], why: 'either store; that cart is already going' };
+      return { store: 'GE', why: 'either store; Giant Eagle is the big order' };
+    }
+    if (has.length === 1) return { store: has[0], why: 'either store; the one we know the product at' };
+    return { store: busy[0] || 'GE', why: 'best guess', guess: true };
+  }
+  // Send rows to carts: pairs = [{ r, store }].
+  function pushRows(pairs, msg) {
+    if (!pairs.length) return;
+    const stores = {};
+    act('cartPush', { rows: pairs.map((p) => ({ id: p.r.id, store: p.store })) }, () => {
+      pairs.forEach((p) => {
+        if (p.r.status === 'carted' && String(p.r.cart) === p.store) { p.r.cart_want = ''; return; }
+        p.r.cart_want = p.store; p.r.cart_note = ''; stores[p.store] = 1;
+      });
+      Object.keys(stores).forEach(queueLocal);
+    }, msg);
+  }
+  function queueLocal(code) {
+    const open = jobs().find((j) => j.store === code && j.kind === 'build' && JOB_OPEN.indexOf(j.status) >= 0);
+    if (!open) D().cartJobs = [{ id: tmpId(), at: nowIso(), by: S.me, store: code, kind: 'build', status: 'queued' }].concat(jobs());
+  }
+  function pushSummary(pairs) {
+    const n = {};
+    pairs.forEach((p) => (n[p.store] = (n[p.store] || 0) + 1));
+    return Object.keys(n).map((k) => n[k] + ' ' + sName(k)).join(' · ');
   }
 
   /* Prices (api 23): Products rows carry price, unit_price, unit, price_at per store. Only fresh prices
@@ -662,15 +760,16 @@
     const fadedIds = {};
     faded.forEach((f) => (fadedIds[f.row.id] = f));
     if (active.length) html += viewListKinds(active);
-    const shown = active.filter(kindOk);
-    const all = shown.concat(faded.map((f) => f.row).filter(kindOk));
+    if (active.length) html += viewListCarts(active.filter(kindOk));
+    const shown = active.filter(kindOk).filter(cartOk);
+    const all = shown.concat(faded.map((f) => f.row).filter(kindOk).filter(cartOk));
     const aisles = groupsIn(all);
     if (active.length || faded.length) {
       const allClosed = aisles.every((g) => isClosed('a:' + g));
       const only = shown.filter(storeOnly).length;
       html += '<div class="list-tools"><span>' + shown.length + ' item' + (shown.length === 1 ? '' : 's') + (S.listKind === 'meal' ? ' for meals' : S.listKind === 'stock' ? ' to stock up' : '') + (only ? ' · ' + only + ' store-only' : '') + '</span>' +
         '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
-      if (!shown.length && !faded.length) html += '<div class="empty">' + (S.listKind === 'meal' ? 'Nothing on the List is for a planned meal this week.' : 'Everything on the List is for a meal.') + '</div>';
+      if (!shown.length && !faded.length) html += '<div class="empty">' + (S.listCart ? 'Nothing here with that cart filter.' : S.listKind === 'meal' ? 'Nothing on the List is for a planned meal this week.' : 'Everything on the List is for a meal.') + '</div>';
     }
     aisles.forEach((g) => {
       const rows = all.filter((r) => groupOf(r) === g);
@@ -699,7 +798,7 @@
           '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    html += '<p class="hint">One list for every store: wherever you shop, grab what you can. 🍽 For meals = added for a meal or used in a meal planned this week; 🧺 Stock = everything else. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap 🛒 In store to check things off.</p>';
+    html += '<p class="hint">One list for every store: wherever you shop, grab what you can. 🍽 For meals = added for a meal or used in a meal planned this week; 🧺 Stock = everything else. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap ' + (canCarts() ? '🏪' : '🛒') + ' In store to check things off.' + (canCarts() ? ' The cart pills show what’s in each store’s online cart; ' + (amParent() ? 'put things in from an item or with “Put … in carts”.' : 'a parent puts things in.') : '') + '</p>';
     return html;
   }
 
@@ -974,6 +1073,7 @@
       if (wantedBy(row).length > 1) h += '<p class="note">' + esc(wantedBy(row).join(' and ')) + ' both asked. Same one, or one each? Set how many.</p>';
       h += '<div class="is-line"><span class="is-label">How many</span><div class="stepper small"><button type="button" data-act="row-qty" data-d="-1" aria-label="Fewer">−</button><b>' + (Number(row.qty) || 1) + '</b><button type="button" data-act="row-qty" data-d="1" aria-label="More">+</button></div></div>';
       h += '<input class="field" data-input="row-note" data-id="' + row.id + '" value="' + esc(row.note || '') + '" placeholder="Note: brand, size, flavor…">';
+      if (canCarts() && !held && (row.status === 'needed' || row.status === 'carted')) h += viewCartBlock(row, sh);
     } else {
       h += '<button class="btn btn-primary btn-block" data-act="add-item" data-id="' + esc(sh.item_id) + '">' + (kid ? 'Ask for it' : 'Add to the List') + '</button>';
     }
@@ -1036,6 +1136,134 @@
           (kid ? '<p class="note">A parent can change these.</p>' : '<button class="btn btn-primary btn-block" data-act="save-details">Save details</button>') + '</div>';
       }
     }
+    return h;
+  }
+
+  // The item screen's cart line (api 25): where it stands, and for parents put it in / take it out / move it.
+  function viewCartBlock(row, sh) {
+    const c = cartState(row);
+    const kid = isKid(S.me);
+    const full = (code) => esc(storeOf(code).name);
+    let line = '', btns = '';
+    const others = (skip) => CART_STORES.filter((k) => k !== skip);
+    const moveChips = (skip, label) => '<div class="cart-move"><span class="note">' + label + '</span>' + others(skip).map((k) =>
+      '<button class="pill small ' + storeOf(k).cls + '" data-act="cart-put" data-store="' + k + '">' + esc(sName(k)) + '</button>').join('') + '</div>';
+    if (c.kind === 'in') {
+      line = '🛒 In the ' + full(c.store) + ' cart';
+      if (!kid) btns = '<button class="btn btn-outline" data-act="cart-remove">Take it out of the cart</button>' + moveChips(c.store, 'Move to');
+    } else if (c.kind === 'going') {
+      line = '⏳ Going in the ' + full(c.store) + ' cart. Claude adds it on Mike’s computer.';
+      if (!kid) btns = '<button class="btn btn-plain" data-act="cart-remove">Don’t add it</button>';
+    } else if (c.kind === 'moving') {
+      line = '⏳ Moving from the ' + full(c.from) + ' cart to the ' + full(c.store) + ' cart';
+      if (!kid) btns = '<button class="btn btn-plain" data-act="cart-put" data-store="' + c.from + '">Keep it in ' + esc(sName(c.from)) + '</button>';
+    } else if (c.kind === 'leaving') {
+      line = '⏳ Coming out of the ' + full(c.store) + ' cart';
+      if (!kid) btns = '<button class="btn btn-plain" data-act="cart-put" data-store="' + c.store + '">Keep it in</button>';
+    } else {
+      line = c.kind === 'failed' ? '⚠ Couldn’t add it' + (c.store ? ' to ' + full(c.store) : '') + ': ' + esc(c.note) : 'Not in a cart yet';
+      if (!kid) {
+        const p = pickCart(row);
+        const pick = (sh && sh.cartPick) || p.store;
+        btns = '<button class="btn btn-primary" data-act="cart-put" data-store="' + pick + '">🛒 Put in the ' + full(pick) + ' cart</button>' +
+          '<div class="cart-move"><span class="note">Or</span>' + others(pick).map((k) => '<button class="pill small ' + storeOf(k).cls + '" data-act="cart-pick" data-store="' + k + '">' + esc(sName(k)) + '</button>').join('') + '</div>' +
+          (pick === p.store ? '<p class="note">Poppy’s pick: ' + esc(p.why) + (p.guess ? '. No exact product there yet, so Claude searches for it.' : '.') + '</p>' : '');
+      }
+    }
+    return '<div class="is-block cart-block"><div class="is-label">Online cart</div><div class="cart-line">' + line + '</div>' + btns + '</div>';
+  }
+
+  /* ---------- carts (api 25) ---------- */
+  // Rows tied to one store's cart: in it, on the way in, on the way out.
+  function cartRows(code) {
+    const out = { in: [], going: [], leaving: [], failed: [] };
+    D().list.forEach((r) => {
+      const c = cartState(r);
+      if (c.kind === 'in' && c.store === code) out.in.push(r);
+      if (c.kind === 'going' && c.store === code) out.going.push(r);
+      if (c.kind === 'moving' && c.store === code) out.going.push(r);
+      if (c.kind === 'moving' && c.from === code) out.leaving.push(r);
+      if (c.kind === 'leaving' && c.store === code) out.leaving.push(r);
+      if (c.kind === 'failed' && c.store === code) out.failed.push(r);
+    });
+    return out;
+  }
+  const lastDone = (code) => jobs().find((j) => j.store === code && j.status === 'done');
+  const openJobs = (code) => jobs().filter((j) => j.store === code && JOB_OPEN.indexOf(j.status) >= 0);
+  function viewCarts() {
+    if (S.cartOpen) return viewCartDetail(S.cartOpen);
+    let html = '';
+    CART_STORES.forEach((code) => {
+      const st = storeOf(code);
+      const r = cartRows(code);
+      const done = lastDone(code);
+      const sub = [];
+      if (r.going.length) sub.push('⏳ ' + r.going.length + ' going in');
+      if (r.leaving.length) sub.push('⏳ ' + r.leaving.length + ' coming out');
+      if (r.failed.length) sub.push('⚠ ' + r.failed.length + ' not added');
+      html += '<button class="card cart-card" data-act="cart-open" data-store="' + code + '">' +
+        '<div class="cart-card-top"><b class="head-' + st.cls + '">' + esc(st.name) + '</b><span class="chev" aria-hidden="true">›</span></div>' +
+        '<div class="cart-count">' + (r.in.length ? r.in.length + ' in the cart' : 'Nothing in the cart') + '</div>' +
+        (sub.length ? '<div class="cart-sub">' + sub.join(' · ') + '</div>' : '') +
+        openJobs(code).map((j) => '<div class="cart-sub job-' + jobLine(j).cls + '-txt">' + esc(jobLine(j).text) + '</div>').join('') +
+        (done ? '<div class="cart-sub note">' + (done.kind === 'check' ? 'Checked ' : 'Updated ') + esc(fmtWhen(done.finished_at || done.at)) + (done.result ? ': ' + esc(done.result) : '') + '</div>' : '') +
+        '</button>';
+    });
+    html += '<p class="hint">What’s in each store’s online cart, as Claude last saw it. ' + (amParent() ? 'Put things in from an item or with “Put … in carts” on the List. ' : '') +
+      'Claude does the adding and checking on Mike’s computer, so it has to be on with Chrome open; until then changes wait here. A person always places the order.</p>';
+    return html;
+  }
+  function viewCartDetail(code) {
+    const st = storeOf(code);
+    const r = cartRows(code);
+    const kid = isKid(S.me);
+    const ready = D().list.filter((x) => needsCart(x) && pickCart(x).store === code);
+    const busyCheck = openJobs(code).some((j) => j.kind === 'check');
+    let html = '<button class="link-btn back-btn" data-act="cart-back">‹ All carts</button>';
+    html += '<section class="card store-card"><div class="store-title"><b class="head-' + st.cls + '">' + esc(st.name) + '</b><span class="note">' + r.in.length + ' in the cart</span></div>';
+    const lines = openJobs(code).concat([lastDone(code)].filter(Boolean)).map(jobRow).join('');
+    html += lines;
+    if (!kid) {
+      html += cheaperNote(code);
+      html += '<div class="job-btns">' + (ready.length ? '<button class="btn btn-primary" data-act="push-store" data-store="' + code + '">Put ' + ready.length + ' from the List in…</button>' : '') +
+        '<button class="btn btn-outline" data-act="cart-job" data-kind="check" data-store="' + code + '"' + (busyCheck ? ' disabled' : '') + '>Check the cart</button></div>';
+    }
+    html += '</section>';
+    const sect = (label, rows, empty) => rows.length ? '<section class="card"><div class="card-head">' + label + ' · ' + rows.length + '</div>' +
+      rows.slice().sort((a, b) => groupOf(a).localeCompare(groupOf(b)) || String(a.name).localeCompare(String(b.name))).map(listRow).join('') + '</section>' : (empty || '');
+    html += sect('⏳ GOING IN', r.going);
+    html += sect('🛒 IN THE CART', r.in, '<div class="empty">Nothing in the ' + esc(st.name) + ' cart that Poppy knows about.' + (kid ? '' : ' Check the cart reads what’s really there.') + '</div>');
+    html += sect('⏳ COMING OUT', r.leaving);
+    html += sect('⚠ COULDN’T ADD', r.failed);
+    html += '<p class="hint">Tap an item to take it out, move it to another store’s cart, or see why it wasn’t added. Things someone put in on the store’s own site show up after a check.</p>';
+    return html;
+  }
+  // Put-in-carts sheet: Poppy's pick per row, changeable, nothing happens until the button.
+  function openPushSheet(rows) {
+    const picks = {};
+    rows.forEach((r) => (picks[r.id] = pickCart(r).store));
+    S.sheet = { type: 'pushall', ids: rows.map((r) => r.id), picks: picks };
+    render();
+  }
+  function viewPushSheet(sh) {
+    const rows = sh.ids.map((id) => D().list.find((r) => r.id === id)).filter((r) => r && needsCart(r));
+    const chosen = rows.filter((r) => sh.picks[r.id]);
+    let h = '<div class="is-head"><div><h2>Put ' + chosen.length + ' in carts</h2><div class="is-sub">Poppy picked each store. Change any before you tap.</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
+    CART_STORES.concat(['']).forEach((code) => {
+      const g = rows.filter((r) => (sh.picks[r.id] || '') === code);
+      if (!g.length) return;
+      h += '<div class="push-group"><div class="card-head ' + (code ? 'head-' + storeOf(code).cls : '') + '">' + (code ? esc(storeOf(code).name.toUpperCase()) : 'NOT NOW') + ' · ' + g.length + '</div>' +
+        g.map((r) => {
+          const p = pickCart(r);
+          const note = code && code === p.store ? (p.guess ? 'best guess' : '') : code ? 'you picked' : '';
+          return '<div class="push-row"><span class="row-name">' + esc(r.name) + (note ? ' <span class="note">' + note + '</span>' : '') + '</span>' +
+            '<select class="select push-sel" data-input="push-pick" data-id="' + r.id + '" aria-label="Cart for ' + esc(r.name) + '">' +
+            CART_STORES.map((k) => '<option value="' + k + '"' + (k === code ? ' selected' : '') + '>' + esc(sName(k)) + '</option>').join('') +
+            '<option value=""' + (code ? '' : ' selected') + '>Not now</option></select></div>';
+        }).join('') + '</div>';
+    });
+    h += '<div class="sheet-actions"><button class="btn btn-primary" data-act="push-go"' + (chosen.length ? '' : ' disabled') + '>Put them in</button></div>' +
+      '<p class="note">Claude adds them on Mike’s computer (it has to be on with Chrome open). Each item says “In … cart” once Claude sees it there.</p>';
     return h;
   }
 
@@ -1839,11 +2067,11 @@
   const latestJob = (store, kind) => jobs().find((j) => j.store === store && j.kind === kind);
   function jobLine(j) {
     const st = storeOf(j.store).name;
-    const what = j.kind === 'check' ? 'check the ' + st + ' cart' : 'build the ' + st + ' cart';
-    if (j.status === 'queued') return { cls: 'wait', text: 'Waiting for Claude to ' + what + ' · asked by ' + j.by + ' ' + fmtWhen(j.at) + '. Claude looks for new jobs every hour on Mike’s computer.' };
-    if (j.status === 'waiting') return { cls: 'wait', text: 'Still waiting to ' + what + (j.result ? ': ' + j.result : '') + '. Claude tries again every hour.' };
+    const what = j.kind === 'check' ? 'check the ' + st + ' cart' : (canCarts() ? 'update' : 'build') + ' the ' + st + ' cart';
+    if (j.status === 'queued') return { cls: 'wait', text: 'Waiting for Claude to ' + what + ' · ' + j.by + ' ' + fmtWhen(j.at) + '. It runs when Mike’s computer is on with Chrome open.' };
+    if (j.status === 'waiting') return { cls: 'wait', text: 'Still waiting to ' + what + (j.result ? ': ' + j.result : '') + '. Claude tries again when Mike’s computer is on.' };
     if (j.status === 'running') return { cls: 'run', text: 'Claude is working on it now (' + what + ')…' };
-    if (j.status === 'done') return { cls: 'done', text: (j.kind === 'check' ? 'Cart checked ' : 'Cart built ') + fmtWhen(j.finished_at || j.at) + (j.result ? ': ' + j.result : '') };
+    if (j.status === 'done') return { cls: 'done', text: (j.kind === 'check' ? 'Cart checked ' : canCarts() ? 'Cart updated ' : 'Cart built ') + fmtWhen(j.finished_at || j.at) + (j.result ? ': ' + j.result : '') };
     if (j.status === 'failed') return { cls: 'fail', text: 'Couldn’t ' + what + (j.result ? ': ' + j.result : '') };
     if (j.status === 'cancelled') return { cls: 'off', text: 'Cancelled ' + fmtWhen(j.finished_at || j.at) };
     return { cls: 'off', text: j.status };
@@ -1863,10 +2091,10 @@
     return shown.map((j) => {
       const st = storeOf(j.store).name;
       let text;
-      if (j.status === 'running') text = '🛒 Claude is ' + (j.kind === 'check' ? 'checking' : 'filling') + ' the ' + st + ' cart now';
+      if (j.status === 'running') text = '🛒 Claude is ' + (j.kind === 'check' ? 'checking' : canCarts() ? 'updating' : 'filling') + ' the ' + st + ' cart now';
       else if (j.status === 'done') text = '🛒 ' + st + ' cart is ready' + (j.result ? ': ' + j.result : '') + '. Review it and check out on the ' + st + ' site or app.';
-      else text = '🛒 ' + st + ' cart ' + (j.kind === 'check' ? 'check' : 'build') + ' is waiting for Claude';
-      return '<button class="job-banner' + (j.status === 'done' ? ' done' : '') + '" data-act="tab" data-tab="' + (isAdmin() ? 'admin' : 'list') + '">' + esc(text) + '</button>';
+      else text = '🛒 ' + st + ' cart ' + (j.kind === 'check' ? 'check' : canCarts() ? 'update' : 'build') + ' is waiting for Claude';
+      return '<button class="job-banner' + (j.status === 'done' ? ' done' : '') + '" data-act="' + (canCarts() ? 'cart-open' : 'tab') + '" data-store="' + j.store + '" data-tab="' + (isAdmin() ? 'admin' : 'list') + '">' + esc(text) + '</button>';
     }).join('');
   }
 
@@ -1943,6 +2171,7 @@
     if (sh.type === 'day') inner = viewDaySheet(sh);
     if (sh.type === 'hearth') inner = viewHearthSheet(sh);
     if (sh.type === 'points') inner = viewPointsSheet(sh);
+    if (sh.type === 'pushall') inner = viewPushSheet(sh);
     if (sh.type === 'feedback') {
       inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
         '<label class="sr" for="fb-text">Your idea or feedback</label><textarea id="fb-text" class="field idea-text" data-input="draft" data-field="text" rows="6" placeholder="e.g. I wish I could see what’s for lunch tomorrow on the List">' + esc(sh.text || '') + '</textarea>' +
@@ -1964,7 +2193,7 @@
         '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-meal"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
     }
 
-    const hasX = ['item', 'mealcard', 'ideaview', 'day', 'hearth', 'points'].indexOf(sh.type) >= 0;
+    const hasX = ['item', 'mealcard', 'ideaview', 'day', 'hearth', 'points', 'pushall'].indexOf(sh.type) >= 0;
     return '<div class="scrim" data-act="close-sheet"><div class="sheet' + (hasX ? ' item-sheet' : '') + '" role="dialog" aria-modal="true">' + inner +
       (hasX ? '' : '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button>') + '</div></div>';
   }
@@ -2128,6 +2357,34 @@
         }
       }, kind === 'check' ? 'Cart check queued' : 'Cart build queued');
     },
+    'cart-open': (el) => { S.cartOpen = el.dataset.store || ''; S.tab = 'carts'; store.set('ff_tab', 'carts'); S.sheet = null; render(); window.scrollTo(0, 0); },
+    'cart-back': () => { S.cartOpen = ''; render(); window.scrollTo(0, 0); },
+    'cart-pick': (el) => { if (S.sheet) { S.sheet.cartPick = el.dataset.store; render(); } },
+    'cart-put': (el) => {
+      const r = sheetRow(); const code = el.dataset.store; if (!r || !code) return;
+      const c = cartState(r);
+      const msg = (c.kind === 'leaving' || (c.kind === 'moving' && c.from === code)) ? 'Keeping ' + r.name + ' in the ' + storeOf(code).name + ' cart'
+        : c.kind === 'in' ? r.name + ' moves to the ' + storeOf(code).name + ' cart' : '⏳ ' + r.name + ' is going in the ' + storeOf(code).name + ' cart';
+      S.sheet = null;
+      pushRows([{ r: r, store: code }], msg);
+    },
+    'cart-remove': () => {
+      const r = sheetRow(); if (!r) return;
+      const c = cartState(r);
+      S.sheet = null;
+      act('cartRemove', { ids: [r.id] }, () => {
+        if (c.kind === 'in') { r.cart_want = 'out'; queueLocal(c.store); } else { r.cart_want = ''; r.cart_note = ''; }
+      }, c.kind === 'in' ? '⏳ ' + r.name + ' is coming out of the ' + storeOf(c.store).name + ' cart. It stays on the List.' : 'Won’t add ' + r.name);
+    },
+    'push-all': () => openPushSheet(D().list.filter((r) => r.status !== 'requested' && kindOk(r) && cartOk(r) && needsCart(r))),
+    'push-store': (el) => openPushSheet(D().list.filter((r) => needsCart(r) && pickCart(r).store === el.dataset.store)),
+    'push-go': () => {
+      const sh = S.sheet; if (!sh || sh.type !== 'pushall') return;
+      const pairs = sh.ids.map((id) => D().list.find((r) => r.id === id)).filter((r) => r && needsCart(r) && sh.picks[r.id]).map((r) => ({ r: r, store: sh.picks[r.id] }));
+      S.sheet = null;
+      pushRows(pairs, '⏳ Going in: ' + pushSummary(pairs));
+    },
+    'list-cart': (el) => { S.listCart = S.listCart === el.dataset.v ? '' : el.dataset.v; render(); },
     'job-cancel': (el) => {
       act('cartJobCancel', { id: el.dataset.id }, () => {
         const j = jobs().find((x) => x.id === el.dataset.id);
@@ -2185,7 +2442,7 @@
       act('useSoon', { item_id: id, what: what }, () => { D().useSoon = (D().useSoon || []).filter((y) => y !== x); }, msg);
     },
     'fold-all': () => {
-      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested' && kindOk(r))).map((g) => 'a:' + g);
+      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested' && kindOk(r) && cartOk(r))).map((g) => 'a:' + g);
       const close = !keys.every((k) => isClosed(k));
       keys.forEach((k) => setClosed(k, close));
       render();
@@ -2215,7 +2472,7 @@
       const r = D().list.find((x) => x.id === el.dataset.id);
       if (!r) return;
       const note = (r.note ? r.note + '; ' : '') + 'in the cart in store (' + S.me + ')';
-      act('update', { id: r.id, fields: { status: 'bought', note: note } }, () => {
+      act('update', Object.assign({ id: r.id, fields: { status: 'bought', note: note } }, r.status === 'carted' && canCarts() ? { cart_out: true } : {}), () => {
         D().list = D().list.filter((x) => x !== r);
         D().recent.push(Object.assign({}, r, { status: 'bought', note: note, updated_at: nowIso() }));
       }, '🛒 ' + r.name + ' is in the cart');
@@ -2313,6 +2570,7 @@
       });
     }
     if (el.dataset && el.dataset.input === 'ask-sel') { S.askSel = el.value; render(); }
+    if (el.dataset && el.dataset.input === 'push-pick' && S.sheet && S.sheet.picks) { S.sheet.picks[el.dataset.id] = el.value; render(); }
     if (el.dataset && el.dataset.input === 'd' && S.sheet && S.sheet.d) S.sheet.d[el.dataset.field] = el.value;
     if (el.dataset && el.dataset.input === 'row-note') {
       const r = D().list.find((x) => x.id === el.dataset.id) || (D().held || []).find((x) => x.id === el.dataset.id);
