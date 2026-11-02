@@ -546,9 +546,11 @@
     return f.planned ? '<span class="meal-tag soft">🍽 ' + esc(shortDay(f.date).split(' ')[0]) + ' · ' + esc(f.meal.name) + '</span>'
       : '<span class="meal-tag">🍽 ' + esc(f.meal.name) + '</span>';
   }
-  // List filter pills: All · For meals · Stock (not tied to a meal). Starts on All each time the app opens.
+  // List filter pills: All · Needs a cart · For meals · Stock (not tied to a meal). Starts on All each time the
+  // app opens. One List (Mike, Nov 2): rows in a cart stay in their aisle with their 🛒 tag; "Needs a cart"
+  // narrows to the rows no online cart has yet. needsCart is defined below; kindOk only runs at render time.
   S.listKind = 'all';
-  const kindOk = (r) => S.listKind === 'all' || (S.listKind === 'meal' ? forMeal(r) : !forMeal(r));
+  const kindOk = (r) => S.listKind === 'all' || (S.listKind === 'cart' ? (canCarts() && needsCart(r)) : S.listKind === 'meal' ? forMeal(r) : !forMeal(r));
   function rowMeta(r) {
     const meta = [];
     if (Number(r.qty) > 1) meta.push('×' + r.qty);
@@ -728,7 +730,8 @@
   /* ---------- the List (Nov 2, Mike): what's still open ----------
      Carts live on the Carts screen now, so the List answers one question: what do we still have to deal with?
      Top to bottom: a summary line, 🍽 Missing for meals (planned in the next 7 days, not on the List, not seen
-     at home lately), Needs a cart (by aisle), In carts (one folded line → Carts screen), Later (parked on purpose:
+     at home lately), the List itself (one section by aisle; rows in a cart carry their 🛒 tag, the Needs a cart
+     pill narrows to the rest; Mike, Nov 2 ~10:20 am), Later (parked on purpose:
      "Next week", "In 2 weeks" or no date, built on hold_until; no date = LATER_NO_DATE). */
   const LATER_NO_DATE = '9999-12-31';
   const laterBack = (r) => { const u = String(r.hold_until || '').slice(0, 10); return !u || u >= '9000' ? '' : u; };
@@ -823,50 +826,36 @@
     const carts = active.filter(inCartNow);
     const open = active.filter((r) => !inCartNow(r));
 
-    // Summary: the one number that matters is what still needs a cart.
+    // Summary: what still needs a cart, and how much is already in one (tap → Carts screen).
     if (active.length || held.length) {
       const bits = [];
       if (canCarts()) {
         bits.push('<b>' + open.length + ' need' + (open.length === 1 ? 's' : '') + ' a cart</b>');
-        if (carts.length) bits.push(carts.length + ' in carts');
-      } else bits.push('<b>' + open.length + ' on the List</b>');
+        if (carts.length) bits.push('<button class="link-btn inline" data-act="tab" data-tab="carts">' + carts.length + ' in carts ›</button>');
+      } else bits.push('<b>' + active.length + ' on the List</b>');
       if (held.length) bits.push(held.length + ' later');
       html += '<div class="list-sum">' + bits.join(' · ') + '</div>';
     }
 
     html += viewMissing();
 
-    // Needs a cart (or simply "On the List" before carts), by aisle. 🍽 / 🧺 narrows it when it's long.
-    const shown = open.filter(kindOk);
+    // One List by aisle (Mike, Nov 2): in-cart rows sit with the rest and show their 🛒 tag.
+    // Pills: All · 🛒 Needs a cart · 🍽 Meals · 🧺 Stock.
+    const shown = active.filter(kindOk);
     const all = shown.concat(faded.map((f) => f.row).filter(kindOk));
-    if (open.length || faded.length) {
-      const nMeal = open.filter(forMeal).length;
+    if (active.length || faded.length) {
+      const nMeal = active.filter(forMeal).length;
       const pill = (v, label, n) => '<button class="pill small' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
+      const nNeed = canCarts() ? active.filter(needsCart).length : 0;
       const push = canCarts() && amParent() ? shown.filter(needsCart).length : 0;
       const allClosed = groupsIn(all).every((g) => isClosed('a:' + g));
-      html += '<div class="sec-head"><span class="sec-title">' + (canCarts() ? 'Needs a cart' : 'On the List') + ' · ' + shown.length + '</span>' +
+      html += '<div class="sec-head"><span class="sec-title">On the List · ' + shown.length +
+        ' <button class="link-btn inline fold-link" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></span>' +
         (push ? '<button class="btn btn-outline btn-sm" data-act="push-all">🛒 Put ' + push + ' in carts</button>' : '') + '</div>' +
-        '<div class="list-tools"><span class="chips-row tight">' + pill('all', 'All', open.length) + pill('meal', '🍽 Meals', nMeal) + pill('stock', '🧺 Stock', open.length - nMeal) + '</span>' +
-        '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
-      if (!shown.length && !faded.length) html += '<div class="empty small">' + (S.listKind === 'meal' ? 'Nothing here is for a planned meal this week.' : 'Everything here is for a meal.') + '</div>';
+        '<div class="list-tools"><span class="chips-row tight">' + pill('all', 'All', active.length) + (canCarts() ? pill('cart', '🛒 Needs a cart', nNeed) : '') +
+        pill('meal', '🍽 Meals', nMeal) + pill('stock', '🧺 Stock', active.length - nMeal) + '</span></div>';
+      if (!shown.length && !faded.length) html += '<div class="empty small">' + ({ cart: 'Everything on the List is in a cart.', meal: 'Nothing here is for a planned meal this week.', stock: 'Everything here is for a meal.' }[S.listKind] || '') + '</div>';
       html += aisleCards(all, fadedIds);
-    } else if (active.length) {
-      html += '<div class="empty small">Everything on the List is in a cart.</div>';
-    }
-
-    // In carts: one folded line; the detail lives on the Carts screen.
-    if (carts.length) {
-      const c = isClosed('incarts');
-      const n = {};
-      let going = 0;
-      carts.forEach((r) => { const k = cartState(r); if (k.kind === 'in' || k.kind === 'leaving') n[k.store] = (n[k.store] || 0) + 1; else going++; });
-      const peek = CART_STORES.filter((k) => n[k]).map((k) => esc(sName(k)) + ' ' + n[k]).concat(going ? ['⏳ ' + going + ' on the way'] : []).join(' · ');
-      html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="incarts" aria-expanded="' + !c + '"><span>🛒 IN CARTS · ' + carts.length + '</span>' + chev(c) + '</button>' +
-        (c ? '<button class="peek" data-act="fold" data-key="incarts">' + peek + '</button>'
-          : CART_STORES.concat(['']).map((k) => {
-            const rows = carts.filter((r) => { const x = cartState(r); return k ? x.store === k : CART_STORES.indexOf(x.store) < 0; });
-            return rows.length ? '<div class="sub-head ' + (k ? 'head-' + storeOf(k).cls : '') + '">' + (k ? esc(storeOf(k).name) : 'Other') + ' · ' + rows.length + '</div>' + rows.map(listRow).join('') : '';
-          }).join('') + '<div class="sec-foot"><button class="link-btn" data-act="tab" data-tab="carts">Open the Carts screen →</button></div>') + '</section>';
     }
 
     if (!list.length && !faded.length && !held.length) html += '<div class="empty">The list is empty.<br><button class="btn btn-outline" style="margin-top:12px" data-act="tab" data-tab="shop">Add things in Shop</button></div>';
@@ -882,7 +871,7 @@
     }
 
     html += '<p class="hint">The List is what’s still open. 🍽 Missing for meals = things this week’s meals use that aren’t on the List or seen at home. ' +
-      (canCarts() ? 'Needs a cart = on the List, not in any online cart yet. ' : '') + '⏸ Later = we need it, just not this order (tap an item → Later). Search and browse everything in Shop.</p>';
+      (canCarts() ? '🛒 tags show what’s already in an online cart; Needs a cart = the rest. ' : '') + '⏸ Later = we need it, just not this order (tap an item → Later). Search and browse everything in Shop.</p>';
     return html;
   }
 
@@ -2713,7 +2702,7 @@
       act('useSoon', { item_id: id, what: what }, () => { D().useSoon = (D().useSoon || []).filter((y) => y !== x); }, msg);
     },
     'fold-all': () => {
-      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested' && !inCartNow(r) && kindOk(r))).map((g) => 'a:' + g);
+      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested' && kindOk(r))).map((g) => 'a:' + g);
       const close = !keys.every((k) => isClosed(k));
       keys.forEach((k) => setClosed(k, close));
       render();
