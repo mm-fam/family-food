@@ -860,3 +860,10 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
   .missing .row-meta, .miss-gap { color: #D9C48A; }
   .miss-items .link-btn { color: var(--ink); text-decoration-color: #8A7530; }
 }
+.miss-line { font-size: 14px; color: var(--muted); padding: 0 4px 12px; }
+.miss-link { font-size: 13px; padding: 0; color: var(--muted); }
+.missing .card-head { display: flex; justify-content: space-between; align-items: center; }
+.missing .card-head .miss-link { color: #8A6100; text-transform: none; letter-spacing: 0; }
+.miss-row { padding: 6px 14px; }
+@media (prefers-color-scheme: dark) { .missing .card-head .miss-link { color: #D9C48A; } }
+.miss-link { white-space: nowrap; }

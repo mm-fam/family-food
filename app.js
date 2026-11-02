@@ -758,24 +758,28 @@
     });
     return { groups: byMeal, blank: blank, meals: meals };
   }
+  // Compact on purpose (Mike, Nov 2 ~9:28 am: it took too much room from the List itself). Nothing missing →
+  // one quiet line. Meals with no ingredients set up sit behind a small link that opens a sheet.
   function viewMissing() {
     const m = missingForMeals();
     const groups = m.groups;
     if (!groups.length && !m.blank.length) return '';
+    const gap = m.blank.length ? '<button class="link-btn miss-link" data-act="meal-gaps">' + m.blank.length + ' unchecked ›</button>' : '';
+    if (!groups.length) return '<div class="miss-line">🍽 Nothing missing for meals' + (gap ? ' · ' + gap : '') + '</div>';
     const n = groups.reduce((t, g) => t + g.ids.length, 0);
     const kid = isKid(S.me);
-    let h = '<section class="card missing"><div class="card-head">🍽 MISSING FOR MEALS · ' + n + '</div>';
-    h += groups.map((g) =>
-      '<div class="miss-row"><div class="miss-main"><div class="row-meta">' + esc(shortDay(g.date)) + ' · ' + esc(g.meal.name) + '</div><div class="miss-items">' +
-        g.ids.map((id) => '<button class="link-btn" data-act="open-item" data-id="' + esc(id) + '">' + esc(itemById(id).name) + '</button>').join(', ') + '</div></div>' +
-      '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="miss-add" data-meal="' + esc(g.meal.id) + '" data-ids="' + esc(g.ids.join(',')) + '">' + (kid ? 'Ask' : 'Add') + (g.ids.length > 1 ? ' ' + g.ids.length : '') + '</button>' +
-        (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-ids="' + esc(g.ids.join(',')) + '">Have ' + (g.ids.length > 1 ? 'them' : 'it') + '</button>') + '</div></div>').join('');
-    if (!groups.length) h += '<div class="miss-gap">Nothing missing from the ingredients we know.</div>';
-    if (m.blank.length) {
-      h += '<div class="miss-gap">Can’t check ' + m.blank.length + ' of ' + m.meals + ' meals this week: no ingredients set up yet (' +
-        m.blank.slice(0, 4).map((x) => '<button class="link-btn" data-act="open-meal" data-id="' + esc(x.id) + '">' + esc(x.name) + '</button>').join(', ') + (m.blank.length > 4 ? '…' : '') + '). Others may be missing some.</div>';
-    } else h += '<div class="miss-gap">Only checks the ingredients each meal has set up.</div>';
-    return h + '</section>';
+    return '<section class="card missing"><div class="card-head"><span>🍽 MISSING FOR MEALS · ' + n + '</span>' + (gap ? '<span class="sub">' + gap + '</span>' : '') + '</div>' + groups.map((g) =>
+      '<div class="miss-row"><div class="miss-main"><div class="miss-items">' +
+        g.ids.map((id) => '<button class="link-btn" data-act="open-item" data-id="' + esc(id) + '">' + esc(itemById(id).name) + '</button>').join(', ') + '</div>' +
+        '<div class="row-meta">' + esc(shortDay(g.date).split(' ')[0]) + ' · ' + esc(g.meal.name) + '</div></div>' +
+      '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="miss-add" data-meal="' + esc(g.meal.id) + '" data-ids="' + esc(g.ids.join(',')) + '">' + (kid ? 'Ask' : 'Add') + '</button>' +
+        (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-ids="' + esc(g.ids.join(',')) + '">Have</button>') + '</div></div>').join('') + '</section>';
+  }
+  function viewMealGaps() {
+    const m = missingForMeals();
+    return '<div class="is-head"><div><h2>Meals Poppy can’t check</h2><div class="is-sub">' + m.blank.length + ' of ' + m.meals + ' meals this week have no ingredients set up</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      m.blank.map((x) => '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + esc(x.id) + '"><span class="row-name">' + esc(x.name) + '</span><span class="row-meta">Tap → Edit meal to add ingredients</span></button></div>').join('') +
+      '<p class="note">Missing for meals only checks ingredients a meal has set up, so meals with just one or two linked can also be missing things.</p>';
   }
 
   // Aisle accordions for a set of rows (faded rows keep their aisle open so Undo shows).
@@ -2403,6 +2407,7 @@
     if (sh.type === 'hearth') inner = viewHearthSheet(sh);
     if (sh.type === 'points') inner = viewPointsSheet(sh);
     if (sh.type === 'pushall') inner = viewPushSheet(sh);
+    if (sh.type === 'mealgaps') inner = viewMealGaps();
     if (sh.type === 'me') inner = viewMeSheet();
     if (sh.type === 'feedback') {
       inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
@@ -2658,6 +2663,7 @@
     },
     'have-count': (el) => { S.sheet.count = Math.max(1, Math.min(999, S.sheet.count + Number(el.dataset.d))); render(); },
     'have-count-save': () => haveDone(String(S.sheet.count)),
+    'meal-gaps': () => { S.sheet = { type: 'mealgaps' }; render(); },
     'row-later': () => { if (S.sheet) S.sheet.laterOpen = true; render(); },
     'row-hold': (el) => { const r = sheetRow(); S.sheet = null; if (r) holdRow(r, '', el.dataset.until || ''); else render(); },
     'miss-add': (el) => {
