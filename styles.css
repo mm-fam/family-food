@@ -834,3 +834,20 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .filter-sum { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -4px; font-size: 13px; color: var(--muted); }
 .filter-sum span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .filter-sum .link-btn { align-self: center; flex: none; font-size: 13px; }
+
+/* List sections (Nov 2): summary, Missing for meals, Needs a cart, In carts, Later */
+.list-sum { font-size: 14px; color: var(--muted); padding: 2px 4px 10px; }
+.list-sum b { color: var(--ink); font-weight: 600; }
+.missing { border-color: #E9C46A; background: #FFF9E8; margin-bottom: 12px; }
+.missing .card-head { color: #8A6100; }
+.miss-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 14px; border-top: 1px solid #F1E3B8; }
+.miss-main { min-width: 0; }
+.miss-items { font-size: 15px; line-height: 1.4; }
+.miss-items .link-btn { font-size: 15px; padding: 0; color: var(--ink); text-decoration: underline; text-decoration-color: #D9C27A; }
+.miss-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.sec-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 4px 6px; }
+.sec-title { font-size: 15px; font-weight: 700; }
+.chips-row.tight { gap: 6px; }
+.empty.small { padding: 12px 16px; }
+.sub-head { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); padding: 10px 14px 4px; text-transform: uppercase; }
+.sec-foot { padding: 8px 14px 12px; }

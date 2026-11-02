@@ -319,12 +319,14 @@
   }
   const fadingRows = () => Object.keys(S.fading).map((k) => S.fading[k]).filter((f) => f.until > Date.now() && !D().list.some((r) => r.id === f.row.id));
 
-  // Not needed this run: hide it for a week, then it comes back.
-  function holdRow(row, level) {
-    act('listHold', { id: row.id, level: level || '' }, () => {
+  // Later: keep it on the List but out of the way until a date (Next week, In 2 weeks) or with no date
+  // (LATER_NO_DATE). Built on hold_until, so every "held" rule in the backend applies unchanged.
+  function holdRow(row, level, until) {
+    const back = until && until < '9000' ? ' until ' + shortDay(until) : until ? '' : ' until next week';
+    act('listHold', Object.assign({ id: row.id, level: level || '' }, until ? { until: until } : {}), () => {
       D().list = D().list.filter((r) => r !== row);
-      (D().held = D().held || []).push(Object.assign({}, row));
-    }, row.name + ' moved to next week', () => unhold(row));
+      (D().held = D().held || []).push(Object.assign({}, row, { hold_until: until || addDays(D().today, 7) }));
+    }, row.name + ' moved to Later' + back, () => unhold(row));
   }
 
   function unhold(row) {
@@ -544,38 +546,6 @@
   // List filter pills: All · For meals · Stock (not tied to a meal). Starts on All each time the app opens.
   S.listKind = 'all';
   const kindOk = (r) => S.listKind === 'all' || (S.listKind === 'meal' ? forMeal(r) : !forMeal(r));
-  function viewListKinds(rows) {
-    const nMeal = rows.filter(forMeal).length;
-    if (canCarts()) {
-      // One scrolling row (Nov 2, Mike): what it's for, then where it stands with the carts.
-      const pill = (v, label, n) => '<button class="pill small' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
-      return '<div class="pill-scroll list-kinds">' + pill('all', 'All', rows.length) + pill('meal', '🍽 Meals', nMeal) + pill('stock', '🧺 Stock', rows.length - nMeal) +
-        '<span class="pill-sep" aria-hidden="true"></span>' + cartPills(rows.filter(kindOk)) + '</div>';
-    }
-    const pill = (v, label, n) => '<button class="pill' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
-    return '<div class="chips-row list-kinds">' + pill('all', 'All', rows.length) + pill('meal', '🍽 For meals', nMeal) + pill('stock', '🧺 Stock', rows.length - nMeal) + '</div>';
-  }
-
-  // Cart filter (api 25): '' = any · none = not in a cart · going = on its way in or out · in:GE = in that cart.
-  S.listCart = '';
-  function cartOk(r) {
-    if (!S.listCart || !canCarts()) return true;
-    const c = cartState(r);
-    if (S.listCart === 'none') return c.kind === 'none' || c.kind === 'failed';
-    if (S.listCart === 'going') return c.kind === 'going' || c.kind === 'moving' || c.kind === 'leaving';
-    const code = S.listCart.slice(3);
-    return ((c.kind === 'in' || c.kind === 'leaving') && c.store === code) || (c.kind === 'moving' && c.from === code);
-  }
-  function cartPills(rows) {
-    const count = (v) => { const keep = S.listCart; S.listCart = v; const n = rows.filter(cartOk).length; S.listCart = keep; return n; };
-    const pill = (v, label, cls) => {
-      const n = count(v);
-      if (!n && S.listCart !== v) return '';
-      return '<button class="pill small' + (cls ? ' ' + cls : '') + (S.listCart === v ? ' on' : '') + '" data-act="list-cart" data-v="' + v + '" aria-pressed="' + (S.listCart === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
-    };
-    return pill('none', 'No cart') + pill('going', '⏳ Waiting on Claude') + CART_STORES.map((k) => pill('in:' + k, '🛒 ' + esc(sName(k)), storeOf(k).cls)).join('');
-  }
-
   function rowMeta(r) {
     const meta = [];
     if (Number(r.qty) > 1) meta.push('×' + r.qty);
@@ -752,66 +722,147 @@
 
   const chev = (closed) => '<span class="chev" aria-hidden="true">' + (closed ? '▸' : '▾') + '</span>';
 
+  /* ---------- the List (Nov 2, Mike): what's still open ----------
+     Carts live on the Carts screen now, so the List answers one question: what do we still have to deal with?
+     Top to bottom: a summary line, 🍽 Missing for meals (planned in the next 7 days, not on the List, not seen
+     at home lately), Needs a cart (by aisle), In carts (one folded line → Carts screen), Later (parked on purpose:
+     "Next week", "In 2 weeks" or no date, built on hold_until; no date = LATER_NO_DATE). */
+  const LATER_NO_DATE = '9999-12-31';
+  const laterBack = (r) => { const u = String(r.hold_until || '').slice(0, 10); return !u || u >= '9000' ? '' : u; };
+  const inCartNow = (r) => canCarts() && (r.status === 'carted' || r.status === 'needed') && ['in', 'going', 'moving', 'leaving'].indexOf(cartState(r).kind) >= 0;
+
+  // Ingredients of meals planned in the next 7 days that nobody has dealt with yet.
+  function missingForMeals() {
+    const today = D().today, last = addDays(today, 6);
+    const onList = {};
+    D().list.concat(D().held || []).forEach((r) => r.item_id && (onList[r.item_id] = 1));
+    (D().recent || []).forEach((r) => { if (r.item_id && (r.status === 'bought' || r.status === 'have') && addDays(String(r.updated_at || '').slice(0, 10) || '2000-01-01', 3) >= today) onList[r.item_id] = 1; });
+    const stock = D().stock || {};
+    const seen = (id) => { const s = stock[id]; return s && s.level !== 'low' && s.level !== 'out' && s.level !== 'waste' && addDays(String(s.at).slice(0, 10), 7) >= today; };
+    const byMeal = [];
+    const taken = {};
+    (D().plan || []).slice().sort((a, b) => (planDate(a) < planDate(b) ? -1 : 1)).forEach((p) => {
+      const d = planDate(p);
+      if (!d || d < today || d > last || isLeftover(p) || !p.meal_id) return;
+      const meal = mealById(p.meal_id);
+      if (!meal) return;
+      const ids = mealItems(meal).filter((id) => { const it = itemById(id); return it && it.status !== 'Drop' && !onList[id] && !seen(id) && !taken[id]; });
+      if (!ids.length) return;
+      ids.forEach((id) => (taken[id] = 1));
+      byMeal.push({ date: d, meal: meal, ids: ids });
+    });
+    return byMeal;
+  }
+  function viewMissing() {
+    const groups = missingForMeals();
+    if (!groups.length) return '';
+    const n = groups.reduce((t, g) => t + g.ids.length, 0);
+    const kid = isKid(S.me);
+    return '<section class="card missing"><div class="card-head">🍽 MISSING FOR MEALS · ' + n + '</div>' + groups.map((g) =>
+      '<div class="miss-row"><div class="miss-main"><div class="row-meta">' + esc(shortDay(g.date)) + ' · ' + esc(g.meal.name) + '</div><div class="miss-items">' +
+        g.ids.map((id) => '<button class="link-btn" data-act="open-item" data-id="' + esc(id) + '">' + esc(itemById(id).name) + '</button>').join(', ') + '</div></div>' +
+      '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="miss-add" data-meal="' + esc(g.meal.id) + '" data-ids="' + esc(g.ids.join(',')) + '">' + (kid ? 'Ask' : 'Add') + (g.ids.length > 1 ? ' ' + g.ids.length : '') + '</button>' +
+        (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-ids="' + esc(g.ids.join(',')) + '">Have ' + (g.ids.length > 1 ? 'them' : 'it') + '</button>') + '</div></div>').join('') + '</section>';
+  }
+
+  // Aisle accordions for a set of rows (faded rows keep their aisle open so Undo shows).
+  function aisleCards(all, fadedIds) {
+    let html = '';
+    groupsIn(all).forEach((g) => {
+      const rows = all.filter((r) => groupOf(r) === g);
+      const live = rows.filter((r) => !fadedIds[r.id]);
+      const key = 'a:' + g;
+      const closed = isClosed(key) && !rows.some((r) => fadedIds[r.id]);
+      html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="' + esc(key) + '" aria-expanded="' + !closed + '">' +
+        '<span>' + esc(g.toUpperCase()) + ' · ' + live.length + '</span>' + chev(closed) + '</button>';
+      if (closed) html += '<button class="peek" data-act="fold" data-key="' + esc(key) + '">' + esc(live.slice(0, 6).map((r) => r.name).join(', ')) + (live.length > 6 ? '…' : '') + '</button>';
+      else html += rows.map((r) => (fadedIds[r.id] ? fadedRow(fadedIds[r.id]) : listRow(r))).join('');
+      html += '</section>';
+    });
+    return html;
+  }
+
   function viewList() {
     const list = D().list;
     const requests = list.filter((r) => r.status === 'requested');
     const active = list.filter((r) => r.status !== 'requested');
+    const held = D().held || [];
     let html = '';
 
     html += viewInstallTip();
-    if (!canCarts()) html += viewJobBanner(); // since api 25 the header cart button and the Carts screen show job status
+    if (!canCarts()) html += viewJobBanner();
     html += viewUseSoon();
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
         requests.map(requestRow).join('') + '</section>';
     }
 
-    // One living list, by aisle (Nov 1 family demo: timing matters more than the store; whatever store
-    // we're at, grab what we can). Only store-only items say so; others carry a small store dot.
     const faded = fadingRows();
     const fadedIds = {};
     faded.forEach((f) => (fadedIds[f.row.id] = f));
-    if (active.length) html += viewListKinds(active);
-    const shown = active.filter(kindOk).filter(cartOk);
-    const all = shown.concat(faded.map((f) => f.row).filter(kindOk).filter(cartOk));
-    const aisles = groupsIn(all);
-    if (active.length || faded.length) {
-      const allClosed = aisles.every((g) => isClosed('a:' + g));
-      const only = shown.filter(storeOnly).length;
-      const push = canCarts() && amParent() ? shown.filter(needsCart).length : 0;
-      html += '<div class="list-tools"><span>' + shown.length + ' item' + (shown.length === 1 ? '' : 's') + (S.listKind === 'meal' ? ' for meals' : S.listKind === 'stock' ? ' to stock up' : '') + (only ? ' · ' + only + ' store-only' : '') + '</span>' +
-        '<span class="tools-r">' + (push ? '<button class="link-btn push-link" data-act="push-all">🛒 Put ' + push + ' in carts</button>' : '') +
-        '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></span></div>';
-      if (!shown.length && !faded.length) html += '<div class="empty">' + (S.listCart ? 'Nothing here with that cart filter.' : S.listKind === 'meal' ? 'Nothing on the List is for a planned meal this week.' : 'Everything on the List is for a meal.') + '</div>';
+    const carts = active.filter(inCartNow);
+    const open = active.filter((r) => !inCartNow(r));
+
+    // Summary: the one number that matters is what still needs a cart.
+    if (active.length || held.length) {
+      const bits = [];
+      if (canCarts()) {
+        bits.push('<b>' + open.length + ' need' + (open.length === 1 ? 's' : '') + ' a cart</b>');
+        if (carts.length) bits.push(carts.length + ' in carts');
+      } else bits.push('<b>' + open.length + ' on the List</b>');
+      if (held.length) bits.push(held.length + ' later');
+      html += '<div class="list-sum">' + bits.join(' · ') + '</div>';
     }
-    aisles.forEach((g) => {
-      const rows = all.filter((r) => groupOf(r) === g);
-      const live = rows.filter((r) => !fadedIds[r.id]);
-      const key = 'a:' + g;
-      // An aisle with a row that just left stays open so the Undo is visible.
-      const closed = isClosed(key) && !rows.some((r) => fadedIds[r.id]);
-      html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="' + esc(key) + '" aria-expanded="' + !closed + '">' +
-        '<span>' + esc(g.toUpperCase()) + ' · ' + live.length + '</span>' + chev(closed) + '</button>';
-      if (closed) {
-        html += '<button class="peek" data-act="fold" data-key="' + esc(key) + '">' + esc(live.slice(0, 6).map((r) => r.name).join(', ')) + (live.length > 6 ? '…' : '') + '</button>';
-      } else {
-        html += rows.map((r) => (fadedIds[r.id] ? fadedRow(fadedIds[r.id]) : listRow(r))).join('');
-      }
-      html += '</section>';
-    });
 
-    if (!list.length && !faded.length) html += '<div class="empty">The list is empty.<br><button class="btn btn-outline" style="margin-top:12px" data-act="tab" data-tab="shop">Add things in Shop</button></div>';
+    html += viewMissing();
 
-    const held = D().held || [];
+    // Needs a cart (or simply "On the List" before carts), by aisle. 🍽 / 🧺 narrows it when it's long.
+    const shown = open.filter(kindOk);
+    const all = shown.concat(faded.map((f) => f.row).filter(kindOk));
+    if (open.length || faded.length) {
+      const nMeal = open.filter(forMeal).length;
+      const pill = (v, label, n) => '<button class="pill small' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
+      const push = canCarts() && amParent() ? shown.filter(needsCart).length : 0;
+      const allClosed = groupsIn(all).every((g) => isClosed('a:' + g));
+      html += '<div class="sec-head"><span class="sec-title">' + (canCarts() ? 'Needs a cart' : 'On the List') + ' · ' + shown.length + '</span>' +
+        (push ? '<button class="btn btn-outline btn-sm" data-act="push-all">🛒 Put ' + push + ' in carts</button>' : '') + '</div>' +
+        '<div class="list-tools"><span class="chips-row tight">' + pill('all', 'All', open.length) + pill('meal', '🍽 Meals', nMeal) + pill('stock', '🧺 Stock', open.length - nMeal) + '</span>' +
+        '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
+      if (!shown.length && !faded.length) html += '<div class="empty small">' + (S.listKind === 'meal' ? 'Nothing here is for a planned meal this week.' : 'Everything here is for a meal.') + '</div>';
+      html += aisleCards(all, fadedIds);
+    } else if (active.length) {
+      html += '<div class="empty small">Everything on the List is in a cart.</div>';
+    }
+
+    // In carts: one folded line; the detail lives on the Carts screen.
+    if (carts.length) {
+      const c = isClosed('incarts');
+      const n = {};
+      let going = 0;
+      carts.forEach((r) => { const k = cartState(r); if (k.kind === 'in' || k.kind === 'leaving') n[k.store] = (n[k.store] || 0) + 1; else going++; });
+      const peek = CART_STORES.filter((k) => n[k]).map((k) => esc(sName(k)) + ' ' + n[k]).concat(going ? ['⏳ ' + going + ' on the way'] : []).join(' · ');
+      html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="incarts" aria-expanded="' + !c + '"><span>🛒 IN CARTS · ' + carts.length + '</span>' + chev(c) + '</button>' +
+        (c ? '<button class="peek" data-act="fold" data-key="incarts">' + peek + '</button>'
+          : CART_STORES.concat(['']).map((k) => {
+            const rows = carts.filter((r) => { const x = cartState(r); return k ? x.store === k : CART_STORES.indexOf(x.store) < 0; });
+            return rows.length ? '<div class="sub-head ' + (k ? 'head-' + storeOf(k).cls : '') + '">' + (k ? esc(storeOf(k).name) : 'Other') + ' · ' + rows.length + '</div>' + rows.map(listRow).join('') : '';
+          }).join('') + '<div class="sec-foot"><button class="link-btn" data-act="tab" data-tab="carts">Open the Carts screen →</button></div>') + '</section>';
+    }
+
+    if (!list.length && !faded.length && !held.length) html += '<div class="empty">The list is empty.<br><button class="btn btn-outline" style="margin-top:12px" data-act="tab" data-tab="shop">Add things in Shop</button></div>';
+
+    // Later: we need it, just not this order.
     if (held.length) {
       const c = isClosed('held');
-      html += '<section class="card dashed"><button class="card-head acc-head head-either" data-act="fold" data-key="held"><span>NEXT WEEK · ' + held.length + '</span>' + chev(c) + '</button>' +
-        (c ? '' : held.map((r) => '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' + esc(storeOf(r.store).name) +
-          (r.hold_until ? ' · back ' + esc(shortDay(r.hold_until)) : '') + '</span></button>' +
-          '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
+      html += '<section class="card dashed acc"><button class="card-head acc-head head-either" data-act="fold" data-key="held" aria-expanded="' + !c + '"><span>⏸ LATER · ' + held.length + '</span>' + chev(c) + '</button>' +
+        (c ? '<button class="peek" data-act="fold" data-key="held">' + esc(held.slice(0, 6).map((r) => r.name).join(', ')) + (held.length > 6 ? '…' : '') + '</button>'
+          : held.map((r) => '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span><span class="row-meta">' +
+            (laterBack(r) ? 'back ' + esc(shortDay(laterBack(r))) : 'no date') + '</span></button>' +
+            '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    html += '<p class="hint">One list for every store: wherever you shop, grab what you can. 🍽 For meals = added for a meal or used in a meal planned this week; 🧺 Stock = everything else. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap ' + (canCarts() ? '🏪' : '🛒') + ' In store to check things off.' + (canCarts() ? ' The 🛒 button up top shows how many are in each store’s online cart.' : '') + '</p>';
+    html += '<p class="hint">The List is what’s still open. 🍽 Missing for meals = things this week’s meals use that aren’t on the List or seen at home. ' +
+      (canCarts() ? 'Needs a cart = on the List, not in any online cart yet. ' : '') + '⏸ Later = we need it, just not this order (tap an item → Later). Search and browse everything in Shop.</p>';
     return html;
   }
 
@@ -1090,7 +1141,7 @@
       const cartable = canCarts() && !held && (row.status === 'needed' || row.status === 'carted');
       const c = cartable ? cartState(row) : null;
       const full = (code) => esc(storeOf(code).name);
-      let what = held ? '⏸ Next week' : row.status === 'requested' ? 'Asked for' : 'On the List';
+      let what = held ? '⏸ Later' + (laterBack(row) ? ' · back ' + esc(shortDay(laterBack(row))) : '') : row.status === 'requested' ? 'Asked for' : 'On the List';
       if (c) {
         if (c.kind === 'in') what = '🛒 In the ' + full(c.store) + ' cart';
         else if (c.kind === 'going') what = '⏳ Waiting on Claude to add it to the ' + full(c.store) + ' cart';
@@ -1124,11 +1175,17 @@
     if (row) {
       const acts = [];
       if (held) acts.push('<button class="btn btn-plain" data-act="unhold" data-id="' + row.id + '">Need it now</button>');
-      else if (canStock()) acts.push('<button class="btn btn-plain" data-act="row-hold">Next week</button>');
+      else if (canStock() && !sh.laterOpen) acts.push('<button class="btn btn-plain" data-act="row-later">Later…</button>');
       acts.push('<button class="btn btn-plain" data-act="row-bought">Bought it</button>');
       if (!row.note && !sh.noteOpen) acts.push('<button class="btn btn-plain" data-act="is-note">Note</button>');
       acts.push('<button class="btn btn-plain danger" data-act="row-remove">Take off</button>');
       h += '<div class="is-actions">' + acts.join('') + '</div>';
+      if (sh.laterOpen && !held) {
+        h += '<div class="is-quick"><div class="is-label">We need it, just not this order. Back on the List…</div><div class="seg">' +
+          '<button type="button" data-act="row-hold" data-until="' + addDays(D().today, 7) + '">Next week</button>' +
+          '<button type="button" data-act="row-hold" data-until="' + addDays(D().today, 14) + '">In 2 weeks</button>' +
+          '<button type="button" data-act="row-hold" data-until="' + LATER_NO_DATE + '">No date</button></div></div>';
+      }
     }
 
     // ---- More: folded sections
@@ -1407,17 +1464,17 @@
     CART_STORES.concat(['']).forEach((code) => {
       const g = rows.filter((r) => (sh.picks[r.id] || '') === code);
       if (!g.length) return;
-      h += '<div class="push-group"><div class="card-head ' + (code ? 'head-' + storeOf(code).cls : '') + '">' + (code ? esc(storeOf(code).name.toUpperCase()) : 'NOT NOW') + ' · ' + g.length + '</div>' +
+      h += '<div class="push-group"><div class="card-head ' + (code ? 'head-' + storeOf(code).cls : '') + '">' + (code ? esc(storeOf(code).name.toUpperCase()) : 'NOT NOW · GOES TO LATER') + ' · ' + g.length + '</div>' +
         g.map((r) => {
           const p = pickCart(r);
           const note = code && code === p.store ? (p.guess ? 'best guess' : '') : code ? 'you picked' : '';
           return '<div class="push-row"><span class="row-name">' + esc(r.name) + (note ? ' <span class="note">' + note + '</span>' : '') + '</span>' +
             '<select class="select push-sel" data-input="push-pick" data-id="' + r.id + '" aria-label="Cart for ' + esc(r.name) + '">' +
             CART_STORES.map((k) => '<option value="' + k + '"' + (k === code ? ' selected' : '') + '>' + esc(sName(k)) + '</option>').join('') +
-            '<option value=""' + (code ? '' : ' selected') + '>Not now</option></select></div>';
+            '<option value=""' + (code ? '' : ' selected') + '>Not now (Later)</option></select></div>';
         }).join('') + '</div>';
     });
-    h += '<div class="sheet-actions"><button class="btn btn-primary" data-act="push-go"' + (chosen.length ? '' : ' disabled') + '>Put them in</button></div>' +
+    h += '<div class="sheet-actions"><button class="btn btn-primary" data-act="push-go"' + (rows.length ? '' : ' disabled') + '>' + (chosen.length ? 'Put them in' : 'Move to Later') + '</button></div>' +
       '<p class="note">Claude adds them on the cart computer (it has to be on with Chrome open). Each item says “In … cart” once Claude sees it there.</p>';
     return h;
   }
@@ -2533,15 +2590,22 @@
         if (c.kind === 'in') { r.cart_want = 'out'; queueLocal(c.store); } else { r.cart_want = ''; r.cart_note = ''; }
       }, c.kind === 'in' ? '⏳ ' + r.name + ' is coming out of the ' + storeOf(c.store).name + ' cart. It stays on the List.' : 'Won’t add ' + r.name);
     },
-    'push-all': () => openPushSheet(D().list.filter((r) => r.status !== 'requested' && kindOk(r) && cartOk(r) && needsCart(r))),
+    'push-all': () => openPushSheet(D().list.filter((r) => r.status !== 'requested' && kindOk(r) && needsCart(r))),
     'push-store': (el) => openPushSheet(D().list.filter((r) => needsCart(r) && pickCart(r).store === el.dataset.store)),
     'push-go': () => {
       const sh = S.sheet; if (!sh || sh.type !== 'pushall') return;
-      const pairs = sh.ids.map((id) => D().list.find((r) => r.id === id)).filter((r) => r && needsCart(r) && sh.picks[r.id]).map((r) => ({ r: r, store: sh.picks[r.id] }));
+      const rows = sh.ids.map((id) => D().list.find((r) => r.id === id)).filter((r) => r && needsCart(r));
+      const pairs = rows.filter((r) => sh.picks[r.id]).map((r) => ({ r: r, store: sh.picks[r.id] }));
+      const later = rows.filter((r) => !sh.picks[r.id]);
       S.sheet = null;
-      pushRows(pairs, '⏳ Going in: ' + pushSummary(pairs));
+      // Not now = we need it, just not this order: it goes to Later (no date), so it stops counting as "needs a cart".
+      later.forEach((r) => act('listHold', { id: r.id, level: '', until: LATER_NO_DATE }, () => {
+        D().list = D().list.filter((x) => x !== r);
+        (D().held = D().held || []).push(Object.assign({}, r, { hold_until: LATER_NO_DATE }));
+      }));
+      pushRows(pairs, (pairs.length ? '⏳ Going in: ' + pushSummary(pairs) : '') + (later.length ? (pairs.length ? ' · ' : '') + later.length + ' to Later' : ''));
+      if (!pairs.length) { showToast(later.length + ' moved to Later'); render(); }
     },
-    'list-cart': (el) => { S.listCart = S.listCart === el.dataset.v ? '' : el.dataset.v; render(); },
     'job-cancel': (el) => {
       act('cartJobCancel', { id: el.dataset.id }, () => {
         const j = jobs().find((x) => x.id === el.dataset.id);
@@ -2575,7 +2639,23 @@
     },
     'have-count': (el) => { S.sheet.count = Math.max(1, Math.min(999, S.sheet.count + Number(el.dataset.d))); render(); },
     'have-count-save': () => haveDone(String(S.sheet.count)),
-    'row-hold': () => { const r = sheetRow(); S.sheet = null; if (r) holdRow(r, ''); else render(); },
+    'row-later': () => { if (S.sheet) S.sheet.laterOpen = true; render(); },
+    'row-hold': (el) => { const r = sheetRow(); S.sheet = null; if (r) holdRow(r, '', el.dataset.until || ''); else render(); },
+    'miss-add': (el) => {
+      const meal = mealById(el.dataset.meal);
+      const ids = String(el.dataset.ids || '').split(',').filter((id) => itemById(id) && !listRowFor(id));
+      if (!meal || !ids.length) return;
+      const status = isKid(S.me) ? 'requested' : 'needed';
+      act('addMeal', { meal_id: meal.id, item_ids: ids }, () => {
+        ids.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, wanted_by: S.me, status: status, meal_id: meal.id }); });
+      }, (status === 'requested' ? 'Asked for ' : 'Added ') + ids.length + ' for ' + meal.name);
+    },
+    'miss-have': (el) => {
+      const ids = String(el.dataset.ids || '').split(',').filter((id) => itemById(id));
+      ids.forEach((id, i) => act('stockLog', { item_id: id, level: 'some' }, () => {
+        (D().stock = D().stock || {})[id] = { level: 'some', at: D().today, who: S.me };
+      }, i === ids.length - 1 ? 'Got it: we have ' + (ids.length > 1 ? 'them' : itemById(id).name) : ''));
+    },
     'row-bought': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'bought', 'Bought ' + r.name); else render(); },
     'row-remove': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'skipped', 'Took ' + r.name + ' off'); else render(); },
     'toggle-details': () => { S.sheet.details = !S.sheet.details; render(); },
@@ -2602,7 +2682,7 @@
       act('useSoon', { item_id: id, what: what }, () => { D().useSoon = (D().useSoon || []).filter((y) => y !== x); }, msg);
     },
     'fold-all': () => {
-      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested' && kindOk(r) && cartOk(r))).map((g) => 'a:' + g);
+      const keys = groupsIn(D().list.filter((r) => r.status !== 'requested' && !inCartNow(r) && kindOk(r))).map((g) => 'a:' + g);
       const close = !keys.every((k) => isClosed(k));
       keys.forEach((k) => setClosed(k, close));
       render();
