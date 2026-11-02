@@ -82,7 +82,7 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 1. Work in a clone of `mm-fam/family-food`. No build step; open `index.html` locally with a mock backend or test against a copy of the Sheet.
 2. Test on a phone-sized viewport (390×844) with Playwright: unlock, add, kid request → approve, check off, meal add.
 3. Commit with a clear message. Push when Mike says go. GitHub Pages redeploys in ~1 minute.
-4. Phones cache the PWA. If a change doesn't show, pull to refresh or reopen from the home screen.
+4. **Bump the `?v=` tag** on `styles.css` and `app.js` in `index.html` (e.g. `?v=20261102c`, next letter for the same day) in every push that changes either file. GitHub Pages lets phones cache files for 10 minutes; a new tag makes the next load fetch them fresh (Nov 2: dark-mode fix didn't show on Mike's phone without it). index.html itself can still be up to 10 minutes stale; pull to refresh or reopen.
 
 ## 4. Changing the backend (Code.gs)
 
