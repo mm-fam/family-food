@@ -172,7 +172,7 @@ Design and the full steps: `docs/hearth.md`.
 
 **B2. Follow-ups.** Up to 3 per person per day, from answers in the last day: the next useful question an answer opens up (a favorite → which product; a "No" on finishing something → a smaller size; a conditional swap → which swaps). End the detail with `(rNNN)` of the answer it follows (the app hides it) and also any `(iNNN)` / `(mNN)` it's about. Write `Follow-up rNNN` in the source row's outcome.
 
-**B3. Recycle.** `later_count` / `later_at` are written by the app when someone taps **Later** (api 10); the app keeps cards put off with Later at the back of the deck, oldest Later first.
+**B3. Recycle.** `later_count` / `later_at` are written by the app when someone taps **Later** (api 10); a card put off today is hidden until tomorrow, then comes back at the back of its section, oldest Later first.
 - `later_count` ≥ 3 → status `closed`, outcome `Later ×3, retired`. If a parent decision is waiting on it (clarify, swap, receipt code, stop buying), pass it once to the other parent instead (audience = the other parent, passed_by `Poppy`, clear `later_count` / `later_at`).
 - Open cards created more than 21 days ago → `closed`, outcome `expired`, except `vote` cards (votes keep).
 - Someone who hasn't answered anything in 7 days (or ever, once their deck is full) gets **no new cards**. Their deck waits as it is.

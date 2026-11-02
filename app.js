@@ -1385,7 +1385,16 @@
   /* ---------- ask ---------- */
   // Questions for the current person. Review rows have no audience column yet,
   // so today every open question goes to the parents. Per-person questions come next.
-  function myQuestions() {
+  // "Later" snoozes a card until tomorrow (Cecilia, Nov 2): put off today (saved later_at, ET date) or this
+  // session → out of the deck, the badge and the section chips. It comes back the next day at the back of its section.
+  function snoozed(r) {
+    if (Number(D().api || 0) < 10) return (S.askLater || []).indexOf(r.id) >= 0; // old backend: this session only
+    return !!r.later_at && String(r.later_at).replace(/^'/, '').slice(0, 10) === String(D().today || '').slice(0, 10);
+  }
+  function myQuestions(withSnoozed) {
+    return myQuestionsAll().filter((r) => withSnoozed || !snoozed(r));
+  }
+  function myQuestionsAll() {
     const review = D().review || [];
     return review.filter((r) => {
       if (r.type === 'meal_request') return false; // shown on the Meals tab instead
@@ -1680,7 +1689,9 @@
     const deck = askDeck();
     const top = viewScoreboard() + viewApprovals();
     if (!deck.length) {
-      return top + '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">Lunch picks, How was it?, missions and questions show up here.</span></div>' +
+      const napping = myQuestions(true).length;
+      return top + '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">' +
+        (napping ? napping + (napping === 1 ? ' card' : ' cards') + ' put off till tomorrow. ' : '') + 'Lunch picks, How was it?, missions and questions show up here.</span></div>' +
         '<p class="hint">Everything here teaches Poppy what the family needs. A parent makes the final call.</p>';
     }
     const r = deck[0];
@@ -1734,7 +1745,7 @@
       (S.askPassing === r.id ? viewPassPicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
       (canPass() ? '<button type="button" class="btn btn-plain" data-act="ask-pass" data-id="' + r.id + '">Pass ↗</button>' : '') +
-      (deck.length > 1 ? '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' : '') + '</div>') + '</section>';
+      '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' + '</div>') + '</section>';
     if (deck.length > 1) html += '<div class="deck-edge"></div>';
     const isSettle = r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal';
     html += '<p class="hint">' + (isSettle ? (r.type === 'settle_meal' ? 'Take them off clears them from the List; Keep them leaves them as regular items. ' : r.type === 'settle_order' ? 'Yes takes the whole cart off the List. Some of it asks about each thing. ' : isKid(S.me) ? 'Go look where it lives (fridge, pantry, bathroom). It’s here takes it off the List. ' : 'Got it or Don’t need it takes it off the List; Still need it keeps it there. ') : '') + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
@@ -1968,8 +1979,8 @@
         if (Number(D().api || 0) >= 10) {
           act('reviewLater', { id: id }, () => {
             const q = D().review.find((x) => x.id === id);
-            if (q) { q.later_count = (Number(q.later_count) || 0) + 1; q.later_at = new Date().toISOString(); }
-          });
+            if (q) { q.later_count = (Number(q.later_count) || 0) + 1; q.later_at = String(D().today || '') + 'T' + new Date().toTimeString().slice(0, 8); }
+          }, 'Put off till tomorrow');
         } else render();
       });
     },
@@ -2349,7 +2360,7 @@
         const btn = d.dx > 0 ? yes : no;
         if (btn && btn.dataset.act === 'ask-type') { S.askTyping = id; render(); return; }
         if (btn) { answerQuestion(id, btn.dataset.v, d.dx > 0 ? 'right' : 'left'); return; }
-      } else if (d.dx < 0 && askDeck().length > 1) { handlers['ask-later']({ dataset: { id: id } }); return; }
+      } else if (d.dx < 0) { handlers['ask-later']({ dataset: { id: id } }); return; }
     }
     d.card.style.transition = 'transform 180ms ease-out';
     d.card.style.transform = '';
