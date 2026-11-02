@@ -20,6 +20,7 @@ A shared phone app where anyone in the family adds what we need, picks dinners, 
 - **Whole Foods (WF):** ordered through Amazon. Premium items, produce, specialty (Nounos yogurt, Creminelli salami, brie bites, pizza dough).
 - **Target (TGT):** toiletries, personal care, paper and household. Drive Up / pickup about once a month (online orders also ship). Mostly non-food.
 - **Amazon (AMZ):** fourth store (app plumbing since api 11; cart building not started). Like Target, never part of `Either`.
+- **Deliveries, not stores (api 31):** `WG` = Wildgrain (frozen bread, pastries and pasta; subscription box every 30 days; goes in the freezer) and `BB` = Bleu Box (local prepared-meal delivery; weekly menu of small plates, large plates, desserts, extras; mostly heat and eat). Items with these as `store` never go on the List (backend `addToList` skips them: missions' out, meal ingredients), are never Probably due, never in a cart, In store or `Either`. The app shows them with a 🧊 instead of +, the item screen says where they come from, meal ingredients show them as 🧊 instead of Need, Shop has a 🧊 Deliveries pill, and Meals has a 🧊 **On hand from deliveries** card (delivery items whose latest Stock sighting isn't out / waste / 0). A delivery is ingested like a receipt: order email → Receipts (store WG/BB, order_ref `WG <order #>`) → Items; Stock is logged when it arrives (a parents' "Did the box come?" card).
 - `Either` = either grocery store (GE or WF), whichever order is next. Never Target or Amazon.
 
 ## Architecture
