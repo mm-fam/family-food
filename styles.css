@@ -19,6 +19,10 @@
   --tgt-edge: #DC2626;
   --amz: #1F4E79;
   --amz-edge: #2563A8;
+  --wg: #8A5A2B;
+  --wg-edge: #B07A3E;
+  --bb: #3730A3;
+  --bb-edge: #4F46E5;
   --either-edge: #8A918D;
   --req-bg: #FFF4EA;
   --req-line: #F3D3B5;
@@ -845,3 +849,15 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 /* Day sheet: "Something else we buy…" search under a slot row (api 30). */
 .slot-find { padding: 6px 0 12px; border-bottom: 1px solid var(--line, rgba(0,0,0,.08)); }
 .slot-find .link-btn { margin-top: 6px; }
+
+/* Deliveries (Nov 2): Wildgrain, Bleu Box. Not stores. */
+.pill.wg { color: var(--wg); } .pill.bb { color: var(--bb); } .pill.dlv { color: var(--wg); }
+.pill.wg.on, .pill.bb.on, .pill.dlv.on { color: #FFFFFF; }
+.pill.wg.on { background: var(--wg); border-color: var(--wg); }
+.pill.bb.on { background: var(--bb); border-color: var(--bb); }
+.pill.dlv.on { background: var(--wg); border-color: var(--wg); }
+.store-dot.wg { background: var(--wg-edge); } .store-dot.bb { background: var(--bb-edge); }
+.only-tag.wg { color: var(--wg); } .only-tag.bb { color: var(--bb); }
+.add-btn.dlv { background: transparent; border-color: var(--wg-edge); font-size: 15px; }
+.dlv-note { padding: 10px 12px; border-radius: 10px; background: #F7EFE5; color: var(--wg); font-size: 14px; margin: 4px 0 8px; }
+.onhand-src { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); padding: 8px 14px 2px; text-transform: uppercase; letter-spacing: .04em; }

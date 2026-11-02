@@ -36,6 +36,10 @@ const POINTS_HEAD = ['at', 'to', 'pts', 'why', 'ref', 'by', 'note'];
 // picks it up and writes back status + result. Created on first use.
 const JOBS_HEAD = ['id', 'at', 'by', 'store', 'kind', 'status', 'started_at', 'finished_at', 'result', 'notes', 'subtotal', 'lines'];
 const JOB_STORES = ['GE', 'WF', 'TGT', 'AMZ'];
+// Deliveries (Nov 2): food that arrives on its own (Wildgrain box every 30 days, Bleu Box ready meals).
+// Items with these as store are never put on the List, never probably due, never in a cart.
+const DELIVERY_SOURCES = { WG: 'Wildgrain', BB: 'Bleu Box' };
+const isDeliveryItem = (it) => !!(it && DELIVERY_SOURCES[String(it.store || '')]);
 const STORE_NAMES = { GE: 'Giant Eagle', WF: 'Whole Foods', TGT: 'Target', AMZ: 'Amazon' };
 const JOB_KINDS = ['build', 'check'];
 const JOB_OPEN = ['queued', 'running', 'waiting']; // waiting = runner tried, computer/Chrome/sign-in not ready; it retries
@@ -185,7 +189,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      Settings idea_alerts = off stops it, alert_email overrides the address); Items open_to_try (Y = "we'd try
 //      something else": parents set it in Details) tells the cart runner's price pass to look up alternatives and
 //      the morning check to offer them as parents' `try` cards.
-const API_VERSION = 30;
+// 30 = a Plan slot can hold a catalog item instead of a meal (snacks we just buy).
+// 31 = deliveries (Nov 2, Mike): Items store WG (Wildgrain) / BB (Bleu Box) = food that arrives on its own. addToList
+//      skips them (a mission's out, meal ingredients); Probably due skips them; the app shows them as 🧊 on hand.
+const API_VERSION = 31;
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
@@ -417,7 +424,7 @@ function getState() {
 
   // "Probably due": we have a buying rhythm for it, it's about that time, and it isn't listed.
   const due = items
-    .filter((it) => it.status !== 'Drop' && it.avg_days && it.last_bought && !onList[it.id] && !stocked[it.id])
+    .filter((it) => it.status !== 'Drop' && !isDeliveryItem(it) && it.avg_days && it.last_bought && !onList[it.id] && !stocked[it.id])
     .map((it) => ({ id: it.id, since: daysBetween(it.last_bought, today), every: Number(it.avg_days) }))
     // Due from 2 days before the usual gap until twice the gap (at least a week past it); after that it's
     // something we've stopped buying, and Shop's "Not lately" filter is where it shows.
@@ -611,6 +618,8 @@ function addToList(req) {
     itemId = createItem({ name: req.name, store: req.store, group: req.group, by: req.by });
     item = { id: itemId, name: String(req.name).trim(), store: req.store || 'Either' };
   }
+  // Delivery items (Wildgrain, Bleu Box) have nothing to buy: a mission's "out" or a meal's ingredients skip them.
+  if (isDeliveryItem(item)) return { id: '', merged: false, delivery: DELIVERY_SOURCES[item.store] };
 
   const list = readTab(TABS.list);
   const qty = Number(req.qty) || 1;

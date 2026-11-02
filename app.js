@@ -14,12 +14,18 @@
     WF: { name: 'Whole Foods', cls: 'wf' },
     TGT: { name: 'Target', cls: 'tgt' },
     AMZ: { name: 'Amazon', cls: 'amz' },
+    // Deliveries (Nov 2): food that arrives on its own. Never a store: no List, carts, In store or Either.
+    WG: { name: 'Wildgrain', cls: 'wg', delivery: 'Comes in the Wildgrain box (about every 30 days) and lives in the freezer.' },
+    BB: { name: 'Bleu Box', cls: 'bb', delivery: 'Comes with a Bleu Box order: ready meals, mostly just heat and eat.' },
+    DLV: { name: 'Deliveries', cls: 'dlv' },
     Either: { name: 'Either grocery store', cls: 'either' },
   };
   const STORE_ORDER = ['GE', 'WF', 'TGT', 'AMZ', 'Either'];
   const CART_STORES = ['GE', 'WF', 'TGT', 'AMZ'];
   // "Either" means Giant Eagle or Whole Foods. Target is always picked on purpose.
   const takesEither = (code) => code === 'GE' || code === 'WF';
+  const isDelivery = (code) => !!(STORES[code] && STORES[code].delivery);
+  const DELIVERY_OPTS = [['WG', 'Wildgrain'], ['BB', 'Bleu Box']];
   const GROUPS = ['Produce', 'Dairy', 'Cheese & deli', 'Meat', 'Bakery', 'Breakfast', 'Snacks', 'Pantry', 'Frozen',
     'Personal care', 'Household', 'Paper & cleaning', 'Other'];
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -244,6 +250,7 @@
 
   /* ------------------------------------------------------------ actions */
   function addItem(item, extra) {
+    if (isDelivery(item.store)) { showToast(item.name + ' comes from ' + storeOf(item.store).name + ', nothing to buy'); return; }
     const held = D().held || [];
     const existing = listRowFor(item.id) || held.find((r) => r.item_id === item.id);
     if (existing) {
@@ -762,7 +769,7 @@
       if (!d || d < today || d > last || isLeftover(p)) return;
       const pi = planItem(p);
       if (pi) {
-        if (pi.status !== 'Drop' && !onList[pi.id] && !seen(pi.id) && !taken[pi.id]) { taken[pi.id] = 1; byMeal.push({ date: d, meal: { id: '', name: pi.name }, ids: [pi.id] }); }
+        if (pi.status !== 'Drop' && !isDelivery(pi.store) && !onList[pi.id] && !seen(pi.id) && !taken[pi.id]) { taken[pi.id] = 1; byMeal.push({ date: d, meal: { id: '', name: pi.name }, ids: [pi.id] }); }
         return;
       }
       if (!p.meal_id) return;
@@ -770,7 +777,7 @@
       if (!meal) return;
       meals++;
       if (!mealItems(meal).some((id) => itemById(id))) { if (!blank.some((m) => m.id === meal.id)) blank.push(meal); return; }
-      const ids = mealItems(meal).filter((id) => { const it = itemById(id); return it && it.status !== 'Drop' && !onList[id] && !seen(id) && !taken[id]; });
+      const ids = mealItems(meal).filter((id) => { const it = itemById(id); return it && it.status !== 'Drop' && !isDelivery(it.store) && !onList[id] && !seen(id) && !taken[id]; });
       if (!ids.length) return;
       ids.forEach((id) => (taken[id] = 1));
       byMeal.push({ date: d, meal: meal, ids: ids });
@@ -1028,7 +1035,7 @@
   }
   const SMART = [['all', 'Everything'], ['due', '⏰ Probably due'], ['dinners', '🍽 For meals'], ['usual', '⭐ Usuals'], ['low', '📉 Running low'],
     ['recent', '🕘 Bought lately'], ['stale', '💤 Not lately'], ['cheaper', '💲 Cheaper elsewhere']];
-  const SHOP_STORES = [['all', 'All'], ['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon']];
+  const SHOP_STORES = [['all', 'All'], ['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['DLV', '🧊 Deliveries']];
   const SHOP_SORTS = [['most', 'Most bought'], ['last', 'Last bought'], ['az', 'A–Z']];
 
   // Shop top (Nov 2, Mike): search with a ✕ to clear it, and a Filter button that opens the filter panel
@@ -1080,7 +1087,8 @@
     let items = D().items.filter((i) => i.status !== 'Drop');
     if (f !== 'all') { const ids = sets[f] || []; items = ids.map(itemById).filter(Boolean); }
     if (S.shopHideListed) items = items.filter((i) => !sets.listed[i.id]);
-    if (st !== 'all') items = items.filter((i) => i.store === st || (i.store === 'Either' && takesEither(st)));
+    if (st === 'DLV') items = items.filter((i) => isDelivery(i.store));
+    else if (st !== 'all') items = items.filter((i) => i.store === st || (i.store === 'Either' && takesEither(st)));
     let close = false;
     if (q) { const fr = findItems(q, items); items = fr.hits; close = !fr.all && items.length > 0; }
 
@@ -1100,7 +1108,8 @@
       const stk = (D().stock || {})[i.id];
       if (stk) meta.push('at home: ' + esc(levelText(stk.level)) + ' (' + esc(daysAgo(stk.at)) + ')');
       return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + i.id + '"><span class="row-name">' + esc(i.name) + '</span><span class="row-meta">' + meta.join(' · ') + '</span></button>' +
-        (on ? '<button class="add-btn on" data-act="open-item" data-id="' + i.id + '" aria-label="' + esc(i.name) + ' is on the list">✓</button>'
+        (isDelivery(i.store) ? '<button class="add-btn dlv" data-act="open-item" data-id="' + i.id + '" aria-label="' + esc(i.name) + ' comes from ' + esc(storeOf(i.store).name) + '">🧊</button>'
+          : on ? '<button class="add-btn on" data-act="open-item" data-id="' + i.id + '" aria-label="' + esc(i.name) + ' is on the list">✓</button>'
           : '<button class="add-btn" data-act="add-item" data-id="' + i.id + '" aria-label="Add ' + esc(i.name) + '">+</button>') + '</div>';
     };
     if (f === 'due' || f === 'dinners' || f === 'low') {
@@ -1190,6 +1199,8 @@
       h += row.note || sh.noteOpen
         ? '<input class="field" data-input="row-note" data-id="' + row.id + '" value="' + esc(row.note || '') + '" placeholder="Note: brand, size, flavor…">'
         : '';
+    } else if (isDelivery(storeCode)) {
+      h += '<div class="dlv-note">🧊 ' + esc(storeOf(storeCode).delivery) + ' Nothing to buy; say how much is left below.</div>';
     } else {
       h += '<button class="btn btn-primary btn-block" data-act="add-item" data-id="' + esc(sh.item_id) + '">' + (kid ? 'Ask for it' : 'Add to the List') + '</button>';
     }
@@ -1297,7 +1308,7 @@
       more += acc('details', 'Details', esc([sh.d.status || '', swap, sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         return '<div class="is-details">' +
-          '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']]) + '</div>' +
+          '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
           (canTry() ? '<div><label>Open to trying something else?</label>' + seg('open_to_try', [['', 'No, we like it'], ['Y', 'Yes, suggest some']]) + '<p class="note">Yes = Claude looks for other brands and store brands at our stores and asks you in the Inbox (⚖ Decisions). Nothing changes until you say so.</p></div>' : '') +
@@ -1674,6 +1685,28 @@
     return h;
   }
 
+  // 🧊 On hand from deliveries (Nov 2): Wildgrain / Bleu Box items we still have, for planning around.
+  // An item counts once a delivery logged it (Stock) and nobody has said it's gone since.
+  function viewOnHand() {
+    const stock = D().stock || {};
+    const have = D().items.filter((i) => isDelivery(i.store) && i.status !== 'Drop' && stock[i.id] &&
+      ['out', 'waste', '0'].indexOf(String(stock[i.id].level).toLowerCase()) < 0);
+    if (!have.length) return '';
+    const closed = isClosed('onhand');
+    const srcs = Object.keys(STORES).filter((k) => isDelivery(k) && have.some((i) => i.store === k));
+    let h = '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="onhand" aria-expanded="' + !closed + '">' +
+      '<span>🧊 ON HAND FROM DELIVERIES</span><span class="head-btns"><span class="sub">' + have.length + '</span>' + chev(closed) + '</span></button>';
+    if (closed) return h + '<button class="peek" data-act="fold" data-key="onhand">' + esc(have.map((i) => i.name).join(', ')) + '</button></section>';
+    srcs.forEach((k) => {
+      h += '<div class="onhand-src"><span class="store-dot ' + storeOf(k).cls + '"></span>' + esc(storeOf(k).name) + '</div>';
+      have.filter((i) => i.store === k).forEach((i) => {
+        h += '<div class="row"><button class="row-main" data-act="open-item" data-id="' + i.id + '"><span class="row-name">' + esc(i.name) + '</span><span class="row-meta">' +
+          esc(levelText(stock[i.id].level)) + ' · ' + esc(daysAgo(stock[i.id].at)) + '</span></button></div>';
+      });
+    });
+    return h + '</section>';
+  }
+
   function viewMeals() {
     const plan = planByDate();
     const meals = D().meals.slice().sort((a, b) => String(a.name).localeCompare(b.name));
@@ -1695,6 +1728,7 @@
       html += '</section>';
     }
 
+    html += viewOnHand();
     html += viewIdeas();
 
     const kinds = canSlots() ? SLOTS.filter((x) => meals.some((m) => kindOf(m) === x[0])) : [];
@@ -1882,6 +1916,7 @@
       const item = itemById(id);
       if (!item) return '';
       if (listRowFor(id)) return '<div class="ing-row"><span class="row-name">' + esc(item.name) + '</span><span class="tag tag-listed">On list</span></div>';
+      if (isDelivery(item.store)) return '<div class="ing-row"><span class="row-name">' + esc(item.name) + '</span><span class="tag tag-have">🧊 ' + esc(storeOf(item.store).name) + '</span></div>';
       const need = picks[id] !== false;
       if (need) toAdd++;
       return '<div class="ing-row"><span class="row-name">' + esc(item.name) + '</span><button class="tag ' + (need ? 'tag-need' : 'tag-have') + '" data-act="ing" data-day="' + day + '" data-id="' + id + '">' +
@@ -2553,7 +2588,7 @@
     'add-meal': (el) => {
       const meal = mealById(el.dataset.id);
       const picks = S.mealPick[el.dataset.day] || {};
-      const ids = mealItems(meal).filter((id) => itemById(id) && !listRowFor(id) && picks[id] !== false);
+      const ids = mealItems(meal).filter((id) => itemById(id) && !isDelivery(itemById(id).store) && !listRowFor(id) && picks[id] !== false);
       if (!ids.length) return;
       const status = isKid(S.me) ? 'requested' : 'needed';
       S.openDay = null;
@@ -2587,7 +2622,7 @@
     'feedback-to-meal': () => { S.sheet = { type: 'idea', text: (S.sheet && S.sheet.text) || '' }; render(); },
     'meal-add-all': (el) => {
       const meal = mealById(el.dataset.id);
-      const ids = mealItems(meal).filter((id) => itemById(id) && !listRowFor(id));
+      const ids = mealItems(meal).filter((id) => itemById(id) && !isDelivery(itemById(id).store) && !listRowFor(id));
       if (!ids.length) return;
       const status = isKid(S.me) ? 'requested' : 'needed';
       act('addMeal', { meal_id: meal.id, item_ids: ids }, () => {
@@ -2740,7 +2775,7 @@
     'row-hold': (el) => { const r = sheetRow(); S.sheet = null; if (r) holdRow(r, '', el.dataset.until || ''); else render(); },
     'miss-add': (el) => {
       const meal = mealById(el.dataset.meal);
-      const ids = String(el.dataset.ids || '').split(',').filter((id) => itemById(id) && !listRowFor(id));
+      const ids = String(el.dataset.ids || '').split(',').filter((id) => itemById(id) && !isDelivery(itemById(id).store) && !listRowFor(id));
       if (!meal && ids.length === 1) { addItem(itemById(ids[0])); return; } // a planned item, not a meal
       if (!meal || !ids.length) return;
       const status = isKid(S.me) ? 'requested' : 'needed';
