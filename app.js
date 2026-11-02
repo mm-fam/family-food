@@ -999,7 +999,13 @@
       due: D().due.map((d) => d.id).filter((id) => !listed[id]),
       usual: items.filter(usual).map((i) => i.id),
       dinners: dinnerIds.filter((id) => itemById(id)),
-      low: Object.keys(stock).filter((id) => (stock[id].level === 'low' || stock[id].level === 'out') && ago(stock[id].at) <= 14),
+      // Running low clears once it's on the List or bought since (api 28 last_bought counts receipts and List buys);
+      // a later Plenty / Some sighting replaces it (stock[id] is the newest sighting).
+      low: Object.keys(stock).filter((id) => {
+        const st = stock[id], it = itemById(id);
+        if (!it || listed[id] || !(st.level === 'low' || st.level === 'out') || ago(st.at) > 14) return false;
+        return !(it.last_bought && String(it.last_bought).slice(0, 10) >= String(st.at).slice(0, 10));
+      }),
       recent: items.filter((i) => ago(i.last_bought) <= 14).map((i) => i.id),
       // A usual we haven't bought in a month and at least twice its normal gap: easy to forget.
       stale: items.filter((i) => usual(i) && i.last_bought && !listed[i.id] && ago(i.last_bought) >= Math.max(30, 2 * (Number(i.avg_days) || 0))).map((i) => i.id),

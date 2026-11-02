@@ -176,7 +176,14 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      when it finishes a job) ride along in state.cartJobs, so the Carts screen shows $ per cart and in total.
 // 27 = state.settings.runner_seen: when the cart runner on the owner's computer last started a run (it writes Settings
 //      runner_seen first thing, every run), so the app can say plainly whether the cart helper is alive.
-const API_VERSION = 27;
+// 28 = buying rhythm from every purchase (Nov 2): state.items carry last_bought / avg_days / orders worked out from
+//      Receipts (emailed receipts + Giant Eagle's own order history, read weekly by the cart runner) AND List rows
+//      someone marked bought (In store, Did we get it?, Bought it), so "Probably due", "Not lately" and Use soon
+//      don't wait for receipts. The Items J:M formulas are untouched (receipts only). state.freshness = newest
+//      Receipts date per store.
+const API_VERSION = 28;
+const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
+const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -394,11 +401,23 @@ function getState() {
     });
   }
 
+  // Buying rhythm from every purchase we know of (api 28): overrides the receipt-only Items formulas in state.
+  const buys = buyHistory(items, list, today);
+  items.forEach((it) => {
+    const b = buys.byItem[it.id];
+    if (!b) return;
+    it.last_bought = b.last;
+    it.orders = b.orders;
+    if (b.avg) it.avg_days = b.avg;
+  });
+
   // "Probably due": we have a buying rhythm for it, it's about that time, and it isn't listed.
   const due = items
     .filter((it) => it.status !== 'Drop' && it.avg_days && it.last_bought && !onList[it.id] && !stocked[it.id])
     .map((it) => ({ id: it.id, since: daysBetween(it.last_bought, today), every: Number(it.avg_days) }))
-    .filter((d) => d.since >= d.every - 2)
+    // Due from 2 days before the usual gap until twice the gap (at least a week past it); after that it's
+    // something we've stopped buying, and Shop's "Not lately" filter is where it shows.
+    .filter((d) => d.since >= d.every - 2 && d.since <= Math.max(2 * d.every, d.every + 7))
     .sort((a, b) => b.since / b.every - a.since / a.every)
     .slice(0, 12);
 
@@ -427,6 +446,7 @@ function getState() {
     weekOf: weekOf(today),
     review: readTab(TABS.review).filter((r) => r.status === 'open').map(stripRow),
     due: due,
+    freshness: buys.freshness,
     useSoon: useSoonList(today, items, list, stockRows, onList),
     stock: stockLatest,
     products: productsMap(),
@@ -442,6 +462,34 @@ function getState() {
       runner_seen: settings.runner_seen instanceof Date ? Utilities.formatDate(settings.runner_seen, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.runner_seen || ''),
     },
   };
+}
+
+// Every purchase per item: Receipts rows (any store) plus List / List Archive rows set `bought`. Dates closer than
+// SAME_TRIP_DAYS count as one purchase. Returns { byItem: {id: {last, orders, avg}}, freshness: {GE: 'yyyy-mm-dd', ...} }.
+// avg = average gap between purchases in the last RHYTHM_DAYS (needs 2+ purchases in that window).
+function buyHistory(items, list, today) {
+  const dates = {};
+  const add = (id, d) => { if (id && /^\d{4}-\d\d-\d\d$/.test(d) && d <= today) (dates[id] = dates[id] || {})[d] = true; };
+  const freshness = {};
+  const rs = SpreadsheetApp.getActive().getSheetByName(TABS.receipts) ? readTab(TABS.receipts) : [];
+  rs.forEach((r) => {
+    const d = String(r.date || '').slice(0, 10);
+    add(r.item_id, d);
+    const st = String(r.store || '');
+    if (st && /^\d{4}-\d\d-\d\d$/.test(d) && (!freshness[st] || d > freshness[st])) freshness[st] = d;
+  });
+  const arch = SpreadsheetApp.getActive().getSheetByName('List Archive') ? readTab('List Archive') : [];
+  list.concat(arch).forEach((r) => { if (r.status === 'bought' && r.updated_at) add(r.item_id, dayOf(r.updated_at)); });
+  const byItem = {};
+  Object.keys(dates).forEach((id) => {
+    const ds = Object.keys(dates[id]).sort();
+    const trips = [];
+    ds.forEach((d) => { if (!trips.length || daysBetween(trips[trips.length - 1], d) > SAME_TRIP_DAYS) trips.push(d); else trips[trips.length - 1] = d; });
+    const recent = trips.filter((d) => daysBetween(d, today) <= RHYTHM_DAYS);
+    const avg = recent.length >= 2 ? Math.round(daysBetween(recent[0], recent[recent.length - 1]) / (recent.length - 1)) : '';
+    byItem[id] = { last: trips[trips.length - 1], orders: trips.length, avg: avg };
+  });
+  return { byItem: byItem, freshness: freshness };
 }
 
 function stripRow(o) {
