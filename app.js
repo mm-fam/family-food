@@ -144,7 +144,36 @@
   const stem = (w) => w.replace(/(ies)$/, 'y').replace(/(sses|shes|ches|xes)$/, (m) => m.slice(0, -2)).replace(/([^s])s$/, '$1');
   const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9&' ]+/g, ' ').split(/\s+/).filter(Boolean).map(stem);
   function itemWords(i) {
-    return words([i.name, i.brand_size, i.group, String(i.aliases || '').replace(/;/g, ' ')].join(' '));
+    // The store's own product names count too ("Nounos Creamery", "skyr", "Fage").
+    const prods = ((S.data && S.data.products) || {})[i.id] || {};
+    const pnames = Object.keys(prods).map((k) => prods[k] && prods[k].name).filter(Boolean).join(' ');
+    return words([i.name, i.brand_size, i.group, String(i.aliases || '').replace(/;/g, ' '), pnames].join(' '));
+  }
+  // Search order (Nov 2: "yogurt" put Nounos below Chobani and a GE tub nobody's bought since June, under the
+  // phone keyboard). How well the NAME matches comes first, then what we buy now: items still bought at their
+  // usual pace, most often first. Raw order counts mislead: GE has years of history, WF only a few receipts.
+  function nameTier(i, n, qw) {
+    // "yog" is as good a match for "Nounos Greek yogurt" as for "Yoggies": what we buy decides between them.
+    const name = String(i.name || '').toLowerCase();
+    const nw = words(name);
+    if (qw.every((w) => nw.some((x) => x.indexOf(w) === 0))) return 0;
+    if (qw.every((w) => name.indexOf(w) >= 0)) return 1;
+    return 2; // matched on brand, aisle, aliases or a store product name
+  }
+  function useTier(i) {
+    if (!i.last_bought) return [3, 9999];
+    const d = Math.round((new Date(D().today + 'T12:00:00') - new Date(String(i.last_bought).slice(0, 10) + 'T12:00:00')) / 86400000);
+    const avg = Number(i.avg_days) || 0;
+    if (avg && d <= Math.max(2 * avg, 45)) return [0, avg]; // still buying it at its usual pace
+    if (d <= 180) return [1, d];
+    return [2, d];
+  }
+  function rankHits(hits, q) {
+    const n = String(q).trim().toLowerCase();
+    const qw = words(n);
+    return hits.map((i) => ({ i: i, t: nameTier(i, n, qw), u: useTier(i) })).sort((a, b) =>
+      a.t - b.t || a.u[0] - b.u[0] || a.u[1] - b.u[1] || (Number(b.i.orders) || 0) - (Number(a.i.orders) || 0) ||
+      String(a.i.name).localeCompare(b.i.name)).map((x) => x.i);
   }
   // Score = how many query words an item matches (word starts, so "turk" finds turkey). 0 = no match.
   function matchScore(i, qw) {
@@ -166,13 +195,7 @@
   function searchItems(q, limit) {
     const n = q.trim().toLowerCase();
     if (!n) return [];
-    const hits = findItems(n, D().items.filter((i) => i.status !== 'Drop')).hits.slice();
-    hits.sort((a, b) => {
-      const as = String(a.name).toLowerCase().indexOf(n) === 0 ? 0 : 1;
-      const bs = String(b.name).toLowerCase().indexOf(n) === 0 ? 0 : 1;
-      return as - bs || (Number(b.orders) || 0) - (Number(a.orders) || 0);
-    });
-    return hits.slice(0, limit || 6);
+    return rankHits(findItems(n, D().items.filter((i) => i.status !== 'Drop')).hits, n).slice(0, limit || 6);
   }
 
   /* ---------- plan dates (rolling window; one dinner per date) ---------- */
@@ -1093,9 +1116,10 @@
     if (q) { const fr = findItems(q, items); items = fr.hits; close = !fr.all && items.length > 0; }
 
     let html = '';
-    if (q && !D().items.some((i) => String(i.name).toLowerCase() === q)) {
-      html += '<button class="new-item" data-act="add-new"><span class="add-btn" aria-hidden="true">+</span><span>Add “' + esc(S.query.trim()) + '” as ' + (isKid(S.me) ? 'a request' : 'something new') + '</span></button>';
-    }
+    // With matches, "Add … as something new" goes under them: on a phone the keyboard leaves room for ~3 rows.
+    const addNewBtn = (q && !D().items.some((i) => String(i.name).toLowerCase() === q))
+      ? '<button class="new-item" data-act="add-new"><span class="add-btn" aria-hidden="true">+</span><span>Add “' + esc(S.query.trim()) + '” as ' + (isKid(S.me) ? 'a request' : 'something new') + '</span></button>' : '';
+    if (addNewBtn && (!items.length || close)) html += addNewBtn;
     if (close) html += '<p class="note search-close">Nothing matches every word. Closest matches:</p>';
     const row = (i) => {
       const on = !!sets.listed[i.id];
@@ -1112,7 +1136,11 @@
           : on ? '<button class="add-btn on" data-act="open-item" data-id="' + i.id + '" aria-label="' + esc(i.name) + ' is on the list">✓</button>'
           : '<button class="add-btn" data-act="add-item" data-id="' + i.id + '" aria-label="Add ' + esc(i.name) + '">+</button>') + '</div>';
     };
-    if (f === 'due' || f === 'dinners' || f === 'low') {
+    if (q) {
+      // A search is one list, best match first (not by aisle), so the right item is the top row.
+      if (items.length) html += '<section class="card">' + rankHits(items, q).map(row).join('') + '</section>';
+      if (addNewBtn && items.length && !close) html += addNewBtn;
+    } else if (f === 'due' || f === 'dinners' || f === 'low') {
       if (items.length) html += '<section class="card">' + items.map(row).join('') + '</section>';
     } else {
       const sort = S.shopSort || 'most';
