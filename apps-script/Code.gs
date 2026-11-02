@@ -181,7 +181,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      someone marked bought (In store, Did we get it?, Bought it), so "Probably due", "Not lately" and Use soon
 //      don't wait for receipts. The Items J:M formulas are untouched (receipts only). state.freshness = newest
 //      Receipts date per store.
-const API_VERSION = 28;
+// 29 = ideas and alternatives (Nov 2, Mike): a 💡 idea (feedback) emails the owner right away (MailApp, owner only;
+//      Settings idea_alerts = off stops it, alert_email overrides the address); Items open_to_try (Y = "we'd try
+//      something else": parents set it in Details) tells the cart runner's price pass to look up alternatives and
+//      the morning check to offer them as parents' `try` cards.
+const API_VERSION = 29;
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
@@ -735,10 +739,11 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
   if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
+  if (f.open_to_try !== undefined) { f.open_to_try = /^y/i.test(String(f.open_to_try)) ? 'Y' : ''; ensureColumn(TABS.items, 'open_to_try'); }
   if (f.shelf_days !== undefined) {
     const n = parseInt(f.shelf_days, 10);
     f.shelf_days = n > 0 && n <= 365 ? n : '';
@@ -1323,7 +1328,41 @@ function addFeedback(req) {
   if (!sh) { sh = SpreadsheetApp.getActive().insertSheet(TABS.feedback); sh.appendRow(FEEDBACK_HEAD); sh.setFrozenRows(1); }
   const id = nextId(readTab(TABS.feedback), 'id', 'f', 3);
   appendObj(TABS.feedback, { id: id, at: nowStamp(), who: req.by || '', tab: req.tab || '', text: text, status: 'new', notes: '' });
+  const sent = ideaAlert(id, req.by, req.tab, text);
+  if (sent !== true) {
+    const row = readTab(TABS.feedback).find((r) => r.id === id);
+    if (row && sent) setFields(TABS.feedback, row._row, { notes: 'alert not sent: ' + sent });
+  }
   return { id: id };
+}
+
+// api 29: a new 💡 idea reaches the owner (Mike) in minutes, not at the next morning check. Email to the owner only,
+// never to anyone else in the family. Returns true when sent, '' when turned off, or the error text.
+function ideaAlert(id, who, tab, text) {
+  try {
+    const st = settingsMap();
+    if (/^(off|no|n)$/i.test(String(st.idea_alerts || '').trim())) return '';
+    const to = String(st.alert_email || '').trim() || Session.getEffectiveUser().getEmail();
+    if (!to) return 'no address';
+    const where = tab ? ' (' + tab + ' tab)' : '';
+    MailApp.sendEmail({
+      to: to,
+      subject: '💡 Poppy idea from ' + (who || 'someone') + where,
+      body: text + '\n\n— ' + (who || 'Someone') + where + ', ' + nowStamp().replace('T', ' ') + ' · ' + id +
+        '\n\nOpen a Poppy chat with Claude to react to it. Sheet: ' + SpreadsheetApp.getActive().getUrl() + '#gid=' + SpreadsheetApp.getActive().getSheetByName(TABS.feedback).getSheetId(),
+      name: 'Poppy 2.0',
+    });
+    return true;
+  } catch (err) {
+    return String(err && err.message ? err.message : err).slice(0, 120);
+  }
+}
+
+// Run once from the Apps Script editor (function dropdown → authorizeAlerts → Run) to approve email sending and get
+// a test email. Until that's approved, ideas are still saved; the App Feedback row notes say the alert wasn't sent.
+function authorizeAlerts() {
+  Logger.log('Emails left today: ' + MailApp.getRemainingDailyQuota());
+  Logger.log(ideaAlert('test', 'Poppy', '', 'Test: idea alerts are on. New 💡 ideas from the app will land here.'));
 }
 
 /* ---------------------------------------------------------------- automatic Q&A cards */

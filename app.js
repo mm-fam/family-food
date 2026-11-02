@@ -886,6 +886,8 @@
   /* ---------- use soon (api 22) ---------- */
   // Perishables near their last good day (bought date + Items shelf_days). Used it / Tossed / Still good.
   const canUseSoon = () => Number(D().api || 0) >= 22;
+  // api 29: Items open_to_try ("we'd try something else": the price pass looks up alternatives, offered as `try` cards).
+  const canTry = () => Number(D().api || 0) >= 29;
   function useSoonWhen(x) {
     if (x.left >= 1) return 'good through tomorrow';
     if (x.left === 0) return 'last good day today';
@@ -1133,7 +1135,7 @@
     const it = itemById(itemId);
     S.sheet = {
       type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
-      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}) : null,
+      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}) : null,
     };
     render();
     if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
@@ -1285,12 +1287,13 @@
     // Details (store, swaps, how often): parents edit, kids read.
     if (it && sh.d) {
       const swap = { Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping';
-      more += acc('details', 'Details', esc([sh.d.status || '', swap].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
+      more += acc('details', 'Details', esc([sh.d.status || '', swap, sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         return '<div class="is-details">' +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']]) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
+          (canTry() ? '<div><label>Open to trying something else?</label>' + seg('open_to_try', [['', 'No, we like it'], ['Y', 'Yes, suggest some']]) + '<p class="note">Yes = Claude looks for other brands and store brands at our stores and asks you in the Inbox (⚖ Decisions). Nothing changes until you say so.</p></div>' : '') +
           '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
           '<div><label for="d-brand">Brand / size</label><input id="d-brand" class="field" style="width:100%" data-input="d" data-field="brand_size" value="' + esc(sh.d.brand_size) + '"' + (kid ? ' disabled' : '') + '></div>' +
           '<div><label for="d-aisle">Aisle</label><select id="d-aisle" class="select" style="width:100%" data-input="d" data-field="group"' + (kid ? ' disabled' : '') + '>' + GROUPS.map((g) => '<option' + (g === sh.d.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
@@ -1960,7 +1963,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }
