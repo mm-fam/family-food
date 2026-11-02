@@ -677,11 +677,13 @@
   const priceAge = (iso) => (iso ? Math.round((new Date(D().today + 'T12:00:00') - new Date(String(iso).slice(0, 10) + 'T12:00:00')) / 86400000) : 9999);
   const hasPrice = (p) => !!(p && p.unit_price !== '' && p.unit_price != null && Number(p.unit_price) > 0 && p.unit);
   const freshPrice = (p) => hasPrice(p) && priceAge(p.price_at) <= PRICE_FRESH_DAYS;
+  // Like items only: an `alt` Products row is a different product (another brand, organic vs not), never compared.
+  const likeItem = (p) => !!p && p.match !== 'alt';
   const fmtUnit = (p) => { const v = Number(p.unit_price); return (v < 1 ? (v * 100).toFixed(1).replace(/\.0$/, '') + '¢' : '$' + v.toFixed(2)) + '/' + p.unit; };
   // Fresh, priced products for an item: [{ store, ...product }], cheapest first.
   function itemPrices(itemId) {
     const prods = (D().products || {})[itemId] || {};
-    return Object.keys(prods).map((k) => Object.assign({ store: k }, prods[k])).filter(freshPrice)
+    return Object.keys(prods).map((k) => Object.assign({ store: k }, prods[k])).filter((p) => freshPrice(p) && likeItem(p))
       .sort((a, b) => Number(a.unit_price) - Number(b.unit_price));
   }
   // Is another store meaningfully cheaper than `base` for this item? → { store, pct, save } or null.
@@ -1051,11 +1053,11 @@
         const unit = (itemPrices(sh.item_id)[0] || priced[0]).unit;
         const same = priced.filter((p) => p.unit === unit).sort((a, b) => Number(a.unit_price) - Number(b.unit_price));
         const max = Math.max.apply(null, same.map((p) => Number(p.unit_price)));
-        const low = same.find(freshPrice);
+        const low = same.find((p) => freshPrice(p) && likeItem(p));
         h += '<div class="is-prices"><div class="is-label">Price by store · per ' + esc(unit) + '</div>' + same.map((p) => {
-          const stale = !freshPrice(p);
-          const best = !stale && low && p.store === low.store && same.filter(freshPrice).length > 1;
-          return '<div class="price-row' + (stale ? ' stale' : '') + (best ? ' best' : '') + '"><span>' + esc(storeOf(p.store).short || storeOf(p.store).name) + '</span>' +
+          const stale = !freshPrice(p) || !likeItem(p);
+          const best = !stale && low && p.store === low.store && same.filter((x) => freshPrice(x) && likeItem(x)).length > 1;
+          return '<div class="price-row' + (stale ? ' stale' : '') + (best ? ' best' : '') + '"><span>' + esc(storeOf(p.store).short || storeOf(p.store).name) + (likeItem(p) ? '' : '*') + '</span>' +
             '<span class="price-bar"><i class="' + storeOf(p.store).cls + '" style="width:' + Math.max(8, Math.round(Number(p.unit_price) / max * 100)) + '%"></i></span>' +
             '<span class="price-val">' + fmtUnit(p) + '</span></div>';
         }).join('');
@@ -1067,7 +1069,8 @@
         });
         const dates = same.map((p) => p.price_at).filter(Boolean).sort();
         h += '<p class="price-note">Store prices from ' + (dates.length ? esc(fmtShort(dates[0])) + (dates[0] !== dates[dates.length - 1] ? '–' + esc(fmtShort(dates[dates.length - 1])) : '') : 'an unknown day') +
-          (same.some((p) => !freshPrice(p)) ? '. Grey = older than a month, not compared.' : '.') + ' What we paid is under History.</p>';
+          (same.some((p) => !freshPrice(p)) ? '. Grey = older than a month or not the same product, not compared.' : '.') + ' What we paid is under History.</p>';
+        if (same.some((p) => !likeItem(p))) h += '<p class="price-note">* A different product there (another brand or kind), so it isn’t compared.</p>';
         if (same.length < priced.length) h += '<p class="price-note">Some stores sell it by a different unit, so they aren’t compared.</p>';
         h += '</div>';
       }

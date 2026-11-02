@@ -164,7 +164,8 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      a daily parents' card (type waste) for anything tossed 2+ times in 60 days.
 // 23 = prices: state.products rows also carry price, unit_price, unit, price_at (Products columns Claude fills from
 //      store sites); each store can carry `sb` = the cheapest priced store-brand row (Products store_brand = Y).
-//      The app compares unit prices across stores (item screen, List tag, before Build the cart).
+//      The app compares unit prices across stores (item screen, List tag, before Build the cart). Each row also
+//      carries `match`: only exact / likely rows are compared (alt = a different product, e.g. organic vs not).
 // 24 = cartJobsOpen: light read of open cart jobs for the cart watcher on the owner's PC (polls every minute).
 // 25 = carts by line (Nov 2): List cart_want / cart_by / cart_note. cartPush {rows: [{id, store}]} puts List
 //      rows in a store's online cart (or moves them there from another cart); cartRemove {ids} takes them out (or
@@ -459,6 +460,7 @@ function productsMap() {
   const pick = (p) => ({
     name: String(p.product || ''), size: String(p.size || ''), aisle: String(p.aisle || ''),
     price: num(p.price), unit_price: num(p.unit_price), unit: String(p.unit || ''), price_at: day(p.price_at),
+    match: String(p.match || ''),
   });
   readTab(TABS.products).forEach((p) => {
     if (!p.item_id || !p.store) return;
@@ -466,7 +468,7 @@ function productsMap() {
     const r = rank[String(p.match)] === undefined ? 3 : rank[String(p.match)];
     const storeBrand = /^y/i.test(String(p.store_brand || ''));
     if (storeBrand && r !== 0) {
-      if (num(p.unit_price) !== '' && (!sb[k] || Number(p.unit_price) < Number(sb[k].unit_price))) sb[k] = p;
+      if (num(p.unit_price) !== '') (sb[k] = sb[k] || []).push(p);
       return;
     }
     const b = best[k];
@@ -478,7 +480,9 @@ function productsMap() {
     const p = best[k];
     out[p.item_id] = out[p.item_id] || {};
     const o = pick(p);
-    if (sb[k]) o.sb = pick(sb[k]);
+    // Cheapest store-brand option in the same unit as what we buy (other units can't be compared).
+    const opts = (sb[k] || []).filter((x) => String(x.unit || '') === o.unit).sort((a, b) => Number(a.unit_price) - Number(b.unit_price));
+    if (opts.length) o.sb = pick(opts[0]);
     out[p.item_id][p.store] = o;
   });
   return out;
