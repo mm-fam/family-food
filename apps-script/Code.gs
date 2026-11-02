@@ -185,7 +185,7 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      Settings idea_alerts = off stops it, alert_email overrides the address); Items open_to_try (Y = "we'd try
 //      something else": parents set it in Details) tells the cart runner's price pass to look up alternatives and
 //      the morning check to offer them as parents' `try` cards.
-const API_VERSION = 29;
+const API_VERSION = 30;
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
@@ -704,12 +704,21 @@ function setPlan(req) {
   if (headers(TABS.plan).indexOf('slot') >= 0) fields.slot = slot;
   const note = req.note === undefined ? null : String(req.note || '');
   if (note !== null && headers(TABS.plan).indexOf('note') >= 0) fields.note = note;
-  const keep = req.meal_id || (note !== null ? note : existing && existing.note);
+  // api 30: a slot can hold a catalog item instead of a meal (a snack that's just something we buy,
+  // like trail mix). Meals are things with 2+ ingredients and a recipe. One or the other, never both.
+  const itemId = req.meal_id ? '' : String(req.item_id || '');
+  if (itemId) {
+    if (!readTab(TABS.items).some((it) => it.id === itemId)) throw new Error('Item not found');
+    ensureColumn(TABS.plan, 'item_id');
+  }
+  const keep = req.meal_id || itemId || (note !== null ? note : existing && existing.note);
+  const what = { meal_id: req.meal_id || '' };
+  if (itemId || headers(TABS.plan).indexOf('item_id') >= 0) what.item_id = itemId;
   if (existing) {
     if (!keep) sheet(TABS.plan).deleteRow(existing._row);
-    else setFields(TABS.plan, existing._row, Object.assign(fields, { meal_id: req.meal_id || '' }));
+    else setFields(TABS.plan, existing._row, Object.assign(fields, what));
   } else if (keep) {
-    appendObj(TABS.plan, Object.assign(fields, { meal_id: req.meal_id || '' }));
+    appendObj(TABS.plan, Object.assign(fields, what));
   }
   return { date: date, day: fields.day, slot: slot };
 }
@@ -774,9 +783,12 @@ function makeMissions(today, kids, review, plan, mealOf) {
   const ok = (id) => byId[id] && !onList[id] && !seen[id];
   const picks = [];
   const take = (id, why) => { if (ok(id) && picks.every((p) => p.id !== id)) picks.push({ id: id, why: why }); };
-  plan.filter((p) => { const d = planDate(p); return d && d >= today && daysBetween(today, d) < MISSION_PLAN_DAYS && !isLeftover(p) && mealOf[p.meal_id]; })
+  plan.filter((p) => { const d = planDate(p); return d && d >= today && daysBetween(today, d) < MISSION_PLAN_DAYS && !isLeftover(p) && (mealOf[p.meal_id] || (p.item_id && byId[p.item_id])); })
     .sort((a, b) => (planDate(a) < planDate(b) ? -1 : 1))
-    .forEach((p) => String(mealOf[p.meal_id].item_ids || '').split(/[;,\s]+/).filter(String).forEach((id) => take(id, mealOf[p.meal_id].name)));
+    .forEach((p) => {
+      if (mealOf[p.meal_id]) String(mealOf[p.meal_id].item_ids || '').split(/[;,\s]+/).filter(String).forEach((id) => take(id, mealOf[p.meal_id].name));
+      else take(p.item_id, byId[p.item_id].name); // a planned item (api 30)
+    });
   items.filter((i) => i.avg_days && i.last_bought)
     .map((i) => ({ id: i.id, r: daysBetween(String(i.last_bought).slice(0, 10), today) / Number(i.avg_days), late: daysBetween(String(i.last_bought).slice(0, 10), today) >= Number(i.avg_days) - 2 }))
     .filter((x) => x.late).sort((a, b) => b.r - a.r).forEach((x) => take(x.id, ''));

@@ -841,3 +841,7 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .miss-link { white-space: nowrap; }
 .list-tools .chips-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 .list-tools .chips-row .pill { flex-shrink: 0; }
+
+/* Day sheet: "Something else we buy…" search under a slot row (api 30). */
+.slot-find { padding: 6px 0 12px; border-bottom: 1px solid var(--line, rgba(0,0,0,.08)); }
+.slot-find .link-btn { margin-top: 6px; }

@@ -202,6 +202,10 @@
     D().plan.forEach((p) => { const d = planDate(p); if (d && slotOf(p) === want && p.meal_id) m[d] = p.meal_id; });
     return m;
   }
+  // Planned items (api 30): a slot can hold something we buy instead of a meal. Meals have 2+ ingredients
+  // and a recipe; a snack like trail mix is just an item.
+  const canPlanItems = () => Number(D().api || 0) >= 30;
+  const planItem = (p) => (p && !p.meal_id && p.item_id ? itemById(p.item_id) : null);
   // The rows planned on one date, by slot.
   function planDay(date) {
     const o = {};
@@ -213,7 +217,8 @@
     if (!p) return '';
     const m = mealById(p.meal_id || '');
     if (isLeftover(p)) return m ? 'Leftover ' + m.name : String(p.note);
-    return m ? m.name : String(p.note || '');
+    const it = !m && p.item_id ? itemById(p.item_id) : null; // a planned item, e.g. a snack we just buy (api 30)
+    return m ? m.name : it ? it.name : String(p.note || '');
   }
 
   function shortDay(iso) {
@@ -529,7 +534,9 @@
     let best = null;
     (D().plan || []).forEach((p) => {
       const d = planDate(p);
-      if (!d || d < today || d > last || isLeftover(p) || !p.meal_id) return;
+      if (!d || d < today || d > last || isLeftover(p)) return;
+      if (planItem(p)) { if (p.item_id === r.item_id && (!best || d < best.date)) best = { meal: planItem(p), date: d, planned: true }; return; }
+      if (!p.meal_id) return;
       const meal = mealById(p.meal_id);
       if (meal && mealItems(meal).indexOf(r.item_id) >= 0 && (!best || d < best.date)) best = { meal: meal, date: d, planned: true };
     });
@@ -752,7 +759,13 @@
     let meals = 0;
     (D().plan || []).slice().sort((a, b) => (planDate(a) < planDate(b) ? -1 : 1)).forEach((p) => {
       const d = planDate(p);
-      if (!d || d < today || d > last || isLeftover(p) || !p.meal_id) return;
+      if (!d || d < today || d > last || isLeftover(p)) return;
+      const pi = planItem(p);
+      if (pi) {
+        if (pi.status !== 'Drop' && !onList[pi.id] && !seen(pi.id) && !taken[pi.id]) { taken[pi.id] = 1; byMeal.push({ date: d, meal: { id: '', name: pi.name }, ids: [pi.id] }); }
+        return;
+      }
+      if (!p.meal_id) return;
       const meal = mealById(p.meal_id);
       if (!meal) return;
       meals++;
@@ -988,7 +1001,9 @@
     const window = planDates();
     const dinnerIds = [];
     D().plan.forEach((p) => {
-      if (isLeftover(p) || !p.meal_id || window.indexOf(planDate(p)) < 0) return;
+      if (isLeftover(p) || window.indexOf(planDate(p)) < 0) return;
+      if (planItem(p)) { if (dinnerIds.indexOf(p.item_id) < 0) dinnerIds.push(p.item_id); return; }
+      if (!p.meal_id) return;
       mealItems(mealById(p.meal_id)).forEach((id) => dinnerIds.indexOf(id) < 0 && dinnerIds.push(id));
     });
     const stock = D().stock || {};
@@ -1543,6 +1558,20 @@
       '</div>';
   }
 
+  // Picker options for breakfast / lunch / snack (api 30): the meals, then "Something we buy": items in the
+  // Snacks aisle on the snack row, plus whatever item is planned there now, and a search for anything else.
+  function slotOptions(meals, slot, p) {
+    const m = p && mealById(p.meal_id || '');
+    let html = mealOptions(meals, slot, m ? m.id : '');
+    if (!canPlanItems() || slot === 'dinner') return html;
+    const cur = planItem(p);
+    const pool = D().items.filter((i) => i.status !== 'Drop' && (slot === 'snack' && i.group === 'Snacks' || (cur && i.id === cur.id)))
+      .sort((a, b) => String(a.name).localeCompare(b.name));
+    html += '<optgroup label="Something we buy">' + pool.map((i) => '<option value="i:' + i.id + '"' + (cur && cur.id === i.id ? ' selected' : '') + '>' + esc(i.name) + '</option>').join('') +
+      '<option value="find">🔎 Something else we buy…</option></optgroup>';
+    return html;
+  }
+
   // Picker options: meals of this slot's kind first, the rest under "Other meals".
   function mealOptions(meals, slot, selected) {
     const opt = (m) => '<option value="' + m.id + '"' + (m.id === selected ? ' selected' : '') + '>' + esc(m.name) + '</option>';
@@ -1562,19 +1591,41 @@
       SLOTS.map((x) => {
         const p = rows[x[0]];
         const m = p && mealById(p.meal_id || '');
+        const pi = planItem(p);
         const t = planText(p);
+        const open = m ? '<button class="btn btn-plain slot-open" data-act="open-meal" data-id="' + m.id + '" aria-label="Open ' + esc(m.name) + '">↗</button>'
+          : pi ? '<button class="btn btn-plain slot-open" data-act="open-item" data-id="' + pi.id + '" aria-label="Open ' + esc(pi.name) + '">↗</button>' : '<span class="slot-open"></span>';
         if (readOnly) {
           return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
-            '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '—') + '</span></div>' +
-            (m ? '<button class="btn btn-plain slot-open" data-act="open-meal" data-id="' + m.id + '" aria-label="Open ' + esc(m.name) + '">↗</button>' : '<span class="slot-open"></span>') + '</div>';
+            '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '—') + '</span></div>' + open + '</div>';
         }
         return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
           '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '+ Pick ' + x[1].toLowerCase()) + '</span>' +
           '<label class="sr" for="slot-' + x[0] + '">' + x[1] + '</label><select id="slot-' + x[0] + '" data-input="slot-plan" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
-          mealOptions(meals, x[0], m ? m.id : '') + '</select></div>' +
-          (m ? '<button class="btn btn-plain slot-open" data-act="open-meal" data-id="' + m.id + '" aria-label="Open ' + esc(m.name) + '">↗</button>' : '<span class="slot-open"></span>') + '</div>';
+          slotOptions(meals, x[0], p) + '</select></div>' + open + '</div>' +
+          (sh.find === x[0] ? slotFind(sh, x[0]) : '');
       }).join('') +
       '<p class="note">' + (readOnly ? 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.' : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.') + '</p>';
+  }
+
+  // "Something else we buy…" on a day-sheet row: search the catalog and plan the item itself.
+  function slotFind(sh, slot) {
+    const q = String(sh.fq || '').trim();
+    const found = q ? findItems(q, D().items.filter((i) => i.status !== 'Drop')) : { all: false };
+    const hits = found.all ? searchItems(q, 6) : [];
+    return '<div class="slot-find"><label class="sr" for="slot-fq">Find something we buy</label>' +
+      '<input id="slot-fq" class="field" style="width:100%" data-input="draft" data-field="fq" value="' + esc(sh.fq || '') + '" placeholder="Search what we buy, e.g. trail mix" autocomplete="off">' +
+      (q ? '<div class="suggest suggest-inline">' + (hits.length ? '' : '<div class="s-none">Nothing we buy matches “' + esc(q) + '”. Add it in Shop first.</div>') +
+        hits.map((h) => '<button type="button" data-act="slot-item" data-slot="' + slot + '" data-id="' + h.id + '"><span class="s-name">' + esc(h.name) + '</span><span class="s-meta">' + esc(storeOf(h.store).name) + '</span></button>').join('') +
+        '<button type="button" class="s-close" data-act="slot-find-close">Close</button></div>'
+        : '<button type="button" class="link-btn" data-act="slot-find-close">Cancel</button>') + '</div>';
+  }
+  function planSlotItem(day, slot, itemId) {
+    const wk = addDays(day, -DAYS.indexOf(dayName(day)));
+    act('planSet', { date: day, day: dayName(day), week_of: wk, meal_id: '', item_id: itemId, slot: slot, note: '' }, () => {
+      D().plan = D().plan.filter((p) => !(planDate(p) === day && slotOf(p) === slot));
+      D().plan.push({ date: day, week_of: wk, day: dayName(day), meal_id: '', item_id: itemId, slot: slot });
+    });
   }
 
   // Text for Hearth Helper: one block per day, Breakfast / Lunch / Snack / Dinner.
@@ -2573,6 +2624,8 @@
       try { await navigator.share({ text: hearthText(hearthDays(S.sheet.week)) }); } catch (e) { /* cancelled */ }
     },
     'ing-add': (el) => { S.sheet.item_ids.push(el.dataset.id); S.sheet.q = ''; render(); const f = document.getElementById('sh-mq'); if (f) f.focus(); },
+    'slot-item': (el) => { const sh = S.sheet; sh.find = null; sh.fq = ''; planSlotItem(sh.day, el.dataset.slot, el.dataset.id); },
+    'slot-find-close': () => { S.sheet.find = null; S.sheet.fq = ''; render(); },
     'ing-clear': () => { S.sheet.q = ''; render(); },
     // A new catalog item straight from the meal editor (itemSave without an id creates one).
     'ing-new': async () => {
@@ -2688,6 +2741,7 @@
     'miss-add': (el) => {
       const meal = mealById(el.dataset.meal);
       const ids = String(el.dataset.ids || '').split(',').filter((id) => itemById(id) && !listRowFor(id));
+      if (!meal && ids.length === 1) { addItem(itemById(ids[0])); return; } // a planned item, not a meal
       if (!meal || !ids.length) return;
       const status = isKid(S.me) ? 'requested' : 'needed';
       act('addMeal', { meal_id: meal.id, item_ids: ids }, () => {
@@ -2832,7 +2886,7 @@
     if (kind === 'draft' && S.sheet) {
       S.sheet[el.dataset.field] = el.value;
       // Only the meal search and name-gated Save buttons need a redraw while typing.
-      if (el.dataset.field === 'q' || el.dataset.field === 'name') render();
+      if (el.dataset.field === 'q' || el.dataset.field === 'name' || el.dataset.field === 'fq') render();
       if (el.dataset.field === 'text') { const b = document.querySelector('[data-act="save-idea"], [data-act="save-feedback"]'); if (b) b.disabled = !el.value.trim(); }
     }
   });
@@ -2852,6 +2906,8 @@
     }
     if (el.dataset && el.dataset.input === 'slot-plan') {
       const day = el.dataset.day; const slot = el.dataset.slot; const mealId = el.value;
+      if (mealId === 'find') { S.sheet.find = slot; S.sheet.fq = ''; render(); const f = document.getElementById('slot-fq'); if (f) f.focus(); return; }
+      if (mealId.indexOf('i:') === 0) { S.sheet.find = null; planSlotItem(day, slot, mealId.slice(2)); return; }
       const wk = addDays(day, -DAYS.indexOf(dayName(day)));
       act('planSet', { date: day, day: dayName(day), week_of: wk, meal_id: mealId, slot: slot, note: '' }, () => {
         D().plan = D().plan.filter((p) => !(planDate(p) === day && slotOf(p) === slot));
