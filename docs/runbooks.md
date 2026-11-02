@@ -60,6 +60,11 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 - **Target:** search `https://www.target.com/s?searchTerm=<words>`; results load late (scroll and wait ~3 s). The TCIN is the number in `/A-<number>` links. `sku` = TCIN.
 - **Amazon:** Buy it again at `https://www.amazon.com/gp/buyagain` (product links carry `/dp/<ASIN>`).
 - Don't put the page URL in javascript_tool output on Amazon: the extension blocks output with query-string data.
+- **Carts, tested Nov 2 (add one line, see it, remove it; every cart left as it was):**
+  - Whole Foods: **Add to cart** on the search card; a side cart opens on the right with the line, total and a 🗑 that removes it. Separate from the regular Amazon cart.
+  - Amazon: Buy it again (`/gp/buyagain`) has **Add to cart** per product; the cart is `/gp/cart/view.html`, each line has **Delete**.
+  - Target: product page `/p/-/A-<TCIN>`; wait ~6 s for it to finish loading (it shifts while loading, so clicks by coordinate can land on an ad), use element refs, pick **Pickup** (Upper St. Clair), then **Add to cart**. Cart at `/cart` (also loads slowly); each line has a **Remove … from cart** button. Cart price can be lower than the page price (a deal).
+  - Giant Eagle: tested Nov 1 (§2 Test notes in the project roadmap): Reorder + cart page read cleanly.
 - Rows from a search are `likely` with source `Chrome search <date>` or `price pass <date>`; a receipt or a parent's answer makes them `exact`.
 
 **Prices** (api 23, Nov 2): Products `price` | `unit_price` | `unit` | `price_at` | `store_brand` (columns K:O).
