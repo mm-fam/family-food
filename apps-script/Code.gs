@@ -166,7 +166,7 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      store sites); each store can carry `sb` = the cheapest priced store-brand row (Products store_brand = Y).
 //      The app compares unit prices across stores (item screen, List tag, before Build the cart).
 // 24 = cartJobsOpen: light read of open cart jobs for the cart watcher on the owner's PC (polls every minute).
-// 25 = carts by line (Mike, Nov 2): List cart_want / cart_by / cart_note. cartPush {rows: [{id, store}]} puts List
+// 25 = carts by line (Nov 2): List cart_want / cart_by / cart_note. cartPush {rows: [{id, store}]} puts List
 //      rows in a store's online cart (or moves them there from another cart); cartRemove {ids} takes them out (or
 //      cancels a push that hasn't run). Each queues that store's build job; the cart runner does the line-level
 //      adds and removes. A carted row taken off the List (Take off, We have it, Don't need it) comes out of the

@@ -585,8 +585,8 @@
 
   // Claude put it in a store's online cart (status carted; List.cart = store code, api 11).
   const cartStore = (r) => (r && r.status === 'carted' ? String(r.cart || r.store || '') : '');
-  /* Carts by line (api 25, Mike Nov 2): each List row knows where it stands with the online carts.
-     cart_want = the store a parent asked for (or 'out'); the cart runner on Mike's computer does it, then
+  /* Carts by line (api 25, Nov 2): each List row knows where it stands with the online carts.
+     cart_want = the store a parent asked for (or 'out'); the cart runner on the cart computer does it, then
      sets status carted + cart, or leaves a reason in cart_note ("GE: out of stock"). Tags only say "In the
      cart" once the runner has seen it there. */
   const canCarts = () => Number(D().api || 0) >= 25;
@@ -1152,7 +1152,7 @@
       line = '🛒 In the ' + full(c.store) + ' cart';
       if (!kid) btns = '<button class="btn btn-outline" data-act="cart-remove">Take it out of the cart</button>' + moveChips(c.store, 'Move to');
     } else if (c.kind === 'going') {
-      line = '⏳ Going in the ' + full(c.store) + ' cart. Claude adds it on Mike’s computer.';
+      line = '⏳ Going in the ' + full(c.store) + ' cart. Claude adds it on the cart computer.';
       if (!kid) btns = '<button class="btn btn-plain" data-act="cart-remove">Don’t add it</button>';
     } else if (c.kind === 'moving') {
       line = '⏳ Moving from the ' + full(c.from) + ' cart to the ' + full(c.store) + ' cart';
@@ -1210,7 +1210,7 @@
         '</button>';
     });
     html += '<p class="hint">What’s in each store’s online cart, as Claude last saw it. ' + (amParent() ? 'Put things in from an item or with “Put … in carts” on the List. ' : '') +
-      'Claude does the adding and checking on Mike’s computer, so it has to be on with Chrome open; until then changes wait here. A person always places the order.</p>';
+      'Claude does the adding and checking on the cart computer, so it has to be on with Chrome open; until then changes wait here. A person always places the order.</p>';
     return html;
   }
   function viewCartDetail(code) {
@@ -1263,7 +1263,7 @@
         }).join('') + '</div>';
     });
     h += '<div class="sheet-actions"><button class="btn btn-primary" data-act="push-go"' + (chosen.length ? '' : ' disabled') + '>Put them in</button></div>' +
-      '<p class="note">Claude adds them on Mike’s computer (it has to be on with Chrome open). Each item says “In … cart” once Claude sees it there.</p>';
+      '<p class="note">Claude adds them on the cart computer (it has to be on with Chrome open). Each item says “In … cart” once Claude sees it there.</p>';
     return h;
   }
 
@@ -2068,8 +2068,8 @@
   function jobLine(j) {
     const st = storeOf(j.store).name;
     const what = j.kind === 'check' ? 'check the ' + st + ' cart' : (canCarts() ? 'update' : 'build') + ' the ' + st + ' cart';
-    if (j.status === 'queued') return { cls: 'wait', text: 'Waiting for Claude to ' + what + ' · ' + j.by + ' ' + fmtWhen(j.at) + '. It runs when Mike’s computer is on with Chrome open.' };
-    if (j.status === 'waiting') return { cls: 'wait', text: 'Still waiting to ' + what + (j.result ? ': ' + j.result : '') + '. Claude tries again when Mike’s computer is on.' };
+    if (j.status === 'queued') return { cls: 'wait', text: 'Waiting for Claude to ' + what + ' · ' + j.by + ' ' + fmtWhen(j.at) + '. It runs when the cart computer is on with Chrome open.' };
+    if (j.status === 'waiting') return { cls: 'wait', text: 'Still waiting to ' + what + (j.result ? ': ' + j.result : '') + '. Claude tries again when the cart computer is on.' };
     if (j.status === 'running') return { cls: 'run', text: 'Claude is working on it now (' + what + ')…' };
     if (j.status === 'done') return { cls: 'done', text: (j.kind === 'check' ? 'Cart checked ' : canCarts() ? 'Cart updated ' : 'Cart built ') + fmtWhen(j.finished_at || j.at) + (j.result ? ': ' + j.result : '') };
     if (j.status === 'failed') return { cls: 'fail', text: 'Couldn’t ' + what + (j.result ? ': ' + j.result : '') };

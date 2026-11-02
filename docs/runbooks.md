@@ -33,7 +33,7 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 
 **When:** `Settings.order_requested` is set (`GE`, `WF`, `TGT` or `AMZ`) or a parent asks. Start with one store and get it reliable before doing more.
 
-**Line by line (api 25, Mike Nov 2):** parents put single List rows in a cart, take them out or move them, from the item screen, "Put … in carts" on the List, or a store on the Carts screen. Each sets List `cart_want` and queues that store's `build` job. A build job for store X does exactly this, in this order:
+**Line by line (api 25, Nov 2):** parents put single List rows in a cart, take them out or move them, from the item screen, "Put … in carts" on the List, or a store on the Carts screen. Each sets List `cart_want` and queues that store's `build` job. A build job for store X does exactly this, in this order:
 - **Moves in:** rows with `cart_want` = X that are `carted` in another store Y → remove that line from Y's cart first.
 - **Removes:** rows (any status) with `cart` = X and `cart_want` = `out` → remove the line from X's cart. Then: status `carted` → `needed`; a done row (taken off, We have it, grabbed in store) keeps its status. Clear `cart`, `cart_at`, `cart_want`. Remove only lines Poppy has a row for.
 - **Adds:** rows with status `needed` or `carted` and `cart_want` = X → add as in steps 3–4 below → `carted`, `cart` = X, `cart_at` = now, `cart_want` and `cart_note` cleared. Couldn't add (out of stock, no match, ok_swap not Y) → status `needed`, `cart_want` cleared, `cart_note` = "X: <short reason>" (e.g. "GE: out of stock"); the app shows ⚠ Not added.
