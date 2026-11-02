@@ -851,3 +851,12 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .empty.small { padding: 12px 16px; }
 .sub-head { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); padding: 10px 14px 4px; text-transform: uppercase; }
 .sec-foot { padding: 8px 14px 12px; }
+.miss-gap { padding: 8px 14px 10px; border-top: 1px solid #F1E3B8; font-size: 13px; color: #6B5310; }
+.miss-gap .link-btn { font-size: 13px; padding: 0; }
+@media (prefers-color-scheme: dark) {
+  .missing { background: #2A2614; border-color: #5C4E1F; }
+  .missing .card-head { color: #F2D58A; }
+  .miss-row, .miss-gap { border-top-color: #4A3F1A; }
+  .missing .row-meta, .miss-gap { color: #D9C48A; }
+  .miss-items .link-btn { color: var(--ink); text-decoration-color: #8A7530; }
+}

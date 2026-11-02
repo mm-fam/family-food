@@ -731,7 +731,8 @@
   const laterBack = (r) => { const u = String(r.hold_until || '').slice(0, 10); return !u || u >= '9000' ? '' : u; };
   const inCartNow = (r) => canCarts() && (r.status === 'carted' || r.status === 'needed') && ['in', 'going', 'moving', 'leaving'].indexOf(cartState(r).kind) >= 0;
 
-  // Ingredients of meals planned in the next 7 days that nobody has dealt with yet.
+  // Ingredients of meals planned in the next 7 days that nobody has dealt with yet. Many meals (from Hearth
+  // screenshots) have few or no ingredients linked, so the card also says which meals it can't check.
   function missingForMeals() {
     const today = D().today, last = addDays(today, 6);
     const onList = {};
@@ -741,28 +742,40 @@
     const seen = (id) => { const s = stock[id]; return s && s.level !== 'low' && s.level !== 'out' && s.level !== 'waste' && addDays(String(s.at).slice(0, 10), 7) >= today; };
     const byMeal = [];
     const taken = {};
+    const blank = [];
+    let meals = 0;
     (D().plan || []).slice().sort((a, b) => (planDate(a) < planDate(b) ? -1 : 1)).forEach((p) => {
       const d = planDate(p);
       if (!d || d < today || d > last || isLeftover(p) || !p.meal_id) return;
       const meal = mealById(p.meal_id);
       if (!meal) return;
+      meals++;
+      if (!mealItems(meal).some((id) => itemById(id))) { if (!blank.some((m) => m.id === meal.id)) blank.push(meal); return; }
       const ids = mealItems(meal).filter((id) => { const it = itemById(id); return it && it.status !== 'Drop' && !onList[id] && !seen(id) && !taken[id]; });
       if (!ids.length) return;
       ids.forEach((id) => (taken[id] = 1));
       byMeal.push({ date: d, meal: meal, ids: ids });
     });
-    return byMeal;
+    return { groups: byMeal, blank: blank, meals: meals };
   }
   function viewMissing() {
-    const groups = missingForMeals();
-    if (!groups.length) return '';
+    const m = missingForMeals();
+    const groups = m.groups;
+    if (!groups.length && !m.blank.length) return '';
     const n = groups.reduce((t, g) => t + g.ids.length, 0);
     const kid = isKid(S.me);
-    return '<section class="card missing"><div class="card-head">🍽 MISSING FOR MEALS · ' + n + '</div>' + groups.map((g) =>
+    let h = '<section class="card missing"><div class="card-head">🍽 MISSING FOR MEALS · ' + n + '</div>';
+    h += groups.map((g) =>
       '<div class="miss-row"><div class="miss-main"><div class="row-meta">' + esc(shortDay(g.date)) + ' · ' + esc(g.meal.name) + '</div><div class="miss-items">' +
         g.ids.map((id) => '<button class="link-btn" data-act="open-item" data-id="' + esc(id) + '">' + esc(itemById(id).name) + '</button>').join(', ') + '</div></div>' +
       '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="miss-add" data-meal="' + esc(g.meal.id) + '" data-ids="' + esc(g.ids.join(',')) + '">' + (kid ? 'Ask' : 'Add') + (g.ids.length > 1 ? ' ' + g.ids.length : '') + '</button>' +
-        (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-ids="' + esc(g.ids.join(',')) + '">Have ' + (g.ids.length > 1 ? 'them' : 'it') + '</button>') + '</div></div>').join('') + '</section>';
+        (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-ids="' + esc(g.ids.join(',')) + '">Have ' + (g.ids.length > 1 ? 'them' : 'it') + '</button>') + '</div></div>').join('');
+    if (!groups.length) h += '<div class="miss-gap">Nothing missing from the ingredients we know.</div>';
+    if (m.blank.length) {
+      h += '<div class="miss-gap">Can’t check ' + m.blank.length + ' of ' + m.meals + ' meals this week: no ingredients set up yet (' +
+        m.blank.slice(0, 4).map((x) => '<button class="link-btn" data-act="open-meal" data-id="' + esc(x.id) + '">' + esc(x.name) + '</button>').join(', ') + (m.blank.length > 4 ? '…' : '') + '). Others may be missing some.</div>';
+    } else h += '<div class="miss-gap">Only checks the ingredients each meal has set up.</div>';
+    return h + '</section>';
   }
 
   // Aisle accordions for a set of rows (faded rows keep their aisle open so Undo shows).
