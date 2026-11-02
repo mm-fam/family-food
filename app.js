@@ -563,14 +563,52 @@
     return '<span class="cart-tag ' + (s ? s.cls : 'either') + '">🛒 In ' + (s ? esc(s.short || s.name) + ' ' : '') + 'cart</span>';
   }
 
+  /* Prices (api 23): Products rows carry price, unit_price, unit, price_at per store. Only fresh prices
+     (30 days) in the same unit are compared. A List tag shows only when another store is 10%+ and $0.50+
+     cheaper for the same amount (Mike, Nov 2), and never for store-only or "either store" rows. */
+  const PRICE_FRESH_DAYS = 30;
+  const PRICE_MIN_PCT = 0.10;
+  const PRICE_MIN_SAVE = 0.50;
+  const priceAge = (iso) => (iso ? Math.round((new Date(D().today + 'T12:00:00') - new Date(String(iso).slice(0, 10) + 'T12:00:00')) / 86400000) : 9999);
+  const hasPrice = (p) => !!(p && p.unit_price !== '' && p.unit_price != null && Number(p.unit_price) > 0 && p.unit);
+  const freshPrice = (p) => hasPrice(p) && priceAge(p.price_at) <= PRICE_FRESH_DAYS;
+  const fmtUnit = (p) => { const v = Number(p.unit_price); return (v < 1 ? (v * 100).toFixed(1).replace(/\.0$/, '') + '¢' : '$' + v.toFixed(2)) + '/' + p.unit; };
+  // Fresh, priced products for an item: [{ store, ...product }], cheapest first.
+  function itemPrices(itemId) {
+    const prods = (D().products || {})[itemId] || {};
+    return Object.keys(prods).map((k) => Object.assign({ store: k }, prods[k])).filter(freshPrice)
+      .sort((a, b) => Number(a.unit_price) - Number(b.unit_price));
+  }
+  // Is another store meaningfully cheaper than `base` for this item? → { store, pct, save } or null.
+  function cheaperElsewhere(itemId, base) {
+    if (!base || base === 'Either') return null;
+    const it = itemById(itemId);
+    if (it && /^y/i.test(String(it.store_only || ''))) return null;
+    const rows = itemPrices(itemId);
+    const b = rows.find((p) => p.store === base);
+    if (!b) return null;
+    const c = rows.find((p) => p.store !== base && p.unit === b.unit);
+    if (!c) return null;
+    const pct = (Number(b.unit_price) - Number(c.unit_price)) / Number(b.unit_price);
+    const amount = Number(b.price) > 0 ? Number(b.price) / Number(b.unit_price) : 1;
+    const save = (Number(b.unit_price) - Number(c.unit_price)) * amount;
+    return pct >= PRICE_MIN_PCT && save >= PRICE_MIN_SAVE ? { store: c.store, pct: pct, save: save } : null;
+  }
+  const rowCheaper = (r) => (r && Number(D().api || 0) >= 23 ? cheaperElsewhere(r.item_id, r.store || 'Either') : null);
+  function priceTag(r) {
+    const c = rowCheaper(r);
+    return c ? '<span class="price-tag" title="Same amount, about $' + c.save.toFixed(2) + ' less">$ ' + Math.round(c.pct * 100) + '% less at ' + esc(storeOf(c.store).short || storeOf(c.store).name) + '</span>' : '';
+  }
+
   // At home a tap opens the item screen. Only In-store mode checks things off.
   function listRow(r) {
     const meta = rowMeta(r);
     const tag = mealTag(r);
     const only = onlyAt(r) ? storeMark(r) : '';
     const cart = cartTag(r);
+    const price = r.status === 'needed' ? priceTag(r) : '';
     return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + (only ? '' : storeMark(r)) + esc(r.name) + '</span>' +
-      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag || only || cart ? '<span class="tags">' + cart + only + tag + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
+      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag || only || cart || price ? '<span class="tags">' + cart + only + tag + price + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
   }
 
   // Just taken off: crossed out for a few seconds with Undo.
@@ -898,6 +936,34 @@
         return '<div class="is-prod"><span class="store-dot ' + storeOf(k).cls + '"></span><span><b>' + esc(storeOf(k).name) + ':</b> ' + esc(p.name) +
           (p.size ? ' · ' + esc(p.size) : '') + (p.aisle ? ' <span class="aisle-tag">' + esc(p.aisle) + '</span>' : '') + '</span></div>';
       }).join('') + '</div>';
+    }
+    // Price by store (api 23): per-unit bars, cheapest in green; old prices greyed with their date.
+    if (Number(D().api || 0) >= 23) {
+      const priced = pk.map((k) => Object.assign({ store: k }, prods[k])).filter(hasPrice);
+      if (priced.length) {
+        const unit = (itemPrices(sh.item_id)[0] || priced[0]).unit;
+        const same = priced.filter((p) => p.unit === unit).sort((a, b) => Number(a.unit_price) - Number(b.unit_price));
+        const max = Math.max.apply(null, same.map((p) => Number(p.unit_price)));
+        const low = same.find(freshPrice);
+        h += '<div class="is-prices"><div class="is-label">Price by store · per ' + esc(unit) + '</div>' + same.map((p) => {
+          const stale = !freshPrice(p);
+          const best = !stale && low && p.store === low.store && same.filter(freshPrice).length > 1;
+          return '<div class="price-row' + (stale ? ' stale' : '') + (best ? ' best' : '') + '"><span>' + esc(storeOf(p.store).short || storeOf(p.store).name) + '</span>' +
+            '<span class="price-bar"><i class="' + storeOf(p.store).cls + '" style="width:' + Math.max(8, Math.round(Number(p.unit_price) / max * 100)) + '%"></i></span>' +
+            '<span class="price-val">' + fmtUnit(p) + '</span></div>';
+        }).join('');
+        const sbs = pk.map((k) => prods[k].sb && Object.assign({ store: k }, prods[k].sb)).filter((x) => x && freshPrice(x));
+        sbs.forEach((x) => {
+          const ours = prods[x.store];
+          const pct = hasPrice(ours) && ours.unit === x.unit ? (Number(ours.unit_price) - Number(x.unit_price)) / Number(ours.unit_price) : 0;
+          if (pct >= PRICE_MIN_PCT) h += '<p class="price-note">Store brand at ' + esc(storeOf(x.store).name) + ': ' + esc(x.name) + (x.size ? ' · ' + esc(x.size) : '') + ', ' + fmtUnit(x) + ' (' + Math.round(pct * 100) + '% less)</p>';
+        });
+        const dates = same.map((p) => p.price_at).filter(Boolean).sort();
+        h += '<p class="price-note">Store prices from ' + (dates.length ? esc(fmtShort(dates[0])) + (dates[0] !== dates[dates.length - 1] ? '–' + esc(fmtShort(dates[dates.length - 1])) : '') : 'an unknown day') +
+          (same.some((p) => !freshPrice(p)) ? '. Grey = older than a month, not compared.' : '.') + ' What we paid is under History.</p>';
+        if (same.length < priced.length) h += '<p class="price-note">Some stores sell it by a different unit, so they aren’t compared.</p>';
+        h += '</div>';
+      }
     }
 
     // Where it stands
@@ -1393,7 +1459,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still') return 'rate';
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }
@@ -1764,6 +1830,24 @@
   }
 
   /* ---------- order ---------- */
+  // Before Build the cart (api 23): List rows headed to this store that another store sells for 10%+ and $0.50+
+  // less. Nothing moves on its own: a parent taps Get at <store> (the row's store changes) or keeps them.
+  function cheaperNote(code) {
+    const rows = D().list.filter((r) => r.status === 'needed' && (r.store || 'Either') === code).map((r) => ({ r: r, c: rowCheaper(r) })).filter((x) => x.c);
+    if (!rows.length) return '';
+    const save = rows.reduce((t, x) => t + x.c.save * (Number(x.r.qty) || 1), 0);
+    const to = {};
+    rows.forEach((x) => (to[x.c.store] = (to[x.c.store] || 0) + 1));
+    const where = Object.keys(to).map((k) => storeOf(k).name).join(' or ');
+    const key = 'cheaper-' + code;
+    const open = S.cheaperOpen === key;
+    return '<div class="cheaper"><button class="cheaper-head" data-act="cheaper-fold" data-key="' + key + '">' + rows.length + (rows.length === 1 ? ' item is' : ' items are') + ' cheaper at ' + esc(where) +
+      ' (about $' + Math.round(save) + ' less) ' + chev(!open) + '</button>' + (open ? rows.map((x) =>
+        '<div class="cheaper-row"><span>' + esc(x.r.name) + ' <span class="note">' + Math.round(x.c.pct * 100) + '% less</span></span>' +
+        '<button class="btn btn-plain" data-act="price-move" data-id="' + x.r.id + '" data-store="' + x.c.store + '">Get at ' + esc(storeOf(x.c.store).short || storeOf(x.c.store).name) + '</button></div>').join('') +
+        '<p class="note">Moving an item only changes which cart it goes in. Keep the rest here as they are.</p>' : '') + '</div>';
+  }
+
   function viewOrder() {
     const list = D().list.filter((r) => r.status !== 'requested');
     const count = (code) => list.filter((r) => (r.store || 'Either') === code).length;
@@ -1785,7 +1869,7 @@
         const c = latestJob(code, 'check');
         const busy = (j) => j && JOB_OPEN.indexOf(j.status) >= 0;
         const lines = [b, c].filter((j) => j && j.status !== 'cancelled' && (busy(j) || daysSince(String(j.finished_at || j.at).slice(0, 10)) <= 3)).map(jobRow).join('');
-        html += '<section class="card store-card">' + head + lines +
+        html += '<section class="card store-card">' + head + lines + (amParent() ? cheaperNote(code) : '') +
           (amParent() ? '<div class="job-btns"><button class="btn ' + (code === 'GE' ? 'btn-primary' : 'btn-outline') + '" data-act="cart-job" data-kind="build" data-store="' + code + '"' + (n && !busy(b) ? '' : ' disabled') + '>Build the cart</button>' +
             '<button class="btn btn-outline" data-act="cart-job" data-kind="check" data-store="' + code + '"' + (busy(c) ? ' disabled' : '') + '>Check the cart</button></div>' : '') +
           '</section>';
@@ -1892,6 +1976,8 @@
     'review-skip': (el) => answerQuestion(el.dataset.id, 'skip', 'up', 'Skipped'),
     undo: () => { const u = S.toast && S.toast.undo; S.toast = null; if (u) u(); else render(); },
 
+    'cheaper-fold': (el) => { S.cheaperOpen = S.cheaperOpen === el.dataset.key ? '' : el.dataset.key; render(); },
+    'price-move': (el) => { const r = rowById(el.dataset.id); const to = el.dataset.store; if (r && to) act('update', { id: r.id, fields: { store: to } }, () => (r.store = to), r.name + ' will go in the ' + storeOf(to).name + ' cart'); },
     approve: (el) => { const r = rowById(el.dataset.id); if (r) act('update', { id: r.id, fields: { status: 'needed' } }, () => (r.status = 'needed'), 'Approved ' + r.name + ptsTag('approve')); },
     skip: (el) => { const r = rowById(el.dataset.id); if (r) setStatus(r, 'skipped', 'Skipped ' + r.name + (r.status === 'requested' ? ptsTag('approve') : '')); },
     restore: (el) => { const r = rowById(el.dataset.id); if (r) restore(r); },

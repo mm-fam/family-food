@@ -162,7 +162,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 22 = use soon: Items shelf_days (parents can edit it in Details); state.useSoon = perishables near their last
 //      good day; useSoon {item_id, what: used|tossed|good} logs Stock (out / waste / some + expires);
 //      a daily parents' card (type waste) for anything tossed 2+ times in 60 days.
-const API_VERSION = 22;
+// 23 = prices: state.products rows also carry price, unit_price, unit, price_at (Products columns Claude fills from
+//      store sites); each store can carry `sb` = the cheapest priced store-brand row (Products store_brand = Y).
+//      The app compares unit prices across stores (item screen, List tag, before Build the cart).
+const API_VERSION = 23;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -433,16 +436,30 @@ function stripRow(o) {
 }
 
 // Products tab (Claude writes it): the exact product per item per store. For each item + store, keep the
-// best row: exact before likely before alt, then the newest last_bought. Returns
-// { item_id: { GE: { name, size, aisle } } }. Missing tab = {}.
+// best row: exact before likely before alt, then the newest last_bought. Store-brand rows (store_brand = Y)
+// are options, never "what we buy" unless a parent made them exact; the cheapest priced one per store rides
+// along as `sb`. Returns { item_id: { GE: { name, size, aisle, price, unit_price, unit, price_at, sb? } } }.
+// Missing tab = {}.
 function productsMap() {
   if (!SpreadsheetApp.getActive().getSheetByName(TABS.products)) return {};
   const rank = { exact: 0, likely: 1, alt: 2 };
   const best = {};
+  const sb = {};
+  const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? '' : Number(v));
+  const day = (v) => (v instanceof Date ? isoDate(v) : String(v || '').slice(0, 10));
+  const pick = (p) => ({
+    name: String(p.product || ''), size: String(p.size || ''), aisle: String(p.aisle || ''),
+    price: num(p.price), unit_price: num(p.unit_price), unit: String(p.unit || ''), price_at: day(p.price_at),
+  });
   readTab(TABS.products).forEach((p) => {
     if (!p.item_id || !p.store) return;
     const k = p.item_id + '|' + p.store;
     const r = rank[String(p.match)] === undefined ? 3 : rank[String(p.match)];
+    const storeBrand = /^y/i.test(String(p.store_brand || ''));
+    if (storeBrand && r !== 0) {
+      if (num(p.unit_price) !== '' && (!sb[k] || Number(p.unit_price) < Number(sb[k].unit_price))) sb[k] = p;
+      return;
+    }
     const b = best[k];
     const newer = String(p.last_bought || '') > String((b && b.last_bought) || '');
     if (!b || r < b._r || (r === b._r && newer)) best[k] = Object.assign({ _r: r }, p);
@@ -451,7 +468,9 @@ function productsMap() {
   Object.keys(best).forEach((k) => {
     const p = best[k];
     out[p.item_id] = out[p.item_id] || {};
-    out[p.item_id][p.store] = { name: String(p.product || ''), size: String(p.size || ''), aisle: String(p.aisle || '') };
+    const o = pick(p);
+    if (sb[k]) o.sb = pick(sb[k]);
+    out[p.item_id][p.store] = o;
   });
   return out;
 }

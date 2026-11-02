@@ -660,3 +660,19 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
   .us-row { border-top-color: #4A3F1A; }
   .us-row.past .row-meta { color: #F4B183; }
 }
+
+/* Prices (api 23) */
+.price-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; margin-right: 6px; color: var(--accent-deep); background: var(--accent-soft); }
+.is-prices { margin: 4px 0 12px; display: grid; gap: 6px; }
+.price-row { display: grid; grid-template-columns: 84px 1fr auto; gap: 8px; white-space: nowrap; align-items: center; font-size: 13px; }
+.price-bar { height: 10px; background: var(--line-soft); border-radius: 5px; overflow: hidden; }
+.price-bar i { display: block; height: 100%; border-radius: 5px; background: var(--either-edge); }
+.price-bar i.ge { background: var(--ge-edge); } .price-bar i.wf { background: var(--wf-edge); } .price-bar i.tgt { background: var(--tgt-edge); } .price-bar i.amz { background: var(--amz-edge); }
+.price-val { font-variant-numeric: tabular-nums; min-width: 72px; text-align: right; }
+.price-row.best .price-val { color: var(--accent); font-weight: 700; }
+.price-row.stale { opacity: 0.5; }
+.price-note { margin: 0; font-size: 12px; color: var(--muted); }
+.cheaper { margin: 8px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--accent-soft); }
+.cheaper-head { width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; font-size: 13px; font-weight: 600; color: var(--accent-deep); cursor: pointer; }
+.cheaper-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 10px; font-size: 13px; border-top: 1px solid var(--line-soft); }
+.cheaper > .note { padding: 4px 10px 8px; margin: 0; }

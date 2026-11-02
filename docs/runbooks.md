@@ -36,8 +36,8 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 **Needs:** the owner's computer awake, Chrome open with the Claude extension connected, and the store signed in (by a person; never by Claude). A session started from a phone works too: it drives that computer's Chrome. If Chrome can't be reached, stop and say so.
 
 1. Load the Chrome tools; check the tabs; open a new tab. Confirm the store site is signed in. If not, stop and ask. **Never enter credentials.** Look at the cart first: if it holds items nobody from Poppy put there, ask before adding (it may be a live order).
-2. Rows to fill: List rows with status `needed` whose item is usually bought at that store, plus `Either` for GE/WF (never for Target or Amazon), skipping items with `store_only = Y` for another store. Ask about borderline rows rather than guessing. Skip `requested` (unapproved) and held rows.
-3. For each row, pick the product from **Products** (item_id + store): `exact` first, then `likely`, newest `last_bought` wins; `alt` only if those are out. Add it from the store's **past purchases** (GE: Reorder; Amazon/Whole Foods: Buy it again; Target: Buy it again); search by the exact product name only if it isn't listed. No Products row → search by the Item's brand_size/name and report it as a guess. Target: choose Drive Up. Set qty.
+2. Rows to fill: List rows with status `needed` whose **List row store** is that store (a parent can move a row to a cheaper store with **Get at <store>** on ⚙, api 23; the row's store wins over Items.store), plus `Either` for GE/WF (never for Target or Amazon), skipping items with `store_only = Y` for another store. Ask about borderline rows rather than guessing. Skip `requested` (unapproved) and held rows.
+3. For each row, pick the product from **Products** (item_id + store): `exact` first, then `likely`, newest `last_bought` wins; `alt` only if those are out; never a `store_brand = Y` option row unless it's `exact`. Add it from the store's **past purchases** (GE: Reorder; Amazon/Whole Foods: Buy it again; Target: Buy it again); search by the exact product name only if it isn't listed. No Products row → search by the Item's brand_size/name and report it as a guess. Target: choose Drive Up. Set qty.
 4. Out of stock or not found:
    - ok_swap `Y` → pick the closest equivalent, note it.
    - ok_swap `N` → skip.
@@ -47,6 +47,19 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 6. Hand off: cart total (Giant Eagle has a $35 minimum), then a short list of swaps, misses and guesses. **Stop there. Never check out.**
 
 **Refreshing Products from the store's purchase history** (monthly, or when the catalog grew): on Giant Eagle open Reorder and click Load More Results until everything shows (34 per page, slow: wait 3–4 s per click), then read name / size / "Purchased MM/DD" from the page text. javascript_tool output is cut at ~1,000 characters, so write a compact list into the page (`main.innerHTML = <pre>…`) and read it with get_page_text. For each product: add or update its Products row; a product that fits no catalog item becomes a new Item (family-level name, flavors and sizes share one item) with J:M formulas copied down. Ambiguous picks → `likely` + a Review card to a parent; never type a guess as `exact`.
+
+**Other stores** (Nov 2): what each signed-in store gives when reading products in Chrome.
+- **Whole Foods:** search `https://www.amazon.com/s?k=<words>&i=wholefoods`. Each result is a `[data-component-type="s-search-result"]` card with the ASIN in `data-asin`; the card text has the full name, size and price (the `h2` holds only the brand). `sku` = ASIN.
+- **Target:** search `https://www.target.com/s?searchTerm=<words>`; results load late (scroll and wait ~3 s). The TCIN is the number in `/A-<number>` links. `sku` = TCIN.
+- **Amazon:** Buy it again at `https://www.amazon.com/gp/buyagain` (product links carry `/dp/<ASIN>`).
+- Don't put the page URL in javascript_tool output on Amazon: the extension blocks output with query-string data.
+- Rows from a search are `likely` with source `Chrome search <date>` or `price pass <date>`; a receipt or a parent's answer makes them `exact`.
+
+**Prices** (api 23, Nov 2): Products `price` | `unit_price` | `unit` | `price_at` | `store_brand` (columns K:O).
+- `price` = the shelf price the cart would charge today (a sale price gets "sale <date>" in notes). `unit_price` = price ÷ amount in `unit`, 4 decimals. `unit`: `oz` (weight; lb × 16), `fl oz` (liquids; gallon 128, half gallon 64, quart 32, pint 16, liter 33.8) or `ct` (eggs, cups in a multipack, bars, pouches). Same unit for one item at every store; amount unreadable → leave unit_price and unit blank (the app skips it). `price_at` = text `'yyyy-mm-dd`.
+- `store_brand = Y` only on a store's own-brand **option** row (Giant Eagle / Market District; 365 by Whole Foods Market; Good & Gather, Market Pantry, up&up; Happy Belly, Amazon Basics, Presto!, Solimo), `match` = `alt`. The backend never treats it as what we buy unless a parent made it `exact`; the app shows it on the item screen as "Store brand at <store> … (N% less)".
+- Who writes prices: every cart build and check (each product added or seen in the cart), and the **daily price pass** (§13). No weekly run (Mike, Nov 2).
+- The app compares only fresh prices (30 days) in the same unit. A List tag, and the "cheaper at" note on ⚙ before Build the cart, show only when another store is **10%+ and $0.50+** cheaper for the same amount, never for store-only items or "either store" rows.
 
 **Aisles and SKUs** (Giant Eagle): each product page (`/<store>/search/product/<UPC>`) shows "Aisle N <section>" for the selected store and the SKU (UPC). Write them to Products `aisle` and `sku`. Product links on search and Reorder pages carry the UPC.
 
@@ -155,6 +168,7 @@ Design and the full steps: `docs/hearth.md`.
 | Unclear or misspelled free text | A follow-up card to the same person that offers the likely readings as options. Never write a guess as fact. |
 | "Idk" / no real answer | outcome `No signal`. Not re-asked for 90 days. |
 | Still eating? | Per §10. |
+| Store brand (`storebrand`) | **Switch to store brand** → that store's store-brand Products row becomes `exact` (keep `store_brand = Y`), the product we bought there becomes `alt`; append "Store brand OK at <store> (<name>, <date>)" to Items notes; outcome `Products iNNN`. **Keep ours** → append "Keep our brand at <store> (<name>, <date>)" to notes; outcome `Items iNNN notes`. Never change another store's rows. |
 
 **B2. Follow-ups.** Up to 3 per person per day, from answers in the last day: the next useful question an answer opens up (a favorite → which product; a "No" on finishing something → a smaller size; a conditional swap → which swaps). End the detail with `(rNNN)` of the answer it follows (the app hides it) and also any `(iNNN)` / `(mNN)` it's about. Write `Follow-up rNNN` in the source row's outcome.
 
@@ -166,6 +180,7 @@ Design and the full steps: `docs/hearth.md`.
 **B4. Refill.** Target **12–15 open cards** per person. For anyone below 12 who answered something in the last 7 days, add up to **8 new cards per person per day** (follow-ups count) to reach 15. Order of preference:
 1. Follow-ups from B2.
 2. Data-driven: vote cards for meals that person hasn't voted on (dinners first), cut-off meal names and unlinked ingredients (to the parent who plans meals), receipt clarifies, shelf life for perishables with none yet, "Still eating?" No → parents.
+   **Store-brand cards** (api 23; Mike, Nov 2: lean toward store brands, ask item by item): to the parents, up to 2 new a day. Pick items with a fresh (`price_at` within 30 days) `store_brand = Y` Products row whose `unit_price` is 10%+ below the product we buy at that store **and** $0.50+ less for the same amount; skip items with ok_swap `N`, items whose notes say "Keep our brand at <store>", and items asked in the last 180 days. Card: `Store brand: <store-brand product> is <pct>% less than our <our product> at <store> (<unit price> vs <unit price>). Switch? (iNNN) Options: Switch to store brand; Keep ours` (type `storebrand`, audience `parents`; lands in ⚖ Decisions).
 3. The question bank (`docs/question-bank.md`), mixed so it never reads like a form.
 
 Rules: one Review row per person (one row = one answer); next free `rNNN`; `created` = today; type `clarify` / `preference` / `profile` / `vote`; quick picks as `Options: …` per the card guide (Yes/No when a yes answers it; 1–3 word labels; likely answer first). Never send a person the same question twice unless 90+ days old and the topic can change (seasonal, favorites). Kids get kid-sized cards: votes, favorites, their own lunch and snack items; nothing that changes what's bought.
@@ -195,11 +210,12 @@ Rules: one Review row per person (one row = one answer); next free `rNNN`; `crea
 **Runner:** scheduled task "Poppy Cart Runner", set to require the owner's computer (so it has Chrome), hourly from 8 am to 9 pm Eastern. Each run:
 1. Read Cart Jobs. Also turn a non-blank Settings `order_requested` (older app) into a `build` job (by = whoever it names) and clear it. A job `running` for more than 2 hours → `failed`, result "Stopped partway; nothing was checked out".
 2. **Friday rule:** on Fridays from 6 pm, if no Giant Eagle `check` job was queued or run today, add one (by `Cart runner`). The Saturday order then starts from an up-to-date cart.
-3. Nothing `queued` or `waiting` → stop. No push, no other work.
+3. Nothing `queued` or `waiting` → do the daily price pass if it's due (below), else stop. No push, no other work.
 4. Take the oldest open job. Check Chrome (`tabs_context`). Not reachable → `waiting`, result "Mike's computer or Chrome was off" (count attempts in notes); after 12 hours of waiting → `failed`. Stop.
 5. Set `running`, `started_at`. Open the store; if it isn't signed in → `failed`, result "<store> isn't signed in on Mike's computer". Stop.
 6. `build` → §2; `check` → §12. One job per run, so a run never takes all afternoon.
 7. Set `done`, `finished_at`, and a short `result`: build "18 items, $142.10, 2 swaps, 1 missing"; check "12 lines, 10 on the List, 2 added, $96.40". Push the same line to the owner.
 8. Close the tabs it opened.
+9. **Daily price pass** (api 23; the one daily price job, Mike Nov 2): once a day, on the first run that reaches Chrome (Settings `prices_through` blank or before today), after any job: for each signed-in store, current prices for up to 40 items (List rows first, then Always, then Sometimes; oldest `price_at` first), plus the store's own-brand equivalent as a `store_brand = Y` row (§2 Prices). GE/WF also look up List grocery items with no row at that store yet (a confident same-product match → a new `likely` row; unsure → skipped). Read search pages in bulk. Never touch a cart. Set Settings `prices_through` = today when done (about 25 minutes at most). Report line: "💲 Prices: GE 40, WF 22, Target 18, Amazon 6 (+5 store-brand options)".
 
 **Rules:** never check out, enter payment or change account settings; never sign in; never touch a cart that holds an order the family is in the middle of placing (ask in the push instead). Reports go only to the owner by push; the family sees the status in the app.
