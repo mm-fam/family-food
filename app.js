@@ -1385,7 +1385,7 @@
   /* ---------- ask ---------- */
   // Questions for the current person. Review rows have no audience column yet,
   // so today every open question goes to the parents. Per-person questions come next.
-  // "Later" snoozes a card until tomorrow (Cecilia, Nov 2): put off today (saved later_at, ET date) or this
+  // "Later" snoozes a card until tomorrow (family demo, Nov 2): put off today (saved later_at, ET date) or this
   // session → out of the deck, the badge and the section chips. It comes back the next day at the back of its section.
   function snoozed(r) {
     if (Number(D().api || 0) < 10) return (S.askLater || []).indexOf(r.id) >= 0; // old backend: this session only
