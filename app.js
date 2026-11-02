@@ -1385,11 +1385,40 @@
   /* ---------- ask ---------- */
   // Questions for the current person. Review rows have no audience column yet,
   // so today every open question goes to the parents. Per-person questions come next.
-  // "Later" snoozes a card until tomorrow (family demo, Nov 2): put off today (saved later_at, ET date) or this
-  // session → out of the deck, the badge and the section chips. It comes back the next day at the back of its section.
-  function snoozed(r) {
-    if (Number(D().api || 0) < 10) return (S.askLater || []).indexOf(r.id) >= 0; // old backend: this session only
-    return !!r.later_at && String(r.later_at).replace(/^'/, '').slice(0, 10) === String(D().today || '').slice(0, 10);
+  // "Later" snoozes a card until a time the person picks (In 2 hours / After school / Tonight / Tomorrow; Nov 2).
+  // Snoozes live on this phone, per person ({person: {review_id: untilMs}}), so one parent's Later doesn't hide a shared
+  // card from the other. Until then the card is out of the deck, the badge and the section chips; then it's back at the
+  // end of its section (later_at still saved through reviewLater, so 3 Laters retire it in the morning check).
+  function snoozeMap() { try { return JSON.parse(store.get('ff_snooze') || '{}') || {}; } catch (e) { return {}; } }
+  function mySnoozes() { return snoozeMap()[String(S.me).toLowerCase()] || {}; }
+  function setSnooze(id, until) {
+    const all = snoozeMap(), me = String(S.me).toLowerCase(), now = Date.now();
+    const mine = all[me] || {};
+    Object.keys(mine).forEach((k) => { if (mine[k] <= now) delete mine[k]; });
+    mine[id] = until; all[me] = mine;
+    store.set('ff_snooze', JSON.stringify(all));
+  }
+  function snoozed(r) { const u = mySnoozes()[r.id]; return !!u && u > Date.now(); }
+  // Choices that are still ahead today, then Tomorrow (6 am).
+  function snoozeChoices() {
+    const now = new Date(), at = (h) => { const d = new Date(now); d.setHours(h, 0, 0, 0); return d.getTime(); };
+    const out = [{ label: 'In 2 hours', sub: new Date(now.getTime() + 2 * 3600e3).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), until: now.getTime() + 2 * 3600e3 }];
+    if (now.getHours() < 13) out.push({ label: 'After school', sub: '3 pm', until: at(15) });
+    if (now.getHours() < 17) out.push({ label: 'Tonight', sub: '6 pm', until: at(18) });
+    const t = new Date(now); t.setDate(t.getDate() + 1); t.setHours(6, 0, 0, 0);
+    out.push({ label: 'Tomorrow', sub: 'morning', until: t.getTime() });
+    return out;
+  }
+  function viewSnoozePicker(r) {
+    return '<div class="pass-pick"><div class="pass-title">Bring it back…</div><div class="pass-people snooze-pick">' +
+      snoozeChoices().map((c) => '<button type="button" class="pass-person" data-act="ask-snooze" data-id="' + r.id + '" data-until="' + c.until + '">' +
+        '<b>' + esc(c.label) + '</b><span class="note">' + esc(c.sub) + '</span></button>').join('') +
+      '</div><button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Cancel</button></div>';
+  }
+  function nextBack() {
+    const m = mySnoozes(), now = Date.now(), ids = myQuestions(true).map((q) => q.id);
+    const t = ids.map((id) => m[id]).filter((u) => u && u > now).sort((a, b) => a - b)[0];
+    return t ? new Date(t) : null;
   }
   function myQuestions(withSnoozed) {
     return myQuestionsAll().filter((r) => withSnoozed || !snoozed(r));
@@ -1689,9 +1718,10 @@
     const deck = askDeck();
     const top = viewScoreboard() + viewApprovals();
     if (!deck.length) {
-      const napping = myQuestions(true).length;
+      const napping = myQuestions(true).length, nb = nextBack();
+      const when = nb ? (nb.toDateString() === new Date().toDateString() ? 'at ' + nb.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'tomorrow') : '';
       return top + '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">' +
-        (napping ? napping + (napping === 1 ? ' card' : ' cards') + ' put off till tomorrow. ' : '') + 'Lunch picks, How was it?, missions and questions show up here.</span></div>' +
+        (napping ? napping + (napping === 1 ? ' card' : ' cards') + ' put off; the next one is back ' + when + '. ' : '') + 'Lunch picks, How was it?, missions and questions show up here.</span></div>' +
         '<p class="hint">Everything here teaches Poppy what the family needs. A parent makes the final call.</p>';
     }
     const r = deck[0];
@@ -1742,7 +1772,7 @@
       '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() && !preStart() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : '+' + cardPoints(r)) + '</span>' : '') + '</div>' +
       '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|meal m\d+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
-      (S.askPassing === r.id ? viewPassPicker(r) :
+      (S.askPassing === r.id ? viewPassPicker(r) : S.askSnoozing === r.id ? viewSnoozePicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
       (canPass() ? '<button type="button" class="btn btn-plain" data-act="ask-pass" data-id="' + r.id + '">Pass ↗</button>' : '') +
       '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' + '</div>') + '</section>';
@@ -1752,7 +1782,7 @@
     return html;
   }
 
-  function resetAskCard() { S.askTyping = null; S.askDraft = ''; S.askSel = ''; S.askPassing = null; }
+  function resetAskCard() { S.askTyping = null; S.askDraft = ''; S.askSel = ''; S.askPassing = null; S.askSnoozing = null; }
 
   // Passing needs backend api 2 (reviewPass + the Review audience column).
   const canPass = () => Number(D().api || 0) >= 2;
@@ -1959,7 +1989,7 @@
     'ask-pick': (el) => answerQuestion(el.dataset.id, el.dataset.v, el.dataset.v === 'Yes' || /^yes/i.test(el.dataset.v) ? 'right' : 'left'),
     'ask-type': (el) => { S.askTyping = el.dataset.id; render(); const f = document.getElementById('ask-in'); if (f) f.focus(); },
     'ask-sel-save': (el) => { if (S.askSel) answerQuestion(el.dataset.id, S.askSel); },
-    'ask-pass': (el) => { S.askPassing = S.askPassing === el.dataset.id ? null : el.dataset.id; render(); },
+    'ask-pass': (el) => { S.askSnoozing = null; S.askPassing = S.askPassing === el.dataset.id ? null : el.dataset.id; render(); },
     'ask-pass-to': (el) => {
       const id = el.dataset.id; const to = el.dataset.to;
       flyCard('up', () => {
@@ -1970,18 +2000,22 @@
         }, 'Passed to ' + to);
       });
     },
-    'ask-later': (el) => {
-      const id = el.dataset.id;
+    'ask-later': (el) => { const id = el.dataset.id; S.askPassing = null; S.askSnoozing = S.askSnoozing === id ? null : id; render(); },
+    'ask-snooze': (el) => {
+      const id = el.dataset.id, until = Number(el.dataset.until);
+      setSnooze(id, until);
       S.askLater = (S.askLater || []).filter((x) => x !== id).concat([id]);
+      const d = new Date(until);
+      const msg = 'Back ' + (d.toDateString() === new Date().toDateString() ? 'at ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'tomorrow');
       flyCard('left', () => {
         resetAskCard();
-        // api 10 saves it, so the card stays at the back tomorrow too and can be recycled.
+        // api 10 saves it (later_count / later_at), so the morning check can retire a card put off 3 times.
         if (Number(D().api || 0) >= 10) {
           act('reviewLater', { id: id }, () => {
             const q = D().review.find((x) => x.id === id);
-            if (q) { q.later_count = (Number(q.later_count) || 0) + 1; q.later_at = String(D().today || '') + 'T' + new Date().toTimeString().slice(0, 8); }
-          }, 'Put off till tomorrow');
-        } else render();
+            if (q) { q.later_count = (Number(q.later_count) || 0) + 1; q.later_at = new Date().toISOString(); }
+          }, msg);
+        } else { showToast(msg); render(); }
       });
     },
     'review-skip': (el) => answerQuestion(el.dataset.id, 'skip', 'up', 'Skipped'),
