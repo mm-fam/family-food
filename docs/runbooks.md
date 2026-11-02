@@ -40,7 +40,8 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 **Line by line (api 25, Nov 2):** parents put single List rows in a cart, take them out or move them, from the item screen, "Put … in carts" on the List, or a store on the Carts screen. Each sets List `cart_want` and queues that store's `build` job. A build job for store X does exactly this, in this order:
 - **Moves in:** rows with `cart_want` = X that are `carted` in another store Y → remove that line from Y's cart first.
 - **Removes:** rows (any status) with `cart` = X and `cart_want` = `out` → remove the line from X's cart. Then: status `carted` → `needed`; a done row (taken off, We have it, grabbed in store) keeps its status. Clear `cart`, `cart_at`, `cart_want`. Remove only lines Poppy has a row for.
-- **Adds:** rows with status `needed` or `carted` and `cart_want` = X → add as in steps 3–4 below → `carted`, `cart` = X, `cart_at` = now, `cart_want` and `cart_note` cleared. Couldn't add (out of stock, no match, ok_swap not Y) → status `needed`, `cart_want` cleared, `cart_note` = "X: <short reason>" (e.g. "GE: out of stock"); the app shows ⚠ Not added.
+- **Qty changes (api 34):** rows `carted` with `cart` = X **and** `cart_want` = X (a parent changed how many on the item screen) → set that line's quantity in X's cart to the row's `qty` with the cart's own quantity control. Never add a second line or add on top. Line missing → add it as below. Done → `cart_at` = now, `cart_want` / `cart_note` cleared. Can't → `cart_want` cleared, `cart_note` = "X: couldn't change qty" (still `carted`).
+- **Adds:** all other rows with status `needed` or `carted` and `cart_want` = X → add as in steps 3–4 below → `carted`, `cart` = X, `cart_at` = now, `cart_want` and `cart_note` cleared. Couldn't add (out of stock, no match, ok_swap not Y) → status `needed`, `cart_want` cleared, `cart_note` = "X: <short reason>" (e.g. "GE: out of stock"); the app shows ⚠ Not added.
 - **No `cart_want` rows at all for X** (an older app's Build the cart): fill every row as in step 2.
 - Then reconcile (§12) and set the result: "Added 4 · took out 1 · 18 in the cart, $142.10 · 1 not added".
 
@@ -215,6 +216,7 @@ Rules: one Review row per person (one row = one answer); next free `rNNN`; `crea
    - A matched item with an active List row (`needed`) → `carted`, `cart` = store, `cart_at` = now (qty from the cart if it differs; note it).
    - A cart line with no List row → add one: status `carted`, `cart` = store, added_by `Cart`, note "Added on the store site".
    - Except: a cart line whose item has a List row with `cart_want` = `out` (or moving away) is waiting to come out; leave it for the build job, don't add a row.
+   - And: a List row with `cart_want` = this same store is a qty change waiting for the build (api 34); keep the row's qty, don't copy the cart's.
    - A List row `carted` for that store whose item is no longer in the cart → back to `needed`, clear `cart` / `cart_at`.
 4. Receipts still close the loop: when the order's receipt is ingested (§1), `carted` rows become `bought`.
 

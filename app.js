@@ -652,6 +652,8 @@
     const inCart = cartStore(r);
     if (inCart && want === 'out') return { kind: 'leaving', store: inCart };
     if (inCart && want && want !== inCart && CART_STORES.indexOf(want) >= 0) return { kind: 'moving', store: want, from: inCart };
+    // api 34: cart_want = the cart it's already in = a qty change waiting for the runner.
+    if (inCart && want === inCart) return { kind: 'in', store: inCart, qty: true };
     if (inCart) return { kind: 'in', store: inCart };
     if (r.status === 'needed' && CART_STORES.indexOf(want) >= 0) return { kind: 'going', store: want };
     if (r.status === 'needed' && r.cart_note) {
@@ -667,6 +669,7 @@
   function cartTag(r) {
     if (!r) return '';
     const c = cartState(r);
+    if (c.kind === 'in' && c.qty) return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Updating ' + esc(sName(c.store)) + ' cart</span>';
     if (c.kind === 'in') return '<span class="cart-tag ' + sCls(c.store) + '">🛒 In ' + (c.store && c.store !== 'Either' ? esc(sName(c.store)) + ' ' : '') + 'cart</span>';
     if (c.kind === 'going') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Adding to ' + esc(sName(c.store)) + ' cart</span>';
     if (c.kind === 'moving') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Moving to ' + esc(sName(c.store)) + ' cart</span>';
@@ -701,7 +704,7 @@
     const stores = {};
     act('cartPush', { rows: pairs.map((p) => ({ id: p.r.id, store: p.store })) }, () => {
       pairs.forEach((p) => {
-        if (p.r.status === 'carted' && String(p.r.cart) === p.store) { p.r.cart_want = ''; return; }
+        if (p.r.status === 'carted' && String(p.r.cart) === p.store) { if (p.r.cart_want !== p.store) p.r.cart_want = ''; return; }
         p.r.cart_want = p.store; p.r.cart_note = ''; stores[p.store] = 1;
       });
       Object.keys(stores).forEach(queueLocal);
@@ -1246,7 +1249,8 @@
       const full = (code) => esc(storeOf(code).name);
       let what = held ? '⏸ Later' + (laterBack(row) ? ' · back ' + esc(shortDay(laterBack(row))) : '') : row.status === 'requested' ? 'Asked for' : 'On the List';
       if (c) {
-        if (c.kind === 'in') what = '🛒 In the ' + full(c.store) + ' cart';
+        if (c.kind === 'in' && c.qty) what = '⏳ Waiting on Claude to change how many in the ' + full(c.store) + ' cart';
+        else if (c.kind === 'in') what = '🛒 In the ' + full(c.store) + ' cart';
         else if (c.kind === 'going') what = '⏳ Waiting on Claude to add it to the ' + full(c.store) + ' cart';
         else if (c.kind === 'moving') what = '⏳ Waiting on Claude to move it to the ' + full(c.store) + ' cart';
         else if (c.kind === 'leaving') what = '⏳ Waiting on Claude to take it out of the ' + full(c.store) + ' cart';
@@ -2847,7 +2851,12 @@
     'row-qty': (el) => {
       const r = sheetRow(); if (!r) return;
       const q = Math.max(1, (Number(r.qty) || 1) + Number(el.dataset.d));
-      act('update', { id: r.id, fields: { qty: q } }, () => { r.qty = q; });
+      if (q === (Number(r.qty) || 1)) return;
+      // api 34: a parent changing how many of a carted row → the runner changes that cart line too.
+      const st = cartStore(r);
+      const sync = Number(D().api || 0) >= 34 && !isKid(S.me) && r.status === 'carted' && CART_STORES.indexOf(st) >= 0 && (!r.cart_want || r.cart_want === st);
+      act('update', { id: r.id, fields: { qty: q } }, () => { r.qty = q; if (sync) { r.cart_want = st; r.cart_note = ''; queueLocal(st); } },
+        sync ? '⏳ ' + r.name + ': ' + q + ' in the ' + storeOf(st).name + ' cart, updating' : undefined);
     },
     'have-level': (el) => {
       const v = el.dataset.v;

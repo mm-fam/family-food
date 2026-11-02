@@ -196,7 +196,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 30 = a Plan slot can hold a catalog item instead of a meal (snacks we just buy).
 // 31 = deliveries (Nov 2, Mike): Items store WG (Wildgrain) / BB (Bleu Box) = food that arrives on its own. addToList
 //      skips them (a mission's out, meal ingredients); Probably due skips them; the app shows them as 🧊 on hand.
-const API_VERSION = 33;
+// 34 = cart qty (Nov 2, Mike): a parent changing the qty of a carted List row sets cart_want = that same cart and
+//      queues its build job; the cart runner changes that line's qty in the store cart (no new line).
+const API_VERSION = 34;
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
@@ -738,6 +740,8 @@ function updateListRow(req) {
   f.updated_at = nowStamp();
   // A carted row taken off the List (or grabbed in the store) comes out of the online cart too.
   if (row.status === 'carted' && (f.status === 'skipped' || f.status === 'have' || (f.status === 'bought' && req.cart_out))) Object.assign(f, cartOutFields(row, req.by));
+  // api 34: a parent changing how many of a carted row → that cart line's qty gets changed too.
+  else if (f.qty !== undefined) Object.assign(f, cartQtyFields(row, f.qty, req.by));
   setFields(TABS.list, row._row, f);
   // A parent handling a kid's request: the parent scores for deciding; the kid scores once it's approved.
   if (row.status === 'requested' && f.status && f.status !== 'requested' && !isKid(req.by)) {
@@ -1790,7 +1794,10 @@ function addCartJob(req) {
   if (JOB_KINDS.indexOf(kind) < 0) throw new Error('Unknown job');
   jobsSheet();
   const rows = readTab(TABS.jobs);
-  const open = rows.find((r) => r.store === store && r.kind === kind && JOB_OPEN.indexOf(String(r.status)) >= 0);
+  // A line-level change (_system) made while that store's job is already running may come after the runner read the
+  // List, so it gets a fresh queued job instead of riding on the running one (api 34).
+  const open = rows.find((r) => r.store === store && r.kind === kind && JOB_OPEN.indexOf(String(r.status)) >= 0 &&
+    !(req._system && String(r.status) === 'running'));
   if (open) return { id: open.id, already: true };
   const id = nextId(rows, 'id', 'c', 3);
   appendObj(TABS.jobs, { id: id, at: nowStamp(), by: req.by || '', store: store, kind: kind, status: 'queued' });
@@ -1824,6 +1831,18 @@ function cartOutFields(row, by) {
   return { cart_want: 'out', cart_by: by || '', cart_note: '' };
 }
 
+// api 34: a carted row's qty changed (by a parent). cart_want = the cart it's already in means "set that line's
+// qty to the row's qty"; queue that store's build. Skips rows on their way out or moving (that job handles them).
+function cartQtyFields(row, qty, by) {
+  const st = String(row.cart || '');
+  if (row.status !== 'carted' || isKid(by) || JOB_STORES.indexOf(st) < 0) return {};
+  if (!(Number(qty) >= 1) || Number(qty) === (Number(row.qty) || 1)) return {};
+  if (row.cart_want && String(row.cart_want) !== st) return {};
+  ensureCartCols();
+  addCartJob({ store: st, kind: 'build', by: by || 'Poppy', _system: true });
+  return { cart_want: st, cart_by: by || '', cart_note: '' };
+}
+
 // {rows: [{id, store}]}: put each row in that store's cart. Returns { done: n, stores: {GE: n}, skipped: [ids] }.
 function cartPush(req) {
   if (isKid(req.by)) throw new Error('Ask a parent to do this');
@@ -1840,8 +1859,8 @@ function cartPush(req) {
     const row = list.find((r) => r.id === x.id);
     if (!row || JOB_STORES.indexOf(st) < 0 || (row.status !== 'needed' && row.status !== 'carted') || String(row.hold_until || '').slice(0, 10) > today) { skipped.push(x.id); return; }
     if (row.status === 'carted' && String(row.cart) === st) {
-      // Already in that cart: this cancels a pending removal or move, if any.
-      if (row.cart_want) setFields(TABS.list, row._row, { cart_want: '', cart_note: '', updated_at: stamp });
+      // Already in that cart: this cancels a pending removal or move, if any (a pending qty change stays).
+      if (row.cart_want && String(row.cart_want) !== st) setFields(TABS.list, row._row, { cart_want: '', cart_note: '', updated_at: stamp });
       return;
     }
     setFields(TABS.list, row._row, { cart_want: st, cart_by: req.by || '', cart_note: '', updated_at: stamp });
