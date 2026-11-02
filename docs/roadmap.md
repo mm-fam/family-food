@@ -35,6 +35,7 @@ _(not yet captured)_
 _(Mike's findings from private testing go here)_
 
 ## Decision log
+- **Nov 2: cart jobs run from a per-minute watcher on the owner's PC (api 24).** Computer-bound scheduled tasks can't go below hourly and have no API trigger. The watcher polls `cartJobsOpen` for free and starts Claude Code only when there's work; every build ends with a reconcile pass so the app matches the store cart.
 | Date | Decision |
 |---|---|
 | Oct 2026 | Build baseline from order history, not a pantry walk. No exact pantry counts. |

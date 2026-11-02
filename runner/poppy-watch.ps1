@@ -47,7 +47,10 @@ $stuck = @($jobs | Where-Object { $_.status -eq 'running' -and $_.started_at -an
 # Waiting jobs (Chrome was off) are retried every 15 minutes, not every minute.
 $retry = Join-Path $here 'last-retry.txt'
 $retryDue = $waiting.Count -gt 0 -and (-not (Test-Path $retry) -or ((Get-Date) - (Get-Item $retry).LastWriteTime).TotalMinutes -ge 15)
-if ($queued.Count -eq 0 -and -not $retryDue -and $stuck.Count -eq 0) { exit 0 }
+# Once a day (from 9 am) start Claude even with no jobs, for the daily price pass (runbook §13 step 9).
+$priceMark = Join-Path $here ('prices-' + $now.ToString('yyyy-MM-dd') + '.done')
+$priceDue = $now.Hour -ge 9 -and -not (Test-Path $priceMark)
+if ($queued.Count -eq 0 -and -not $retryDue -and $stuck.Count -eq 0 -and -not $priceDue) { exit 0 }
 
 # No Chrome open: don't spend a Claude run. Queued jobs wait (the app shows "waiting" after the next try).
 if (-not (Get-Process -Name chrome -ErrorAction SilentlyContinue)) {
@@ -70,6 +73,7 @@ try {
   $out = $prompt | & $claude -p --chrome --allowedTools $tools --max-turns 400 2>&1
   Add-Content -Path $log -Value ($out | Out-String)
   Log 'Claude finished'
+  if ($priceDue) { New-Item -ItemType File -Force -Path $priceMark | Out-Null }
 } catch {
   Log ('Run failed: ' + $_.Exception.Message)
 } finally {
@@ -78,4 +82,5 @@ try {
 }
 
 # Keep two weeks of logs.
+Get-ChildItem $here -Filter *.done | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-14) } | Remove-Item -Force
 Get-ChildItem $logDir -Filter *.log | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-14) } | Remove-Item -Force

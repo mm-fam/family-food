@@ -203,6 +203,11 @@ Rules: one Review row per person (one row = one answer); next free `rNNN`; `crea
 
 ## 13. Cart runner: phones start cart jobs, the owner's computer runs them (api 12)
 
+**Cart watcher (api 24, Nov 2): the build starts within a minute.** A Claude scheduled task that needs the owner's computer can only repeat hourly and has no "start now" link, so tapping Build the cart could wait up to an hour (and not at all after 9 pm). Instead, Windows Task Scheduler on the owner's PC runs `runner/run-hidden.vbs` → `runner/poppy-watch.ps1` every minute. It calls `cartJobsOpen` (read-only; no Claude, no cost). Only when a job is `queued` (or `waiting`, every 15 min, or a `running` job is stuck, or the day's price pass is due from 9 am) and Chrome is open does it start Claude Code: `claude -p --chrome` with `runner/cart-runner-prompt.md` (Sheet ID filled in from the local `runner/poppy-runner.json`, git-ignored). That run does **every** open job, then the price pass if due. **Every build ends with a reconcile pass** (re-read the cart, sync the List line for line, re-add or set back to needed anything missing), so what Poppy shows matches the real cart. Fridays from 6 pm the watcher queues the Giant Eagle check. One run at a time (`runner.lock`); logs in `runner/logs/`. The hourly scheduled task stays off once the watcher is proven.
+
+Setup (once): install Claude Code on the PC and sign in with the family's Claude account; in a terminal run `claude --chrome` once and confirm it sees Chrome and the Google Sheets connector; clone the repo; copy `runner/poppy-runner.example.json` to `runner/poppy-runner.json` and fill it in; register the task: `schtasks /Create /TN "Poppy Cart Watcher" /SC MINUTE /MO 1 /TR "wscript.exe \"<repo>\runner\run-hidden.vbs\"" /F`.
+
+
 **Why:** building or checking a cart needs Chrome signed in to the store (a person signs in; Claude never does), and that Chrome lives on the owner's desktop. Phones can't run it. So a parent queues the job on a phone and a scheduled Claude task on the owner's computer picks it up.
 
 **Phone side:** ⚙ → a store → **Build the cart** or **Check the cart** → `cartJob` → a `queued` row in **Cart Jobs**. The app shows the status line and, on the List, a one-line heads-up.
