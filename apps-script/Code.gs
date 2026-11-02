@@ -34,7 +34,7 @@ const POINTS_HEAD = ['at', 'to', 'pts', 'why', 'ref', 'by', 'note'];
 // Cart Jobs (api 12): a parent taps "Build the cart" / "Check the cart" on a phone; the job waits here until
 // Claude's cart runner (a scheduled task on the owner's computer, which has Chrome signed in to the stores)
 // picks it up and writes back status + result. Created on first use.
-const JOBS_HEAD = ['id', 'at', 'by', 'store', 'kind', 'status', 'started_at', 'finished_at', 'result', 'notes'];
+const JOBS_HEAD = ['id', 'at', 'by', 'store', 'kind', 'status', 'started_at', 'finished_at', 'result', 'notes', 'subtotal', 'lines'];
 const JOB_STORES = ['GE', 'WF', 'TGT', 'AMZ'];
 const STORE_NAMES = { GE: 'Giant Eagle', WF: 'Whole Foods', TGT: 'Target', AMZ: 'Amazon' };
 const JOB_KINDS = ['build', 'check'];
@@ -172,7 +172,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      cancels a push that hasn't run). Each queues that store's build job; the cart runner does the line-level
 //      adds and removes. A carted row taken off the List (Take off, We have it, Don't need it) comes out of the
 //      cart too. Parents only; kids see carts read-only.
-const API_VERSION = 25;
+// 26 = cart totals: Cart Jobs subtotal + lines (the store's own cart subtotal and line count, written by the cart runner
+//      when it finishes a job) ride along in state.cartJobs, so the Carts screen shows $ per cart and in total.
+const API_VERSION = 26;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -1687,9 +1689,10 @@ function recentCartJobs(today) {
   return readTab(TABS.jobs)
     .filter((r) => JOB_OPEN.indexOf(String(r.status)) >= 0 || daysBetween(String(r.at).slice(0, 10), today) <= JOB_SHOW_DAYS)
     .map((r) => ({ id: r.id, at: String(r.at), by: r.by, store: r.store, kind: r.kind, status: String(r.status),
-      started_at: String(r.started_at || ''), finished_at: String(r.finished_at || ''), result: String(r.result || '') }))
+      started_at: String(r.started_at || ''), finished_at: String(r.finished_at || ''), result: String(r.result || ''),
+      subtotal: r.subtotal === '' || r.subtotal == null || isNaN(Number(r.subtotal)) ? '' : Number(r.subtotal), lines: r.lines === '' || r.lines == null ? '' : Number(r.lines) }))
     .reverse()
-    .slice(0, 12);
+    .slice(0, 24);
 }
 
 /* ---------------------------------------------------------------- nightly + setup */

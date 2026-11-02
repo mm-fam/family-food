@@ -435,13 +435,13 @@
     const inCarts = D().list.filter((r) => r.status === 'carted').length;
     const eyebrows = { list: n + ' on the list', shop: 'Add to the List', meals: 'Next 2 weeks', ask: inboxEyebrow(), admin: 'Just for ' + S.me, carts: inCarts + ' in online carts' };
     const title = instore ? 'In store' : titles[S.tab];
-    const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : eyebrows[S.tab];
+    const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : (S.tab === 'list' && canCarts() ? '' : eyebrows[S.tab]);
     let right = '';
     if (instore) right = '<button class="btn btn-primary shop-done" data-act="store-done">Done</button>';
     else if (canCarts()) {
       // Nov 2 header (Mike): the cart is the main button, In store is secondary, 💡 and switching live under your name.
-      if (S.tab === 'list') right += '<button class="btn btn-plain shop-btn small" data-act="store-start">🏪 In store</button>';
       right += cartButton();
+      if (S.tab === 'list') right += '<button class="btn btn-plain shop-btn small" data-act="store-start">🏪 In store</button>';
       right += '<button class="me" data-act="open-me" aria-label="Options for ' + esc(S.me) + '">' + esc(S.me) + ' <span aria-hidden="true">⚙</span></button>';
     } else {
       if (S.tab === 'list') right += '<button class="btn btn-outline shop-btn" data-act="store-start">🛒 In store</button>';
@@ -450,7 +450,7 @@
       else if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'list' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
       right += '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button>';
     }
-    let top = '<header class="top"><div class="top-row"><div><div class="eyebrow">' + esc(eyebrow) + '</div><h1>' + title + '</h1></div>' +
+    let top = '<header class="top"><div class="top-row"><div>' + (eyebrow ? '<div class="eyebrow">' + esc(eyebrow) + '</div>' : '') + '<h1>' + title + '</h1></div>' +
       '<div class="top-right">' + right + '</div></div>';
     if (instore) top += viewStorePicker();
     else if (S.tab === 'shop') top += viewShopTop();
@@ -1199,16 +1199,16 @@
     const n = cartCounts();
     const busy = jobs().some((j) => JOB_OPEN.indexOf(j.status) >= 0);
     const total = CART_STORES.reduce((t, k) => t + n[k], 0);
-    const corner = (k, pos) => (n[k] ? '<span class="cc ' + pos + ' ' + storeOf(k).cls + '">' + n[k] + '</span>' : '');
+    const corner = (k, pos) => '<span class="cc ' + pos + ' ' + storeOf(k).cls + (n[k] ? '' : ' zero') + '">' + n[k] + '</span>';
     const label = 'Online carts: ' + CART_STORES.filter((k) => n[k]).map((k) => n[k] + ' ' + storeOf(k).name).join(', ') + (busy ? '. Claude has changes waiting.' : '');
     return '<button class="cart-btn' + (S.tab === 'carts' ? ' on' : '') + (busy ? ' busy' : '') + '" data-act="tab" data-tab="' + (S.tab === 'carts' ? 'list' : 'carts') + '" aria-label="' + esc(total ? label : 'Online carts: empty') + '">' +
-      '<svg class="cart-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19.5" r="1.6" fill="currentColor"/><circle cx="17" cy="19.5" r="1.6" fill="currentColor"/></svg>' + corner('GE', 'tl') + corner('WF', 'tr') + corner('TGT', 'bl') + corner('AMZ', 'br') + '</button>';
+      '<span class="cart-ico" aria-hidden="true">🛒</span>' + corner('GE', 'tl') + corner('WF', 'tr') + corner('TGT', 'bl') + corner('AMZ', 'br') + '</button>';
   }
   function viewMeSheet() {
     return '<div class="is-head"><div><h2>' + esc(S.me) + '</h2><div class="is-sub">' + (isKid(S.me) ? 'Kid profile' : 'Parent') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
       '<div class="me-menu">' +
       (canV9() ? '<button class="me-item" data-act="open-feedback"><span>💡</span><span><b>Idea for Poppy</b><small>Something confusing, missing, or a great idea</small></span></button>' : '') +
-      '<button class="me-item" data-act="tab" data-tab="carts"><span>🛒</span><span><b>Online carts</b><small>What’s in each store’s cart</small></span></button>' +
+      (canIdeas() ? '<button class="me-item" data-act="new-idea"><span>🍽</span><span><b>Meal idea</b><small>A recipe, a link, or just a dinner you’d like</small></span></button>' : '') +
       '<button class="me-item" data-act="switch-me"><span>🔄</span><span><b>Switch person</b><small>Not ' + esc(S.me) + '? Pick who’s using the phone</small></span></button>' +
       '</div>';
   }
@@ -1230,27 +1230,58 @@
   }
   const lastDone = (code) => jobs().find((j) => j.store === code && j.status === 'done');
   const openJobs = (code) => jobs().filter((j) => j.store === code && JOB_OPEN.indexOf(j.status) >= 0);
+  // Cart totals (api 26): the store's own cart subtotal and line count from the latest finished job.
+  const lastTotal = (code) => jobs().find((j) => j.store === code && j.status === 'done' && j.subtotal !== '' && j.subtotal != null);
+  const fmtMoney = (v) => '$' + Number(v).toFixed(2);
+  // When the cart runner next looks (hourly at :17, 8 am–9 pm on Mike's computer).
+  function nextRunText() {
+    const d = new Date();
+    let h = d.getHours() + (d.getMinutes() >= 17 ? 1 : 0);
+    if (h < 8) h = 8;
+    if (h > 21) return 'tomorrow at 8:17 am';
+    return 'at ' + ((h % 12) || 12) + ':17 ' + (h >= 12 ? 'pm' : 'am');
+  }
+  // Where one cart stands, in plain words: { icon, cls, text }.
+  function cartStatus(code) {
+    const r = cartRows(code);
+    const open = openJobs(code);
+    const running = open.find((j) => j.status === 'running');
+    const waiting = open.find((j) => j.status === 'waiting');
+    const last = jobs().find((j) => j.store === code && (j.status === 'done' || j.status === 'failed'));
+    const todo = [];
+    if (r.going.length) todo.push(r.going.length + ' to add');
+    if (r.leaving.length) todo.push(r.leaving.length + ' to take out');
+    if (open.some((j) => j.kind === 'check') && !todo.length) todo.push('a fresh look at the cart');
+    if (running) return { cls: 'run', text: '🔄 Claude is updating this cart right now.' };
+    if (open.length) return { cls: 'wait', text: '⏳ Waiting: ' + (todo.join(', ') || 'an update') + '. Claude does it ' + nextRunText() + (waiting ? ' (Mike’s computer was off last time).' : ', if Mike’s computer is on.') };
+    if (r.going.length || r.leaving.length) return { cls: 'wait', text: '⏳ ' + todo.join(', ') + ' not sent yet.' };
+    if (last && last.status === 'failed') return { cls: 'fail', text: '⚠ The last update didn’t work: ' + (last.result || 'no reason given') + '.' };
+    if (r.failed.length) return { cls: 'fail', text: '⚠ ' + r.failed.length + ' couldn’t be added. Tap to see why.' };
+    return { cls: 'ok', text: '✓ Up to date' };
+  }
+  function totalLine(code) {
+    const t = lastTotal(code);
+    if (!t) return { money: '—', sub: 'Total not read yet' };
+    return { money: fmtMoney(t.subtotal), sub: (Number(t.lines) || 0) + ' item' + (Number(t.lines) === 1 ? '' : 's') + ' · as of ' + fmtWhen(t.finished_at || t.at) };
+  }
   function viewCarts() {
     if (S.cartOpen) return viewCartDetail(S.cartOpen);
-    let html = '';
+    const known = CART_STORES.filter((k) => lastTotal(k));
+    const sum = known.reduce((t, k) => t + Number(lastTotal(k).subtotal), 0);
+    const items = known.reduce((t, k) => t + (Number(lastTotal(k).lines) || 0), 0);
+    const missing = CART_STORES.filter((k) => !lastTotal(k)).map((k) => storeOf(k).name);
+    let html = '<section class="card carts-total"><div class="ct-label">All carts</div><div class="ct-money">' + (known.length ? fmtMoney(sum) : '—') + '</div>' +
+      '<div class="cart-sub">' + items + ' item' + (items === 1 ? '' : 's') + (missing.length ? ' · not read yet: ' + esc(missing.join(', ')) : '') + '</div></section>';
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
-      const r = cartRows(code);
-      const done = lastDone(code);
-      const sub = [];
-      if (r.going.length) sub.push('⏳ ' + r.going.length + ' going in');
-      if (r.leaving.length) sub.push('⏳ ' + r.leaving.length + ' coming out');
-      if (r.failed.length) sub.push('⚠ ' + r.failed.length + ' not added');
+      const t = totalLine(code);
+      const s2 = cartStatus(code);
       html += '<button class="card cart-card" data-act="cart-open" data-store="' + code + '">' +
-        '<div class="cart-card-top"><b class="head-' + st.cls + '">' + esc(st.name) + '</b><span class="chev" aria-hidden="true">›</span></div>' +
-        '<div class="cart-count">' + (r.in.length ? r.in.length + ' in the cart' : 'Nothing in the cart') + '</div>' +
-        (sub.length ? '<div class="cart-sub">' + sub.join(' · ') + '</div>' : '') +
-        openJobs(code).map((j) => '<div class="cart-sub job-' + jobLine(j).cls + '-txt">' + esc(jobLine(j).text) + '</div>').join('') +
-        (done ? '<div class="cart-sub note">' + (done.kind === 'check' ? 'Checked ' : 'Updated ') + esc(fmtWhen(done.finished_at || done.at)) + (done.result ? ': ' + esc(done.result) : '') + '</div>' : '') +
-        '</button>';
+        '<div class="cart-card-top"><b class="head-' + st.cls + '">' + esc(st.name) + '</b><span class="cart-money">' + t.money + ' <span class="chev" aria-hidden="true">›</span></span></div>' +
+        '<div class="cart-sub">' + esc(t.sub) + '</div>' +
+        '<div class="cart-status st-' + s2.cls + '">' + esc(s2.text) + '</div></button>';
     });
-    html += '<p class="hint">What’s in each store’s online cart, as Claude last saw it. ' + (amParent() ? 'Put things in from an item or with “Put … in carts” on the List. ' : '') +
-      'Claude does the adding and checking on the cart computer, so it has to be on with Chrome open; until then changes wait here. A person always places the order.</p>';
+    html += '<p class="hint">Totals are each store’s own cart subtotal (before tax and fees), from the last time Claude looked. Claude changes and reads the carts on Mike’s computer at :17 past every hour, 8 am–9 pm, when it’s on with Chrome open. A person always places the order.</p>';
     return html;
   }
   function viewCartDetail(code) {
@@ -1260,13 +1291,16 @@
     const ready = D().list.filter((x) => needsCart(x) && pickCart(x).store === code);
     const busyCheck = openJobs(code).some((j) => j.kind === 'check');
     let html = '<button class="link-btn back-btn" data-act="cart-back">‹ All carts</button>';
-    html += '<section class="card store-card"><div class="store-title"><b class="head-' + st.cls + '">' + esc(st.name) + '</b><span class="note">' + r.in.length + ' in the cart</span></div>';
-    const lines = openJobs(code).concat([lastDone(code)].filter(Boolean)).map(jobRow).join('');
-    html += lines;
+    const t = totalLine(code);
+    const s2 = cartStatus(code);
+    const done = lastDone(code);
+    html += '<section class="card store-card"><div class="cart-card-top"><b class="head-' + st.cls + '">' + esc(st.name) + '</b><span class="cart-money">' + t.money + '</span></div>' +
+      '<div class="cart-sub">' + esc(t.sub) + '</div><div class="cart-status st-' + s2.cls + '">' + esc(s2.text) + '</div>' +
+      (done && done.result ? '<div class="cart-sub">Last update ' + esc(fmtWhen(done.finished_at || done.at)) + ': ' + esc(done.result) + '</div>' : '');
     if (!kid) {
       html += cheaperNote(code);
       html += '<div class="job-btns">' + (ready.length ? '<button class="btn btn-primary" data-act="push-store" data-store="' + code + '">Put ' + ready.length + ' from the List in…</button>' : '') +
-        '<button class="btn btn-outline" data-act="cart-job" data-kind="check" data-store="' + code + '"' + (busyCheck ? ' disabled' : '') + '>Check the cart</button></div>';
+        '<button class="btn btn-outline" data-act="cart-job" data-kind="check" data-store="' + code + '"' + (busyCheck ? ' disabled' : '') + '>↻ Re-read cart & total</button></div>';
     }
     html += '</section>';
     const sect = (label, rows, empty) => rows.length ? '<section class="card"><div class="card-head">' + label + ' · ' + rows.length + '</div>' +
