@@ -785,3 +785,52 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .helper-line.off { color: var(--req-ink); } .helper-line.off .dot { background: var(--tgt-edge); }
 .how-it-works { font-size: 13px; color: var(--muted); line-height: 1.45; padding: 4px 4px 12px; }
 .how-it-works ol { margin: 4px 0 6px; padding-left: 18px; }
+
+/* ---------- Shop search + Filter panel (Nov 2) ---------- */
+.shop-search { display: flex; gap: 8px; align-items: stretch; }
+.shop-search .addbar { flex: 1; min-width: 0; }
+.shop-search .field { padding-right: 40px; }
+.shop-search input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.search-x {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; border: 0; border-radius: 999px; background: transparent;
+  display: grid; place-items: center; color: var(--muted); font-size: 13px; line-height: 1;
+}
+.search-x::before { content: ''; position: absolute; inset: 7px; border-radius: 999px; background: var(--badge); z-index: -1; }
+.search-x { z-index: 0; }
+.filter-btn {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px;
+  border: 1px solid var(--field); border-radius: 12px; background: var(--card); font-size: 14px; font-weight: 600; color: var(--ink);
+}
+.filter-btn.open { border-color: var(--ink); }
+.filter-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.filter-n { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #FFFFFF; font-size: 11px; display: inline-grid; place-items: center; }
+.filter-panel {
+  padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); max-height: 65vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.fp-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.filter-panel .chips-row { gap: 6px; }
+.seg { display: flex; border: 1px solid var(--field); border-radius: 10px; overflow: hidden; }
+.seg button {
+  flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 4px; border: 0; border-left: 1px solid var(--field);
+  background: var(--card); font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.seg button:first-child { border-left: 0; }
+.seg button.on { background: var(--ink); color: var(--bg); }
+.seg button { border-radius: 0; }
+.seg-stores button { flex: 1 1 auto; padding: 0 6px; font-size: 12px; text-overflow: clip; }
+.seg button.ge { color: var(--ge); } .seg button.wf { color: var(--wf); } .seg button.tgt { color: var(--tgt); } .seg button.amz { color: var(--amz); }
+.seg button.ge.on { background: var(--ge); color: #FFFFFF; } .seg button.wf.on { background: var(--wf); color: #FFFFFF; }
+.seg button.tgt.on { background: var(--tgt); color: #FFFFFF; } .seg button.amz.on { background: var(--amz); color: #FFFFFF; }
+.fp-check { display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 6px 0; font-size: 14px; text-align: left; }
+.fp-check .sw { flex: none; width: 36px; height: 22px; border-radius: 999px; background: var(--field); position: relative; transition: background .15s; }
+.fp-check .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 999px; background: #FFFFFF; transition: transform .15s; }
+.fp-check.on .sw { background: var(--accent); }
+.fp-check.on .sw::after { transform: translateX(14px); }
+.fp-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+.fp-foot .link-btn { align-self: center; font-size: 13px; }
+.fp-foot .btn { min-height: 36px; padding: 0 18px; }
+.filter-sum { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -4px; font-size: 13px; color: var(--muted); }
+.filter-sum span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filter-sum .link-btn { align-self: center; flex: none; font-size: 13px; }

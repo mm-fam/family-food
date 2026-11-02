@@ -33,6 +33,9 @@
     instore: store.get('ff_instore') || '', // In-store mode on the List: store being shopped (GE / WF / TGT / all); '' = at home
     shopFilter: 'all', // Shop tab smart filter
     shopStore: 'all',  // Shop tab store filter
+    shopSort: 'most',  // Shop tab sort: most / last / az
+    shopHideListed: false,
+    shopFiltersOpen: false, // Filter panel; folded each time the app opens
     storeFilter: 'all',
     editMode: false,
     query: '',
@@ -913,6 +916,7 @@
   }
 
   // Smart filters. Each returns item ids; pills with nothing in them are hidden.
+  // Nov 2 (Mike): "On the list" is gone (the List tab is that view); "Not lately" and "Cheaper elsewhere" are new.
   function smartSets() {
     const items = D().items.filter((i) => i.status !== 'Drop');
     const listed = {};
@@ -926,27 +930,63 @@
       mealItems(mealById(p.meal_id)).forEach((id) => dinnerIds.indexOf(id) < 0 && dinnerIds.push(id));
     });
     const stock = D().stock || {};
+    const usual = (i) => i.status === 'Always' || Number(i.orders) >= 2;
     return {
       due: D().due.map((d) => d.id).filter((id) => !listed[id]),
-      usual: items.filter((i) => i.status === 'Always' || Number(i.orders) >= 2).map((i) => i.id),
+      usual: items.filter(usual).map((i) => i.id),
       dinners: dinnerIds.filter((id) => itemById(id)),
       low: Object.keys(stock).filter((id) => (stock[id].level === 'low' || stock[id].level === 'out') && ago(stock[id].at) <= 14),
       recent: items.filter((i) => ago(i.last_bought) <= 14).map((i) => i.id),
-      onlist: Object.keys(listed).filter((id) => itemById(id)),
+      // A usual we haven't bought in a month and at least twice its normal gap: easy to forget.
+      stale: items.filter((i) => usual(i) && i.last_bought && !listed[i.id] && ago(i.last_bought) >= Math.max(30, 2 * (Number(i.avg_days) || 0))).map((i) => i.id),
+      cheaper: Number(D().api || 0) >= 23 ? items.filter((i) => cheaperElsewhere(i.id, i.store)).map((i) => i.id) : [],
       listed: listed,
     };
   }
-  const SMART = [['all', 'All'], ['due', 'Probably due'], ['dinners', 'For meals'], ['usual', 'Usuals'], ['low', 'Running low'], ['recent', 'Bought lately'], ['onlist', 'On the list']];
+  const SMART = [['all', 'Everything'], ['due', '⏰ Probably due'], ['dinners', '🍽 For meals'], ['usual', '⭐ Usuals'], ['low', '📉 Running low'],
+    ['recent', '🕘 Bought lately'], ['stale', '💤 Not lately'], ['cheaper', '💲 Cheaper elsewhere']];
+  const SHOP_STORES = [['all', 'All'], ['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon']];
+  const SHOP_SORTS = [['most', 'Most bought'], ['last', 'Last bought'], ['az', 'A–Z']];
+
+  // Shop top (Nov 2, Mike): search with a ✕ to clear it, and a Filter button that opens the filter panel
+  // (Show / Store on one row / Sort / Hide what's on the List). Folded each time; when filters are on, a
+  // one-line summary with Clear sits under the search so nothing is hidden by surprise.
+  function shopFiltersOn() {
+    const on = [];
+    if ((S.shopFilter || 'all') !== 'all') on.push((SMART.find((p) => p[0] === S.shopFilter) || [])[1]);
+    if ((S.shopStore || 'all') !== 'all') on.push(storeOf(S.shopStore).name);
+    if (S.shopHideListed) on.push('Not on the List');
+    if ((S.shopSort || 'most') !== 'most') on.push('Sorted ' + (SHOP_SORTS.find((p) => p[0] === S.shopSort) || [])[1]);
+    return on.filter(Boolean);
+  }
 
   function viewShopTop() {
     const sets = smartSets();
     const f = S.shopFilter || 'all';
-    const pill = (v, label, n) => '<button class="pill' + (f === v ? ' on' : '') + '" data-act="shop-filter" data-v="' + v + '">' + label + (n != null ? ' <span class="pill-n">' + n + '</span>' : '') + '</button>';
-    const spill = (v, label, cls) => '<button class="pill small ' + (cls || '') + ((S.shopStore || 'all') === v ? ' on' : '') + '" data-act="shop-store" data-v="' + v + '">' + label + '</button>';
-    return '<form class="addbar" data-form="add" autocomplete="off"><label class="sr" for="add">Search or add</label>' +
-      '<input id="add" class="field" type="search" placeholder="' + (isKid(S.me) ? 'Search or ask for something…' : 'Search or add something new…') + '" value="' + esc(S.query) + '" enterkeyhint="done"></form>' +
-      '<div class="pill-scroll">' + SMART.filter((p) => p[0] === 'all' || sets[p[0]].length).map((p) => pill(p[0], p[1], p[0] === 'all' ? null : sets[p[0]].length)).join('') + '</div>' +
-      '<div class="chips-row">' + spill('all', 'Every store') + spill('GE', 'Giant Eagle', 'ge') + spill('WF', 'Whole Foods', 'wf') + spill('TGT', 'Target', 'tgt') + spill('AMZ', 'Amazon', 'amz') + '</div>';
+    const st = S.shopStore || 'all';
+    const sort = S.shopSort || 'most';
+    const on = shopFiltersOn();
+    const open = !!S.shopFiltersOpen;
+    let h = '<div class="shop-search"><form class="addbar" data-form="add" autocomplete="off"><label class="sr" for="add">Search or add</label>' +
+      '<input id="add" class="field" type="search" placeholder="' + (isKid(S.me) ? 'Search or ask…' : 'Search or add…') + '" value="' + esc(S.query) + '" enterkeyhint="done">' +
+      (S.query ? '<button type="button" class="search-x" data-act="shop-clear-q" aria-label="Clear the search">✕</button>' : '') + '</form>' +
+      '<button type="button" class="filter-btn' + (open ? ' open' : '') + (on.length ? ' active' : '') + '" data-act="shop-filters" aria-expanded="' + open + '" aria-controls="shop-filters">' +
+      '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+      '<span>Filter</span>' + (on.length ? '<span class="filter-n">' + on.length + '</span>' : '') + '</button></div>';
+    if (open) {
+      const pill = (v, label, n) => '<button type="button" class="pill small' + (f === v ? ' on' : '') + '" data-act="shop-filter" data-v="' + v + '" aria-pressed="' + (f === v) + '">' + label + (n != null ? ' <span class="pill-n">' + n + '</span>' : '') + '</button>';
+      const seg = (act, cur, v, label, cls) => '<button type="button" class="' + (cls || '') + (cur === v ? ' on' : '') + '" data-act="' + act + '" data-v="' + v + '" aria-pressed="' + (cur === v) + '">' + label + '</button>';
+      h += '<div class="filter-panel" id="shop-filters">' +
+        '<div class="fp-label">Show</div><div class="chips-row">' + SMART.filter((p) => p[0] === 'all' || p[0] === f || sets[p[0]].length).map((p) => pill(p[0], p[1], p[0] === 'all' ? null : sets[p[0]].length)).join('') + '</div>' +
+        '<div class="fp-label">Store</div><div class="seg seg-stores">' + SHOP_STORES.map((p) => seg('shop-store', st, p[0], p[1], p[0] === 'all' ? '' : storeOf(p[0]).cls)).join('') + '</div>' +
+        '<div class="fp-label">Sort</div><div class="seg">' + SHOP_SORTS.map((p) => seg('shop-sort', sort, p[0], p[1])).join('') + '</div>' +
+        '<button type="button" class="fp-check' + (S.shopHideListed ? ' on' : '') + '" role="switch" aria-checked="' + !!S.shopHideListed + '" data-act="shop-hide-listed"><span class="sw" aria-hidden="true"></span>Hide what’s already on the List</button>' +
+        '<div class="fp-foot">' + (on.length ? '<button type="button" class="link-btn" data-act="shop-filters-clear">Clear filters</button>' : '<span></span>') +
+        '<button type="button" class="btn btn-primary small" data-act="shop-filters">Done</button></div></div>';
+    } else if (on.length) {
+      h += '<div class="filter-sum"><span>' + esc(on.join(' · ')) + '</span><button type="button" class="link-btn" data-act="shop-filters-clear">Clear</button></div>';
+    }
+    return h;
   }
 
   function viewShop() {
@@ -954,8 +994,9 @@
     const f = S.shopFilter || 'all';
     const q = S.query.trim().toLowerCase();
     const st = S.shopStore || 'all';
-    let items = D().items.filter((i) => i.status !== 'Drop' || f === 'onlist');
-    if (f !== 'all') { const ids = sets[f]; items = ids.map(itemById).filter(Boolean); }
+    let items = D().items.filter((i) => i.status !== 'Drop');
+    if (f !== 'all') { const ids = sets[f] || []; items = ids.map(itemById).filter(Boolean); }
+    if (S.shopHideListed) items = items.filter((i) => !sets.listed[i.id]);
     if (st !== 'all') items = items.filter((i) => i.store === st || (i.store === 'Either' && takesEither(st)));
     let close = false;
     if (q) { const fr = findItems(q, items); items = fr.hits; close = !fr.all && items.length > 0; }
@@ -971,6 +1012,8 @@
       const last = !on && lastOutcome(i.id);
       if (last) meta.unshift('<span class="outcome ' + last.cls + '">' + esc(last.text) + '</span>');
       else if (i.last_bought) meta.push('bought ' + esc(daysAgo(i.last_bought)));
+      const pt = priceTag({ item_id: i.id, store: i.store });
+      if (pt) meta.push(pt);
       const stk = (D().stock || {})[i.id];
       if (stk) meta.push('at home: ' + esc(levelText(stk.level)) + ' (' + esc(daysAgo(stk.at)) + ')');
       return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + i.id + '"><span class="row-name">' + esc(i.name) + '</span><span class="row-meta">' + meta.join(' · ') + '</span></button>' +
@@ -980,7 +1023,11 @@
     if (f === 'due' || f === 'dinners' || f === 'low') {
       if (items.length) html += '<section class="card">' + items.map(row).join('') + '</section>';
     } else {
-      const sorted = items.slice().sort((a, b) => (Number(b.orders) || 0) - (Number(a.orders) || 0) || String(a.name).localeCompare(b.name));
+      const sort = S.shopSort || 'most';
+      const byName = (a, b) => String(a.name).localeCompare(b.name);
+      const sorted = items.slice().sort(sort === 'az' ? byName
+        : sort === 'last' ? (a, b) => String(b.last_bought || '').localeCompare(String(a.last_bought || '')) || byName(a, b)
+          : (a, b) => (Number(b.orders) || 0) - (Number(a.orders) || 0) || byName(a, b));
       const groups = GROUPS.concat(Array.from(new Set(sorted.map((i) => i.group || 'Other'))).filter((g) => GROUPS.indexOf(g) < 0));
       const used = groups.filter((g) => sorted.some((i) => (i.group || 'Other') === g));
       // Aisles start folded with a peek of names; a search opens everything it matches.
@@ -2573,7 +2620,12 @@
       render();
     },
     'shop-filter': (el) => { S.shopFilter = el.dataset.v; render(); window.scrollTo(0, 0); },
+    'shop-hide-listed': (el) => { S.shopHideListed = !S.shopHideListed; render(); },
     'shop-store': (el) => { S.shopStore = el.dataset.v; render(); },
+    'shop-sort': (el) => { S.shopSort = el.dataset.v; render(); },
+    'shop-filters': () => { S.shopFiltersOpen = !S.shopFiltersOpen; render(); },
+    'shop-filters-clear': () => { S.shopFilter = 'all'; S.shopStore = 'all'; S.shopSort = 'most'; S.shopHideListed = false; render(); window.scrollTo(0, 0); },
+    'shop-clear-q': () => { S.query = ''; render(); const f = document.getElementById('add'); if (f) f.focus(); },
     'store-start': () => { S.instore = store.get('ff_instore_last') || 'GE'; store.set('ff_instore', S.instore); S.tab = 'list'; render(); window.scrollTo(0, 0); },
     'store-pick': (el) => { S.instore = el.dataset.v; store.set('ff_instore', S.instore); store.set('ff_instore_last', S.instore); render(); },
     'store-done': () => {
