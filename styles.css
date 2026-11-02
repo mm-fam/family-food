@@ -861,3 +861,9 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .add-btn.dlv { background: transparent; border-color: var(--wg-edge); font-size: 15px; }
 .dlv-note { padding: 10px 12px; border-radius: 10px; background: #F7EFE5; color: var(--wg); font-size: 14px; margin: 4px 0 8px; }
 .onhand-src { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); padding: 8px 14px 2px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* Saved copy on screen while fresh state loads (Nov 2) */
+.stale-pill { position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); left: 50%; transform: translateX(-50%); z-index: 60;
+  background: rgba(40, 40, 36, 0.82); color: #fff; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 999px;
+  pointer-events: none; animation: stale-pulse 1.4s ease-in-out infinite; }
+@keyframes stale-pulse { 0%, 100% { opacity: 0.95; } 50% { opacity: 0.55; } }

@@ -196,7 +196,7 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 30 = a Plan slot can hold a catalog item instead of a meal (snacks we just buy).
 // 31 = deliveries (Nov 2, Mike): Items store WG (Wildgrain) / BB (Bleu Box) = food that arrives on its own. addToList
 //      skips them (a mission's out, meal ingredients); Probably due skips them; the app shows them as 🧊 on hand.
-const API_VERSION = 32;
+const API_VERSION = 33;
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
@@ -297,17 +297,46 @@ function withLock(fn) {
 
 /* ---------------------------------------------------------------- sheet helpers */
 
+// Speed (Nov 2, api 33): one Spreadsheet handle and one Sheet lookup per tab per request, and inside
+// getState each tab is read from the Sheet only once (Review, Settings, Receipts and Plan used to be
+// read 2-5 times per state). The read cache keeps raw values and builds fresh objects every time, so
+// callers can still change the rows they get. Any write helper drops the cache.
+let SS_ = null;
+const TAB_ = {};
+let READ_CACHE_ = null; // tab name -> raw values, only while getState is building state
+function ss() { return SS_ || (SS_ = SpreadsheetApp.getActive()); }
+// The tab, or null if it doesn't exist (only found tabs are remembered, so a tab made later is seen).
+function tab(name) {
+  if (TAB_[name]) return TAB_[name];
+  const sh = ss().getSheetByName(name);
+  if (sh) TAB_[name] = sh;
+  return sh;
+}
 function sheet(name) {
-  const sh = SpreadsheetApp.getActive().getSheetByName(name);
+  const sh = tab(name);
   if (!sh) throw new Error('Missing tab: ' + name);
   return sh;
+}
+function dropReadCache() { if (READ_CACHE_) READ_CACHE_ = {}; }
+
+// Milliseconds per step of the last getState (returned as state.timing so slow spots are easy to find).
+let TIMING_ = null;
+function timed(label, fn) {
+  const t = Date.now();
+  const out = fn();
+  if (TIMING_) TIMING_[label] = (TIMING_[label] || 0) + (Date.now() - t);
+  return out;
 }
 
 // Reads a tab into objects keyed by its header row. Each object knows its row number.
 function readTab(name) {
-  const sh = sheet(name);
-  const values = sh.getDataRange().getValues();
-  const head = values.shift().map(String);
+  let raw = READ_CACHE_ && READ_CACHE_[name];
+  if (!raw) {
+    raw = timed('read ' + name, () => sheet(name).getDataRange().getValues());
+    if (READ_CACHE_) READ_CACHE_[name] = raw;
+  }
+  const values = raw.slice(1);
+  const head = raw[0].map(String);
   return values
     .map((row, i) => {
       const o = { _row: i + 2 };
@@ -323,11 +352,13 @@ function headers(name) {
 }
 
 function appendObj(name, obj) {
+  dropReadCache();
   const head = headers(name);
   sheet(name).appendRow(head.map((h) => (obj[h] === undefined ? '' : obj[h])));
 }
 
 function setFields(name, rowNum, fields) {
+  dropReadCache();
   const head = headers(name);
   const sh = sheet(name);
   Object.keys(fields).forEach((k) => {
@@ -340,6 +371,7 @@ function setFields(name, rowNum, fields) {
 function ensureColumn(name, col) {
   const head = headers(name);
   if (head.indexOf(col) >= 0) return;
+  dropReadCache();
   sheet(name).getRange(1, head.length + 1).setValue(col);
 }
 
@@ -363,12 +395,18 @@ function nextId(rows, key, prefix, width) {
   return prefix + String(max + 1).padStart(width, '0');
 }
 
+// Sheets hand back thousands of date cells per state; the time zone lookup and formatting are
+// service calls, so both are remembered for the request.
+let TZ_ = null;
+const ISO_ = {};
+function scriptTz() { return TZ_ || (TZ_ = Session.getScriptTimeZone()); }
 function isoDate(d) {
-  return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const k = d.getTime();
+  return ISO_[k] || (ISO_[k] = Utilities.formatDate(d, scriptTz(), 'yyyy-MM-dd'));
 }
 
 function nowStamp() {
-  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
+  return Utilities.formatDate(new Date(), scriptTz(), "yyyy-MM-dd'T'HH:mm:ss");
 }
 
 function daysBetween(isoA, isoB) {
@@ -391,7 +429,22 @@ function isKid(name) {
 /* ---------------------------------------------------------------- reads */
 
 function getState() {
-  dailyCards();
+  const t0 = Date.now();
+  TIMING_ = {};
+  try {
+    timed('dailyCards', dailyCards); // may write (first open of the day), so it runs before the read cache
+    READ_CACHE_ = {};
+    const st = buildState();
+    TIMING_.total = Date.now() - t0;
+    st.timing = TIMING_;
+    return st;
+  } finally {
+    READ_CACHE_ = null;
+    TIMING_ = null;
+  }
+}
+
+function buildState() {
   const items = readTab(TABS.items);
   const list = readTab(TABS.list);
   const today = isoDate(new Date());
@@ -406,7 +459,7 @@ function getState() {
   // A fresh "we have plenty/some/a count" sighting (last 7 days) holds back "probably due".
   const stocked = {};
   const stockLatest = {}; // item_id -> latest sighting { level, at, who }
-  const stockRows = SpreadsheetApp.getActive().getSheetByName(TABS.stock) ? readTab(TABS.stock) : [];
+  const stockRows = tab(TABS.stock) ? readTab(TABS.stock) : [];
   if (stockRows.length) {
     stockRows.forEach((s) => {
       if (s.item_id) stockLatest[s.item_id] = { level: String(s.level), at: String(s.at).slice(0, 10), who: s.who || '' };
@@ -474,7 +527,7 @@ function getState() {
       wf_order_day: settings.wf_order_day || '',
       order_requested: settings.order_requested || '',
       admins: String(settings.admins || '').split(',').map((s) => s.trim()).filter(String),
-      runner_seen: settings.runner_seen instanceof Date ? Utilities.formatDate(settings.runner_seen, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.runner_seen || ''),
+      runner_seen: settings.runner_seen instanceof Date ? Utilities.formatDate(settings.runner_seen, scriptTz(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.runner_seen || ''),
     },
   };
 }
@@ -486,14 +539,14 @@ function buyHistory(items, list, today) {
   const dates = {};
   const add = (id, d) => { if (id && /^\d{4}-\d\d-\d\d$/.test(d) && d <= today) (dates[id] = dates[id] || {})[d] = true; };
   const freshness = {};
-  const rs = SpreadsheetApp.getActive().getSheetByName(TABS.receipts) ? readTab(TABS.receipts) : [];
+  const rs = tab(TABS.receipts) ? readTab(TABS.receipts) : [];
   rs.forEach((r) => {
     const d = String(r.date || '').slice(0, 10);
     add(r.item_id, d);
     const st = String(r.store || '');
     if (st && /^\d{4}-\d\d-\d\d$/.test(d) && (!freshness[st] || d > freshness[st])) freshness[st] = d;
   });
-  const arch = SpreadsheetApp.getActive().getSheetByName('List Archive') ? readTab('List Archive') : [];
+  const arch = tab('List Archive') ? readTab('List Archive') : [];
   list.concat(arch).forEach((r) => { if (r.status === 'bought' && r.updated_at) add(r.item_id, dayOf(r.updated_at)); });
   const byItem = {};
   Object.keys(dates).forEach((id) => {
@@ -519,7 +572,7 @@ function stripRow(o) {
 // along as `sb`. Returns { item_id: { GE: { name, size, aisle, price, unit_price, unit, price_at, sb? } } }.
 // Missing tab = {}.
 function productsMap() {
-  if (!SpreadsheetApp.getActive().getSheetByName(TABS.products)) return {};
+  if (!tab(TABS.products)) return {};
   const rank = { exact: 0, likely: 1, alt: 2 };
   const best = {};
   const sb = {};
@@ -801,7 +854,7 @@ function makeMissions(today, kids, review, plan, mealOf) {
   const onList = {};
   readTab(TABS.list).forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0) onList[r.item_id] = true; });
   const seen = {};
-  if (SpreadsheetApp.getActive().getSheetByName(TABS.stock)) {
+  if (tab(TABS.stock)) {
     readTab(TABS.stock).forEach((x) => {
       if (x.item_id && x.at && daysBetween(String(x.at).slice(0, 10), today) < MISSION_RECHECK_DAYS) seen[x.item_id] = true;
     });
@@ -895,7 +948,7 @@ function makeSettle(today, kids, review) {
     const o = String(r.detail).match(/\(order (\w+)\)/); if (o) asked['order ' + o[1]] = true;
   });
   const seen = {};
-  if (SpreadsheetApp.getActive().getSheetByName(TABS.stock)) {
+  if (tab(TABS.stock)) {
     readTab(TABS.stock).forEach((x) => {
       const lv = String(x.level || '').toLowerCase();
       if (x.item_id && x.at && (lv === 'plenty' || lv === 'some' || (/^\d+$/.test(lv) && Number(lv) > 0))) {
@@ -1114,7 +1167,7 @@ function ruleByKey(k) { return POINT_RULES.find((x) => x.key === k) || { key: k,
 // A Sheet cell that may hold a Date or text, as "yyyy-MM-ddTHH:mm:ss" text.
 function stampOf(v) {
   if (!v) return '';
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
+  if (v instanceof Date) return Utilities.formatDate(v, scriptTz(), "yyyy-MM-dd'T'HH:mm:ss");
   return String(v);
 }
 
@@ -1123,7 +1176,7 @@ function awardPoints(to, why, ref, by, note) {
   const rule = ruleByKey(why);
   const name = people().find((p) => p.toLowerCase() === String(to || '').trim().toLowerCase());
   if (!name || !rule.pts) return 0;
-  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.points);
+  let sh = tab(TABS.points);
   if (!sh) { sh = SpreadsheetApp.getActive().insertSheet(TABS.points); sh.appendRow(POINTS_HEAD); sh.setFrozenRows(1); }
   const rows = readTab(TABS.points);
   if (ref && rows.some((r) => String(r.to) === name && String(r.why) === why && String(r.ref) === String(ref))) return 0;
@@ -1133,7 +1186,7 @@ function awardPoints(to, why, ref, by, note) {
   return rule.pts;
 }
 function ledgerRows() {
-  return SpreadsheetApp.getActive().getSheetByName(TABS.points) ? readTab(TABS.points) : [];
+  return tab(TABS.points) ? readTab(TABS.points) : [];
 }
 // Every scored event: answered Inbox cards (Review) plus the Points ledger.
 // The first day that counts (Settings points_start, yyyy-mm-dd); blank = everything counts.
@@ -1274,7 +1327,7 @@ function passReview(req) {
 /* ---------------------------------------------------------------- meal ideas + meal stats */
 
 function ideasSheet() {
-  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.ideas);
+  let sh = tab(TABS.ideas);
   if (!sh) {
     sh = SpreadsheetApp.getActive().insertSheet(TABS.ideas);
     sh.appendRow(IDEAS_HEAD);
@@ -1295,7 +1348,7 @@ function addMealIdea(req) {
 
 // Ideas still being worked on, plus ones finished in the last 14 days (so people see what happened).
 function recentIdeas(today) {
-  if (!SpreadsheetApp.getActive().getSheetByName(TABS.ideas)) return [];
+  if (!tab(TABS.ideas)) return [];
   return readTab(TABS.ideas)
     .filter((x) => x.status === 'new' || x.status === 'asked' || daysBetween(String(x.at).slice(0, 10), today) <= 14)
     .slice(-10)
@@ -1326,7 +1379,7 @@ function mealStats(meals, today) {
 
   // Plan history: dates before today count as made; the first date from today on is "next".
   let plan = readTab(TABS.plan);
-  if (SpreadsheetApp.getActive().getSheetByName('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
+  if (tab('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
   plan.forEach((p) => {
     const st = out[p.meal_id]; const d = planDate(p);
     if (!st || !d || isLeftover(p)) return;
@@ -1379,7 +1432,7 @@ function addMealRequest(req) {
 function addFeedback(req) {
   const text = String(req.text || '').trim().slice(0, IDEA_MAX);
   if (!text) throw new Error('Type something first');
-  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.feedback);
+  let sh = tab(TABS.feedback);
   if (!sh) { sh = SpreadsheetApp.getActive().insertSheet(TABS.feedback); sh.appendRow(FEEDBACK_HEAD); sh.setFrozenRows(1); }
   const id = nextId(readTab(TABS.feedback), 'id', 'f', 3);
   appendObj(TABS.feedback, { id: id, at: nowStamp(), who: req.by || '', tab: req.tab || '', text: text, status: 'new', notes: '' });
@@ -1404,7 +1457,7 @@ function ideaAlert(id, who, tab, text) {
       to: to,
       subject: '💡 Poppy idea from ' + (who || 'someone') + where,
       body: text + '\n\n— ' + (who || 'Someone') + where + ', ' + nowStamp().replace('T', ' ') + ' · ' + id +
-        '\n\nOpen a Poppy chat with Claude to react to it. Sheet: ' + SpreadsheetApp.getActive().getUrl() + '#gid=' + SpreadsheetApp.getActive().getSheetByName(TABS.feedback).getSheetId(),
+        '\n\nOpen a Poppy chat with Claude to react to it. Sheet: ' + SpreadsheetApp.getActive().getUrl() + '#gid=' + tab(TABS.feedback).getSheetId(),
       name: 'Poppy 2.0',
     });
     return true;
@@ -1455,7 +1508,7 @@ function dailyCards() {
     const meals = readTab(TABS.meals);
     const mealOf = {}; meals.forEach((m) => (mealOf[m.id] = m));
     let plan = readTab(TABS.plan);
-    if (SpreadsheetApp.getActive().getSheetByName('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
+    if (tab('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
     const madeBefore = (id, d) => plan.filter((p) => p.meal_id === id && !isLeftover(p) && planDate(p) && planDate(p) < d).length;
     const from = st.cards_through ? addDays(String(st.cards_through).slice(0, 10), 1) : addDays(today, -1);
     const start = from < addDays(today, -RATE_BACK_DAYS) ? addDays(today, -RATE_BACK_DAYS) : from;
@@ -1536,7 +1589,7 @@ function nextIdNum(rows) {
 /* ---------------------------------------------------------------- stock ("we have it") */
 
 function stockSheet() {
-  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.stock);
+  let sh = tab(TABS.stock);
   if (!sh) {
     sh = SpreadsheetApp.getActive().insertSheet(TABS.stock);
     sh.appendRow(STOCK_HEAD);
@@ -1621,7 +1674,7 @@ function itemInfo(req) {
     .map((r) => ({ date: String(r.date).slice(0, 10), store: r.store, price: r.price, qty: r.qty }))
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .slice(0, 6);
-  const stock = SpreadsheetApp.getActive().getSheetByName(TABS.stock)
+  const stock = tab(TABS.stock)
     ? readTab(TABS.stock).filter((s) => s.item_id === id).slice(-4).reverse()
       .map((s) => ({ at: String(s.at).slice(0, 10), level: String(s.level), who: s.who || '' }))
     : [];
@@ -1702,7 +1755,7 @@ function useSoonAction(req) {
 
 // Parents' card for anything tossed WASTE_TIMES+ times in WASTE_DAYS, once per WASTE_REASK_DAYS per item.
 function makeWaste(today, review) {
-  if (!SpreadsheetApp.getActive().getSheetByName(TABS.stock)) return [];
+  if (!tab(TABS.stock)) return [];
   const count = {};
   readTab(TABS.stock).forEach((s) => {
     if (String(s.level).toLowerCase() === 'waste' && s.item_id && daysBetween(dayOf(s.at), today) <= WASTE_DAYS) count[s.item_id] = (count[s.item_id] || 0) + 1;
@@ -1723,7 +1776,7 @@ function makeWaste(today, review) {
 /* ---------------------------------------------------------------- cart jobs (api 12) */
 
 function jobsSheet() {
-  let sh = SpreadsheetApp.getActive().getSheetByName(TABS.jobs);
+  let sh = tab(TABS.jobs);
   if (!sh) { sh = SpreadsheetApp.getActive().insertSheet(TABS.jobs); sh.appendRow(JOBS_HEAD); sh.setFrozenRows(1); }
   return sh;
 }
@@ -1746,7 +1799,7 @@ function addCartJob(req) {
 
 function cancelCartJob(req) {
   if (isKid(req.by)) throw new Error('Ask a parent to do this');
-  if (!SpreadsheetApp.getActive().getSheetByName(TABS.jobs)) throw new Error('No such job');
+  if (!tab(TABS.jobs)) throw new Error('No such job');
   const row = readTab(TABS.jobs).find((r) => r.id === req.id);
   if (!row) throw new Error('No such job');
   if (String(row.status) === 'running') throw new Error('Claude is already working on it');
@@ -1822,7 +1875,7 @@ function cartRemove(req) {
 
 // api 24: what the cart watcher asks every minute. Read-only and small; no full state.
 function openCartJobs() {
-  if (!SpreadsheetApp.getActive().getSheetByName(TABS.jobs)) return { jobs: [] };
+  if (!tab(TABS.jobs)) return { jobs: [] };
   const jobs = readTab(TABS.jobs)
     .filter((r) => JOB_OPEN.indexOf(String(r.status)) >= 0)
     .map((r) => ({ id: r.id, at: String(r.at), store: r.store, kind: r.kind, status: String(r.status), started_at: String(r.started_at || '') }));
@@ -1830,7 +1883,7 @@ function openCartJobs() {
 }
 
 function recentCartJobs(today) {
-  if (!SpreadsheetApp.getActive().getSheetByName(TABS.jobs)) return [];
+  if (!tab(TABS.jobs)) return [];
   return readTab(TABS.jobs)
     .filter((r) => JOB_OPEN.indexOf(String(r.status)) >= 0 || daysBetween(String(r.at).slice(0, 10), today) <= JOB_SHOW_DAYS)
     .map((r) => ({ id: r.id, at: String(r.at), by: r.by, store: r.store, kind: r.kind, status: String(r.status),
@@ -1850,7 +1903,7 @@ function nightly() {
     const sh = sheet(TABS.list);
     const list = readTab(TABS.list);
     const today = isoDate(new Date());
-    let archive = SpreadsheetApp.getActive().getSheetByName('List Archive');
+    let archive = tab('List Archive');
     if (!archive) {
       archive = SpreadsheetApp.getActive().insertSheet('List Archive');
       archive.appendRow(headers(TABS.list));
@@ -1872,7 +1925,7 @@ function archivePlan() {
   const sh = sheet(TABS.plan);
   const head = headers(TABS.plan);
   const today = isoDate(new Date());
-  let archive = SpreadsheetApp.getActive().getSheetByName('Plan Archive');
+  let archive = tab('Plan Archive');
   if (!archive) {
     archive = SpreadsheetApp.getActive().insertSheet('Plan Archive');
     archive.appendRow(head);

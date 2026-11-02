@@ -55,7 +55,32 @@
     loading: false,    // first unlock in progress
     bootError: '',     // saved passcode, but the first load failed
     slow: false,       // first load is taking a while (Apps Script waking up)
+    stale: false,      // showing the copy saved on this phone while fresh state loads
   };
+
+  // Speed (Nov 2): the last state is kept on the phone, so opening Poppy shows the List at once
+  // and fresh data replaces it a few seconds later (a small "Updating…" pill shows meanwhile).
+  // Copies older than SAVED_MAX_DAYS are ignored, and a wrong passcode clears it.
+  const SAVED_KEY = 'ff_state';
+  const SAVED_MAX_DAYS = 3;
+  let saveTimer = null;
+  function saveState() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (!S.data) return;
+      try { localStorage.setItem(SAVED_KEY, JSON.stringify({ at: Date.now(), state: S.data })); }
+      catch (e) { store.del(SAVED_KEY); } // too big for this phone or private mode: never leave an old copy behind
+    }, 1500);
+  }
+  function loadSavedState() {
+    try {
+      const j = JSON.parse(store.get(SAVED_KEY) || 'null');
+      if (j && j.state && j.state.items && Date.now() - j.at < SAVED_MAX_DAYS * 86400000) return j.state;
+    } catch (e) { /* bad copy */ }
+    return null;
+  }
+  function forgetSavedState() { clearTimeout(saveTimer); store.del(SAVED_KEY); }
+  if (S.pass) { const saved = loadSavedState(); if (saved) { S.data = saved; S.stale = true; } }
 
   let seq = 0;
   let applied = 0;
@@ -80,7 +105,7 @@
       const j = await res.json();
       if (!j.ok) throw new Error(j.error || 'Something went wrong');
       const stale = mine < lastWrite || (!isWrite && writing > 0);
-      if (j.state && mine >= applied && !(stale && S.data)) { applied = mine; S.data = j.state; }
+      if (j.state && mine >= applied && !(stale && S.data && !S.stale)) { applied = mine; S.data = j.state; S.stale = false; saveState(); }
       return j;
     } finally { if (isWrite) writing--; }
   }
@@ -94,7 +119,7 @@
   function handleError(e) {
     const msg = String(e && e.message || e);
     if (msg === 'wrong_passcode') {
-      S.pass = ''; store.del('ff_pass'); S.setupError = 'That passcode didn’t work.'; render(); return;
+      S.pass = ''; store.del('ff_pass'); forgetSavedState(); S.data = null; S.stale = false; S.setupError = 'That passcode didn’t work.'; render(); return;
     }
     showToast(msg === 'Failed to fetch' ? 'Can’t reach the server. Check your connection.' : msg);
     render();
@@ -428,13 +453,21 @@
 
   // First load of state (return visit or right after Unlock). Shows a "still working" hint after 4 s.
   async function firstLoad() {
+    if (S.data && S.stale) {
+      // A saved copy is on screen already: load fresh state quietly behind it.
+      render();
+      try { await api('state'); }
+      catch (e) { handleError(e); }
+      if (!S.dragging) render();
+      return true;
+    }
     S.bootError = ''; S.slow = false; render();
     const t = setTimeout(() => { if (!S.data) { S.slow = true; render(); } }, 4000);
     try { await api('state'); return true; }
     catch (e) {
       const msg = String(e && e.message || e);
       if (msg === 'wrong_passcode') {
-        S.pass = ''; store.del('ff_pass'); S.setupError = 'That passcode didn’t work.';
+        S.pass = ''; store.del('ff_pass'); forgetSavedState(); S.setupError = 'That passcode didn’t work.';
       } else {
         S.bootError = msg === 'Failed to fetch' ? 'Couldn’t reach the server. Check your connection.' : 'Couldn’t load the list (' + msg + ').';
       }
@@ -495,6 +528,7 @@
     }
     let top = '<header class="top"><div class="top-row"><div>' + (eyebrow ? '<div class="eyebrow">' + esc(eyebrow) + '</div>' : '') + '<h1>' + title + '</h1></div>' +
       '<div class="top-right">' + right + '</div></div>';
+    if (S.stale) top += '<div class="stale-pill" role="status">Updating…</div>';
     if (instore) top += viewStorePicker();
     else if (S.tab === 'shop') top += viewShopTop();
     top += '</header>';
