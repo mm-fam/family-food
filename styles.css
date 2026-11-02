@@ -720,6 +720,13 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 @keyframes cartpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(46, 139, 87, .45); } 50% { box-shadow: 0 0 0 6px rgba(46, 139, 87, 0); } }
 @media (prefers-reduced-motion: reduce) { .cart-btn.busy { animation: none; outline: 2px dashed var(--accent); outline-offset: 2px; } }
 .me span[aria-hidden] { opacity: .7; margin-left: 2px; }
+/* Name cell (Nov 2): name, then a mini ⚙ over a mini 💡. */
+.me-cell { display: flex; align-items: center; gap: 2px; padding: 0 4px 0 10px; min-height: 40px; }
+.me-cell button { border: 0; background: none; font: inherit; color: inherit; padding: 0; cursor: pointer; }
+.me-cell .me-name { padding: 6px 2px; }
+.me-icons { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.me-icons button { font-size: 12px; width: 22px; height: 17px; display: grid; place-items: center; border-radius: 6px; }
+.me-icons button:active { background: var(--line); }
 .me-menu { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .me-item { display: flex; gap: 12px; align-items: center; text-align: left; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); font: inherit; }
 .me-item > span:first-child { font-size: 22px; }

@@ -447,7 +447,10 @@
       // Nov 2 header (Mike): the cart is the main button, In store is secondary, 💡 and switching live under your name.
       right += cartButton();
       if (S.tab === 'list') right += '<button class="btn btn-plain shop-btn small" data-act="store-start">🏪 In store</button>';
-      right += '<button class="me" data-act="open-me" aria-label="Options for ' + esc(S.me) + '">' + esc(S.me) + ' <span aria-hidden="true">⚙</span></button>';
+      // Nov 2 (Mike): a mini ⚙ and a mini 💡 stacked in the name cell, so an idea is one tap away.
+      right += '<div class="me me-cell"><button class="me-name" data-act="open-me" aria-label="Options for ' + esc(S.me) + '">' + esc(S.me) + '</button>' +
+        '<span class="me-icons"><button data-act="open-me" aria-label="Settings and switching">⚙</button>' +
+        (canV9() ? '<button data-act="open-feedback" aria-label="Idea or feedback about the app">💡</button>' : '') + '</span></div>';
     } else {
       if (S.tab === 'list') right += '<button class="btn btn-outline shop-btn" data-act="store-start">🛒 In store</button>';
       if (canV9()) right += '<button class="gear idea-btn" data-act="open-feedback" aria-label="Idea or feedback about the app">💡</button>';
