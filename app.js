@@ -2412,7 +2412,12 @@
     }
 
     if (sh.type === 'meal') {
-      const hits = searchItems(sh.q || '', 5).filter((i) => sh.item_ids.indexOf(i.id) < 0);
+      // Only items that match every word (no "closest" guesses: Trail Mix used to offer Muffin mix),
+      // then always a way out: add it as a new item, or close the list.
+      const q = String(sh.q || '').trim();
+      const found = q ? findItems(q, D().items.filter((i) => i.status !== 'Drop')) : { all: false, hits: [] };
+      const hits = (found.all ? searchItems(q, 5) : []).filter((i) => sh.item_ids.indexOf(i.id) < 0);
+      const exact = q && D().items.some((i) => String(i.name).toLowerCase() === q.toLowerCase());
       inner = '<h2>' + (sh.id ? 'Edit meal' : 'New meal') + '</h2>' +
         '<div><label for="sh-mname">Name</label><input id="sh-mname" class="field" style="width:100%" data-input="draft" data-field="name" value="' + esc(sh.name) + '" placeholder="e.g. Taco night"></div>' +
         (canSlots() ? '<div><label>Usually for</label>' + seg('kind', SLOTS.map((x) => [x[0], x[1]]), sh.kind || 'dinner') + '</div>' : '') +
@@ -2421,7 +2426,12 @@
           return it ? '<button type="button" data-act="ing-remove" data-id="' + id + '" aria-label="Remove ' + esc(it.name) + '">' + esc(it.name) + ' ✕</button>' : '';
         }).join('') : '<span class="note">None yet.</span>') + '</div></div>' +
         '<div style="position:relative"><label for="sh-mq">Add an ingredient</label><input id="sh-mq" class="field" style="width:100%" data-input="draft" data-field="q" value="' + esc(sh.q || '') + '" placeholder="Search staples…" autocomplete="off">' +
-        (hits.length ? '<div class="suggest" style="right:0">' + hits.map((h) => '<button type="button" data-act="ing-add" data-id="' + h.id + '"><span class="s-name">' + esc(h.name) + '</span><span class="s-meta">' + esc(storeOf(h.store).name) + '</span></button>').join('') + '</div>' : '') + '</div>' +
+        (q ? '<div class="suggest suggest-inline">' +
+          (hits.length ? '' : '<div class="s-none">Nothing we buy matches “' + esc(q) + '”.</div>') +
+          hits.map((h) => '<button type="button" data-act="ing-add" data-id="' + h.id + '"><span class="s-name">' + esc(h.name) + '</span><span class="s-meta">' + esc(storeOf(h.store).name) + '</span></button>').join('') +
+          (exact ? '' : '<button type="button" class="s-new" data-act="ing-new"' + (sh.creating ? ' disabled' : '') + '><span class="add-btn" aria-hidden="true">+</span><span class="s-name">' + (sh.creating ? 'Adding “' + esc(q) + '”…' : 'Add “' + esc(q) + '” as a new item') + '</span></button>') +
+          '<button type="button" class="s-close" data-act="ing-clear">Close</button>' +
+          '</div>' : '') + '</div>' +
         '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-meal"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
     }
 
@@ -2563,6 +2573,20 @@
       try { await navigator.share({ text: hearthText(hearthDays(S.sheet.week)) }); } catch (e) { /* cancelled */ }
     },
     'ing-add': (el) => { S.sheet.item_ids.push(el.dataset.id); S.sheet.q = ''; render(); const f = document.getElementById('sh-mq'); if (f) f.focus(); },
+    'ing-clear': () => { S.sheet.q = ''; render(); },
+    // A new catalog item straight from the meal editor (itemSave without an id creates one).
+    'ing-new': async () => {
+      const sh = S.sheet; const name = String(sh.q || '').trim();
+      if (!name || sh.creating) return;
+      sh.creating = true; render();
+      try {
+        const j = await api('itemSave', { fields: { name: name, store: 'Either' } });
+        const id = j && j.result && j.result.id;
+        if (id && S.sheet === sh) { if (sh.item_ids.indexOf(id) < 0) sh.item_ids.push(id); sh.q = ''; }
+        showToast('Added ' + name + ' to our items');
+      } catch (e) { handleError(e); }
+      sh.creating = false; render();
+    },
     'ing-remove': (el) => { S.sheet.item_ids = S.sheet.item_ids.filter((id) => id !== el.dataset.id); render(); },
     'save-meal': () => {
       const sh = S.sheet;

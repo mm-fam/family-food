@@ -90,6 +90,12 @@ h1 { margin: 2px 0 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em
 .suggest button:first-child { border-top: 0; }
 .suggest .s-name { flex: 1; font-weight: 500; }
 .suggest .s-meta { font-size: 12px; color: var(--muted); }
+/* Meal editor: the list sits in the flow (not over Save) and always has a way out. */
+.suggest.suggest-inline { position: static; margin-top: 6px; }
+.suggest .s-none { padding: 10px 14px; font-size: 14px; color: var(--muted); }
+.suggest .s-new .s-name { color: var(--accent); font-weight: 600; }
+.suggest .s-new .add-btn { width: 26px; height: 26px; font-size: 18px; }
+.suggest .s-close { justify-content: center; color: var(--muted); font-size: 14px; min-height: 40px; }
 
 /* ---------- main ---------- */
 main { flex: 1; padding: 14px 12px 110px; display: flex; flex-direction: column; gap: 14px; }
