@@ -226,13 +226,16 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .dot.count { background: var(--accent); color: var(--accent-ink); }
 
 /* ---------- bottom sheet ---------- */
-.scrim { position: fixed; inset: 0; background: rgba(15, 20, 18, 0.4); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+.scrim { position: fixed; inset: 0; background: rgba(10, 14, 12, 0.62); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
 .sheet {
   width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
   background: var(--card); border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
   display: flex; flex-direction: column; gap: 14px;
+  border-top: 1px solid var(--line);
 }
+/* Grab handle so the sheet reads as its own layer over the screen behind it (Nov 2). */
+.sheet::before { content: ''; align-self: center; width: 40px; height: 5px; border-radius: 3px; background: var(--field); margin: -8px 0 -4px; flex: none; }
 .sheet h2 { margin: 0; font-size: 20px; }
 .sheet label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; display: block; margin-bottom: 6px; }
 .seg { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -739,3 +742,41 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .cart-status.st-fail { background: #FDE8E8; color: #8A1C1C; }
 .cart-status.st-ok { background: var(--accent-soft); color: var(--accent-deep); }
 @media (prefers-color-scheme: dark) { .cart-status.st-fail { background: #3A1E1E; color: #F5B5B5; } }
+
+/* Item screen cleanup (Nov 2): quick things up top, folded sections below */
+.item-sheet .is-head { position: sticky; top: -18px; z-index: 2; background: var(--card); margin: -18px -16px 0; padding: 18px 16px 8px; }
+.item-sheet::before { position: relative; z-index: 3; }
+.is-now { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-deep); font-size: 15px; line-height: 1.4; }
+.is-now .is-who { font-weight: 500; opacity: 0.85; }
+.is-now-meal { margin-top: 4px; font-size: 13px; }
+.is-now .note { margin: 4px 0 0; }
+.is-now .stepper button { background: var(--card); }
+.is-cart { display: flex; gap: 8px; }
+.is-cart .btn { flex: 1; min-height: 42px; }
+.is-cart .btn-plain { flex: 0 0 auto; }
+.is-quick { display: flex; flex-direction: column; gap: 8px; }
+.is-quick .note { margin: 0; }
+.is-more { display: flex; flex-direction: column; margin-top: 4px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.is-acc + .is-acc { border-top: 1px solid var(--line); }
+.is-acc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 14px; border: 0; background: transparent; color: var(--ink); text-align: left; min-height: 52px; }
+.is-acc.open .is-acc-head { background: var(--line-soft); }
+.is-acc-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.is-acc-t b { font-size: 15px; }
+.is-acc-t small { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.is-acc-body { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+.is-acc-body .note, .is-acc-body .is-fact { margin: 0; }
+.buy-row { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: start; padding: 6px 0; font-size: 14px; }
+.buy-row + .buy-row { border-top: 1px dashed var(--line-soft); }
+.buy-row .store-dot { margin-top: 6px; }
+.buy-main { min-width: 0; }
+.buy-main small { display: block; color: var(--muted); font-size: 13px; line-height: 1.35; }
+.buy-row .price-val { font-variant-numeric: tabular-nums; text-align: right; min-width: 0; padding-top: 1px; }
+.buy-row .price-val.stale { opacity: 0.5; }
+.buy-row.best .price-val { color: var(--accent); font-weight: 700; }
+@media (prefers-color-scheme: dark) {
+  .scrim { background: rgba(0, 0, 0, 0.7); }
+  .sheet { background: #222724; border-top-color: #3A413D; }
+  .item-sheet .is-head { background: #222724; }
+  .is-more { border-color: #3A413D; }
+  .is-acc + .is-acc { border-top-color: #3A413D; }
+}

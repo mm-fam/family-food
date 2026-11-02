@@ -1024,118 +1024,143 @@
   const fmtShort = (iso) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
   const money = (v) => (v === '' || v == null || isNaN(Number(v)) ? '' : '$' + Number(v).toFixed(2));
 
+  // Item screen (Nov 2 cleanup, Mike): quick things up top (where it stands, how many, cart, have some,
+  // Next week / Bought it / Take off), then four folded sections for the deeper look: What we buy (product,
+  // aisle and price per store in one list), History, What we know, Details. Sections start folded every time.
   function viewItemSheet(sh) {
     const it = itemById(sh.item_id);
     const row = (sh.row_id && (D().list.find((r) => r.id === sh.row_id) || (D().held || []).find((r) => r.id === sh.row_id))) ||
       (sh.item_id && (listRowFor(sh.item_id) || (D().held || []).find((r) => r.item_id === sh.item_id)));
     const held = row && (D().held || []).indexOf(row) >= 0;
     const kid = isKid(S.me);
-    const subs = [];
-    if (it && it.group) subs.push(esc(it.group));
-    if (it && it.brand_size) subs.push(esc(it.brand_size));
+    const open = sh.open || (sh.open = {});
     const storeCode = (row && row.store) || (it && it.store) || 'Either';
     let h = '<div class="is-head"><div><h2>' + esc(sh.name) + '</h2><div class="is-sub"><span class="store-dot ' + storeOf(storeCode).cls + '"></span>' + esc(storeOf(storeCode).name) +
-      (subs.length ? ' · ' + subs.join(' · ') : '') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
-    // What we actually buy, store by store (Products tab, api 11).
-    const prods = (D().products || {})[sh.item_id] || {};
-    const pk = ['GE', 'WF', 'TGT', 'AMZ'].filter((k) => prods[k]).concat(Object.keys(prods).filter((k) => ['GE', 'WF', 'TGT', 'AMZ'].indexOf(k) < 0));
-    if (pk.length) {
-      h += '<div class="is-products">' + pk.map((k) => {
-        const p = prods[k];
-        return '<div class="is-prod"><span class="store-dot ' + storeOf(k).cls + '"></span><span><b>' + esc(storeOf(k).name) + ':</b> ' + esc(p.name) +
-          (p.size ? ' · ' + esc(p.size) : '') + (p.aisle ? ' <span class="aisle-tag">' + esc(p.aisle) + '</span>' : '') + '</span></div>';
-      }).join('') + '</div>';
-    }
-    // Price by store (api 23): per-unit bars, cheapest in green; old prices greyed with their date.
-    if (Number(D().api || 0) >= 23) {
-      const priced = pk.map((k) => Object.assign({ store: k }, prods[k])).filter(hasPrice);
-      if (priced.length) {
-        const unit = (itemPrices(sh.item_id)[0] || priced[0]).unit;
-        const same = priced.filter((p) => p.unit === unit).sort((a, b) => Number(a.unit_price) - Number(b.unit_price));
-        const max = Math.max.apply(null, same.map((p) => Number(p.unit_price)));
-        const low = same.find((p) => freshPrice(p) && likeItem(p));
-        h += '<div class="is-prices"><div class="is-label">Price by store · per ' + esc(unit) + '</div>' + same.map((p) => {
-          const stale = !freshPrice(p) || !likeItem(p);
-          const best = !stale && low && p.store === low.store && same.filter((x) => freshPrice(x) && likeItem(x)).length > 1;
-          return '<div class="price-row' + (stale ? ' stale' : '') + (best ? ' best' : '') + '"><span>' + esc(storeOf(p.store).short || storeOf(p.store).name) + (likeItem(p) ? '' : '*') + '</span>' +
-            '<span class="price-bar"><i class="' + storeOf(p.store).cls + '" style="width:' + Math.max(8, Math.round(Number(p.unit_price) / max * 100)) + '%"></i></span>' +
-            '<span class="price-val">' + fmtUnit(p) + '</span></div>';
-        }).join('');
-        const sbs = pk.map((k) => prods[k].sb && Object.assign({ store: k }, prods[k].sb)).filter((x) => x && freshPrice(x));
-        sbs.forEach((x) => {
-          const ours = prods[x.store];
-          const pct = hasPrice(ours) && ours.unit === x.unit ? (Number(ours.unit_price) - Number(x.unit_price)) / Number(ours.unit_price) : 0;
-          if (pct >= PRICE_MIN_PCT) h += '<p class="price-note">Store brand at ' + esc(storeOf(x.store).name) + ': ' + esc(x.name) + (x.size ? ' · ' + esc(x.size) : '') + ', ' + fmtUnit(x) + ' (' + Math.round(pct * 100) + '% less)</p>';
-        });
-        const dates = same.map((p) => p.price_at).filter(Boolean).sort();
-        h += '<p class="price-note">Store prices from ' + (dates.length ? esc(fmtShort(dates[0])) + (dates[0] !== dates[dates.length - 1] ? '–' + esc(fmtShort(dates[dates.length - 1])) : '') : 'an unknown day') +
-          (same.some((p) => !freshPrice(p)) ? '. Grey = older than a month or not the same product, not compared.' : '.') + ' What we paid is under History.</p>';
-        if (same.some((p) => !likeItem(p))) h += '<p class="price-note">* A different product there (another brand or kind), so it isn’t compared.</p>';
-        if (same.length < priced.length) h += '<p class="price-note">Some stores sell it by a different unit, so they aren’t compared.</p>';
-        h += '</div>';
-      }
-    }
+      (it && it.group ? ' · ' + esc(it.group) : '') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
 
-    // Where it stands
+    // ---- Quick: where it stands, how many, the cart
     if (row) {
-      const inCart = row.status === 'carted' ? (cartStore(row) && cartStore(row) !== 'Either' ? 'In the ' + storeOf(cartStore(row)).name + ' cart' : 'In the cart') : '';
-      h += '<div class="is-status on"><b>' + (held ? 'Next week' : row.status === 'requested' ? 'Asked for' : inCart || 'On the list') + '</b> · asked by ' + esc(wantedBy(row).join(' + ')) +
-        (mealTag(row) ? ' ' + mealTag(row) : '') + '</div>';
-      if (wantedBy(row).length > 1) h += '<p class="note">' + esc(wantedBy(row).join(' and ')) + ' both asked. Same one, or one each? Set how many.</p>';
-      h += '<div class="is-line"><span class="is-label">How many</span><div class="stepper small"><button type="button" data-act="row-qty" data-d="-1" aria-label="Fewer">−</button><b>' + (Number(row.qty) || 1) + '</b><button type="button" data-act="row-qty" data-d="1" aria-label="More">+</button></div></div>';
-      h += '<input class="field" data-input="row-note" data-id="' + row.id + '" value="' + esc(row.note || '') + '" placeholder="Note: brand, size, flavor…">';
-      if (canCarts() && !held && (row.status === 'needed' || row.status === 'carted')) h += viewCartBlock(row, sh);
+      const cartable = canCarts() && !held && (row.status === 'needed' || row.status === 'carted');
+      const c = cartable ? cartState(row) : null;
+      const full = (code) => esc(storeOf(code).name);
+      let what = held ? '⏸ Next week' : row.status === 'requested' ? 'Asked for' : 'On the List';
+      if (c) {
+        if (c.kind === 'in') what = '🛒 In the ' + full(c.store) + ' cart';
+        else if (c.kind === 'going') what = '⏳ Going in the ' + full(c.store) + ' cart';
+        else if (c.kind === 'moving') what = '⏳ Moving to the ' + full(c.store) + ' cart';
+        else if (c.kind === 'leaving') what = '⏳ Coming out of the ' + full(c.store) + ' cart';
+        else if (c.kind === 'failed') what = '⚠ Couldn’t add it' + (c.store ? ' to ' + full(c.store) : '');
+      } else if (row.status === 'carted' && cartStore(row) && cartStore(row) !== 'Either') what = '🛒 In the ' + full(cartStore(row)) + ' cart';
+      h += '<div class="is-now"><div class="is-now-text"><b>' + what + '</b> <span class="is-who">(' + esc(wantedBy(row).join(' + ')) + ')</span>' +
+        (mealTag(row) ? '<div class="is-now-meal">' + mealTag(row) + '</div>' : '') +
+        (c && c.kind === 'failed' && c.note ? '<div class="note">' + esc(c.note) + '</div>' : '') + '</div>' +
+        '<div class="stepper small" aria-label="How many"><button type="button" data-act="row-qty" data-d="-1" aria-label="Fewer">−</button><b>' + (Number(row.qty) || 1) +
+        '</b><button type="button" data-act="row-qty" data-d="1" aria-label="More">+</button></div></div>';
+      if (c && !kid) h += viewCartButtons(row, c, sh);
+      h += row.note || sh.noteOpen
+        ? '<input class="field" data-input="row-note" data-id="' + row.id + '" value="' + esc(row.note || '') + '" placeholder="Note: brand, size, flavor…">'
+        : '';
     } else {
       h += '<button class="btn btn-primary btn-block" data-act="add-item" data-id="' + esc(sh.item_id) + '">' + (kid ? 'Ask for it' : 'Add to the List') + '</button>';
     }
 
-    // We have some (one tap)
+    // ---- Quick: have some at home (one tap)
     if (canStock() && (row ? !held : canInfo())) {
       const lv = (v, label) => '<button type="button" class="' + (sh.level === v ? 'on' : '') + '" data-act="have-level" data-v="' + v + '">' + label + '</button>';
-      h += '<div class="is-block"><div class="is-label">' + (row ? 'Have some at home already?' : 'How much is at home?') + '</div><div class="seg">' +
+      h += '<div class="is-quick"><div class="is-label">' + (row ? 'Already have some?' : 'How much is at home?') + '</div><div class="seg">' +
         lv('plenty', 'Plenty') + lv('some', 'Some') + lv('low', 'A little') + lv('count', 'Count…') + '</div>' +
         (sh.level === 'count' ? '<div class="is-line"><div class="stepper small"><button type="button" data-act="have-count" data-d="-1" aria-label="Fewer">−</button><b>' + sh.count + '</b><button type="button" data-act="have-count" data-d="1" aria-label="More">+</button></div><button class="btn btn-outline" data-act="have-count-save">Save</button></div>' : '') +
-        '<p class="note">' + (row ? 'Plenty, Some or a count takes it off the List (nothing bought). A little keeps it on.' : 'Logged so Poppy knows; it isn’t added to the list.') + '</p></div>';
+        (row ? '<p class="note">Plenty or Some takes it off the List.</p>' : '') + '</div>';
     }
 
-    // Quiet actions
+    // ---- Quick: the quiet row
     if (row) {
       const acts = [];
       if (held) acts.push('<button class="btn btn-plain" data-act="unhold" data-id="' + row.id + '">Need it now</button>');
       else if (canStock()) acts.push('<button class="btn btn-plain" data-act="row-hold">Next week</button>');
       acts.push('<button class="btn btn-plain" data-act="row-bought">Bought it</button>');
+      if (!row.note && !sh.noteOpen) acts.push('<button class="btn btn-plain" data-act="is-note">Note</button>');
       acts.push('<button class="btn btn-plain danger" data-act="row-remove">Take off</button>');
       h += '<div class="is-actions">' + acts.join('') + '</div>';
     }
 
-    // History
+    // ---- More: folded sections
+    const acc = (key, title, peek, body) => '<div class="is-acc' + (open[key] ? ' open' : '') + '"><button class="is-acc-head" data-act="is-fold" data-k="' + key + '" aria-expanded="' + !!open[key] + '">' +
+      '<span class="is-acc-t"><b>' + title + '</b>' + (peek && !open[key] ? '<small>' + peek + '</small>' : '') + '</span>' + chev(!open[key]) + '</button>' +
+      (open[key] ? '<div class="is-acc-body">' + body() + '</div>' : '') + '</div>';
+    let more = '';
+
+    // What we buy: one row per store with the product, its aisle and its price per unit (cheapest in green).
+    const prods = (D().products || {})[sh.item_id] || {};
+    const pk = CART_STORES.filter((k) => prods[k]).concat(Object.keys(prods).filter((k) => CART_STORES.indexOf(k) < 0));
+    if (pk.length) {
+      const showPrice = Number(D().api || 0) >= 23;
+      const priced = showPrice ? pk.map((k) => Object.assign({ store: k }, prods[k])).filter(hasPrice) : [];
+      const unit = priced.length ? (itemPrices(sh.item_id)[0] || priced[0]).unit : '';
+      const cmp = priced.filter((p) => p.unit === unit && freshPrice(p) && likeItem(p));
+      const low = cmp.length > 1 ? cmp.slice().sort((a, b) => Number(a.unit_price) - Number(b.unit_price))[0] : null;
+      const peek = low ? 'Cheapest at ' + esc(storeOf(low.store).name) + ' · ' + esc(fmtUnit(low))
+        : pk.length > 1 ? esc(pk.map((k) => storeOf(k).name).join(', '))
+        : esc(storeOf(pk[0]).name + ': ' + prods[pk[0]].name);
+      more += acc('buy', 'What we buy', peek, () => {
+        let b = pk.map((k) => {
+          const p = Object.assign({ store: k }, prods[k]);
+          const pr = hasPrice(p) && p.unit === unit && showPrice;
+          const stale = pr && (!freshPrice(p) || !likeItem(p));
+          return '<div class="buy-row' + (low && low.store === k ? ' best' : '') + '"><span class="store-dot ' + storeOf(k).cls + '"></span>' +
+            '<div class="buy-main"><div><b>' + esc(storeOf(k).name) + '</b>' + (p.aisle ? ' <span class="aisle-tag">' + esc(p.aisle) + '</span>' : '') + '</div>' +
+            '<small>' + esc(p.name) + (p.size ? ' · ' + esc(p.size) : '') + '</small></div>' +
+            '<span class="price-val' + (stale ? ' stale' : '') + '">' + (pr ? fmtUnit(p) + (likeItem(p) ? '' : '*') : '') + '</span></div>';
+        }).join('');
+        pk.forEach((k) => {
+          const x = prods[k].sb && Object.assign({ store: k }, prods[k].sb);
+          const ours = prods[k];
+          if (!x || !freshPrice(x) || !hasPrice(ours) || ours.unit !== x.unit) return;
+          const pct = (Number(ours.unit_price) - Number(x.unit_price)) / Number(ours.unit_price);
+          if (pct >= PRICE_MIN_PCT) b += '<p class="price-note">💡 ' + esc(storeOf(k).name) + ' store brand: ' + esc(x.name) + ', ' + fmtUnit(x) + ' (' + Math.round(pct * 100) + '% less)</p>';
+        });
+        if (priced.length) {
+          const dates = priced.map((p) => p.price_at).filter(Boolean).sort();
+          b += '<p class="price-note">Prices from ' + (dates.length ? esc(fmtShort(dates[0])) + (dates[0] !== dates[dates.length - 1] ? '–' + esc(fmtShort(dates[dates.length - 1])) : '') : 'an unknown day') +
+            (priced.some((p) => !freshPrice(p) || !likeItem(p)) ? '. Grey = old price' + (priced.some((p) => !likeItem(p)) ? '; * = a different product there' : '') + ', not compared' : '') + '.</p>';
+        }
+        return b;
+      });
+    }
+
     if (it) {
       const facts = [];
       if (Number(it.orders)) facts.push('Bought in ' + it.orders + ' order' + (Number(it.orders) > 1 ? 's' : ''));
       if (it.last_bought) facts.push('last ' + esc(daysAgo(it.last_bought)));
       if (it.avg_days) facts.push('about every ' + it.avg_days + ' days');
       const info = sh.info;
-      let hist = facts.length ? '<p class="is-fact">' + facts.join(' · ') + '</p>' : '<p class="note">No purchases on record yet.</p>';
-      if (info && info.purchases && info.purchases.length) {
-        hist += '<ul class="is-list">' + info.purchases.map((p) => '<li><span>' + esc(fmtShort(p.date)) + '</span><span>' + esc(storeOf(p.store).name) + '</span><span>' + esc(money(p.price)) + (Number(p.qty) > 1 ? ' ×' + p.qty : '') + '</span></li>').join('') + '</ul>';
-      }
-      const sightings = (info && info.stock) || ((D().stock || {})[it.id] ? [D().stock[it.id]] : []);
-      if (sightings.length) hist += '<p class="is-fact">At home: ' + sightings.slice(0, 3).map((s) => esc(levelText(s.level)) + ' (' + esc(s.who || '?') + ', ' + esc(fmtShort(s.at)) + ')').join(' · ') + '</p>';
-      if (canInfo() && !info) hist += '<p class="note">Loading history…</p>';
-      h += '<div class="is-block"><div class="is-label">History</div>' + hist + '</div>';
+      more += acc('hist', 'History', facts.length ? facts.join(' · ') : 'No purchases on record yet', () => {
+        let hist = facts.length ? '<p class="is-fact">' + facts.join(' · ') + '</p>' : '<p class="note">No purchases on record yet.</p>';
+        if (info && info.purchases && info.purchases.length) {
+          hist += '<ul class="is-list">' + info.purchases.map((p) => '<li><span>' + esc(fmtShort(p.date)) + '</span><span>' + esc(storeOf(p.store).name) + '</span><span>' + esc(money(p.price)) + (Number(p.qty) > 1 ? ' ×' + p.qty : '') + '</span></li>').join('') + '</ul>';
+        }
+        const sightings = (info && info.stock) || ((D().stock || {})[it.id] ? [D().stock[it.id]] : []);
+        if (sightings.length) hist += '<p class="is-fact">At home: ' + sightings.slice(0, 3).map((s) => esc(levelText(s.level)) + ' (' + esc(s.who || '?') + ', ' + esc(fmtShort(s.at)) + ')').join(' · ') + '</p>';
+        if (canInfo() && !info) hist += '<p class="note">Loading history…</p>';
+        return hist || '<p class="note">Nothing more yet.</p>';
+      });
 
       const notes = [];
-      if (it.notes) notes.push('<li>' + esc(it.notes) + '</li>');
-      ((info && info.answers) || []).forEach((a) => notes.push('<li><span class="q">' + esc(a.q) + '</span> <b>' + esc(a.answer) + '</b></li>'));
-      if (notes.length) h += '<div class="is-block"><div class="is-label">What we know</div><ul class="is-notes">' + notes.join('') + '</ul></div>';
+      if (it.notes) notes.push({ html: esc(it.notes), text: it.notes });
+      ((info && info.answers) || []).forEach((a) => notes.push({ html: '<span class="q">' + esc(a.q) + '</span> <b>' + esc(a.answer) + '</b>', text: a.answer }));
+      if (notes.length) {
+        const first = String(notes[0].text);
+        more += acc('know', 'What we know', esc(first.length > 48 ? first.slice(0, 46) + '…' : first) + (notes.length > 1 ? ' · +' + (notes.length - 1) + ' more' : ''),
+          () => '<ul class="is-notes">' + notes.map((n) => '<li>' + n.html + '</li>').join('') + '</ul>');
+      }
     }
 
-    // Details (store, swaps, how often) folded away
+    // Details (store, swaps, how often): parents edit, kids read.
     if (it && sh.d) {
-      h += '<button class="is-toggle" data-act="toggle-details" aria-expanded="' + !!sh.details + '"><span>Details · store, swaps, how often</span>' + chev(!sh.details) + '</button>';
-      if (sh.details) {
+      const swap = { Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping';
+      more += acc('details', 'Details', esc([sh.d.status || '', swap].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
-        h += '<div class="is-details">' +
+        return '<div class="is-details">' +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']]) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
@@ -1145,43 +1170,35 @@
           (canUseSoon() ? '<div><label for="d-shelf">Stays good about (days)</label><input id="d-shelf" class="field" style="width:100%" inputmode="numeric" data-input="d" data-field="shelf_days" value="' + esc(sh.d.shelf_days) + '" placeholder="Blank = doesn’t go bad fast"' + (kid ? ' disabled' : '') + '></div>' : '') +
           '<div><label for="d-notes">Notes</label><input id="d-notes" class="field" style="width:100%" data-input="d" data-field="notes" value="' + esc(sh.d.notes) + '" placeholder="e.g. Gia only eats strawberry"' + (kid ? ' disabled' : '') + '></div>' +
           (kid ? '<p class="note">A parent can change these.</p>' : '<button class="btn btn-primary btn-block" data-act="save-details">Save details</button>') + '</div>';
-      }
+      });
     }
+    if (more) h += '<div class="is-more">' + more + '</div>';
     return h;
   }
 
-  // The item screen's cart line (api 25): where it stands, and for parents put it in / take it out / move it.
-  function viewCartBlock(row, sh) {
-    const c = cartState(row);
-    const kid = isKid(S.me);
+  // The item screen's cart buttons (api 25), parents only. The status line above already says where it stands.
+  // Moving to another store sits behind one "Move…" / "Other store…" tap.
+  function viewCartButtons(row, c, sh) {
     const full = (code) => esc(storeOf(code).name);
-    let line = '', btns = '';
-    const others = (skip) => CART_STORES.filter((k) => k !== skip);
-    const moveChips = (skip, label) => '<div class="cart-move"><span class="note">' + label + '</span>' + others(skip).map((k) =>
-      '<button class="pill small ' + storeOf(k).cls + '" data-act="cart-put" data-store="' + k + '">' + esc(sName(k)) + '</button>').join('') + '</div>';
+    const chips = (skip, act) => '<div class="cart-move">' + CART_STORES.filter((k) => k !== skip).map((k) =>
+      '<button class="pill small ' + storeOf(k).cls + '" data-act="' + act + '" data-store="' + k + '">' + esc(sName(k)) + '</button>').join('') + '</div>';
+    let b = '';
     if (c.kind === 'in') {
-      line = '🛒 In the ' + full(c.store) + ' cart';
-      if (!kid) btns = '<button class="btn btn-outline" data-act="cart-remove">Take it out of the cart</button>' + moveChips(c.store, 'Move to');
+      b = '<div class="is-cart"><button class="btn btn-outline" data-act="cart-remove">Take it out of the cart</button><button class="btn btn-plain" data-act="is-move">' + (sh.move ? 'Cancel' : 'Move…') + '</button></div>' +
+        (sh.move ? chips(c.store, 'cart-put') : '');
     } else if (c.kind === 'going') {
-      line = '⏳ Going in the ' + full(c.store) + ' cart. Claude adds it on the cart computer.';
-      if (!kid) btns = '<button class="btn btn-plain" data-act="cart-remove">Don’t add it</button>';
+      b = '<div class="is-cart"><button class="btn btn-plain" data-act="cart-remove">Don’t add it</button></div>';
     } else if (c.kind === 'moving') {
-      line = '⏳ Moving from the ' + full(c.from) + ' cart to the ' + full(c.store) + ' cart';
-      if (!kid) btns = '<button class="btn btn-plain" data-act="cart-put" data-store="' + c.from + '">Keep it in ' + esc(sName(c.from)) + '</button>';
+      b = '<div class="is-cart"><button class="btn btn-plain" data-act="cart-put" data-store="' + c.from + '">Keep it in ' + esc(sName(c.from)) + '</button></div>';
     } else if (c.kind === 'leaving') {
-      line = '⏳ Coming out of the ' + full(c.store) + ' cart';
-      if (!kid) btns = '<button class="btn btn-plain" data-act="cart-put" data-store="' + c.store + '">Keep it in</button>';
+      b = '<div class="is-cart"><button class="btn btn-plain" data-act="cart-put" data-store="' + c.store + '">Keep it in</button></div>';
     } else {
-      line = c.kind === 'failed' ? '⚠ Couldn’t add it' + (c.store ? ' to ' + full(c.store) : '') + ': ' + esc(c.note) : 'Not in a cart yet';
-      if (!kid) {
-        const p = pickCart(row);
-        const pick = (sh && sh.cartPick) || p.store;
-        btns = '<button class="btn btn-primary" data-act="cart-put" data-store="' + pick + '">🛒 Put in the ' + full(pick) + ' cart</button>' +
-          '<div class="cart-move"><span class="note">Or</span>' + others(pick).map((k) => '<button class="pill small ' + storeOf(k).cls + '" data-act="cart-pick" data-store="' + k + '">' + esc(sName(k)) + '</button>').join('') + '</div>' +
-          (pick === p.store ? '<p class="note">Poppy’s pick: ' + esc(p.why) + (p.guess ? '. No exact product there yet, so Claude searches for it.' : '.') + '</p>' : '');
-      }
+      const p = pickCart(row);
+      const pick = sh.cartPick || p.store;
+      b = '<div class="is-cart"><button class="btn btn-primary" data-act="cart-put" data-store="' + pick + '">🛒 Put in the ' + full(pick) + ' cart</button><button class="btn btn-plain" data-act="is-move">' + (sh.move ? 'Cancel' : 'Other store…') + '</button></div>' +
+        (sh.move ? chips(pick, 'cart-pick') + (pick === p.store ? '<p class="note">Poppy’s pick: ' + esc(p.why) + (p.guess ? '. No exact product there yet, so Claude searches for it.' : '.') + '</p>' : '') : '');
     }
-    return '<div class="is-block cart-block"><div class="is-label">Online cart</div><div class="cart-line">' + line + '</div>' + btns + '</div>';
+    return b;
   }
 
   /* ---------- header cart button (Nov 2) ---------- */
@@ -2435,7 +2452,7 @@
     'open-me': () => { S.sheet = { type: 'me' }; render(); },
     'cart-open': (el) => { S.cartOpen = el.dataset.store || ''; S.tab = 'carts'; store.set('ff_tab', 'carts'); S.sheet = null; render(); window.scrollTo(0, 0); },
     'cart-back': () => { S.cartOpen = ''; render(); window.scrollTo(0, 0); },
-    'cart-pick': (el) => { if (S.sheet) { S.sheet.cartPick = el.dataset.store; render(); } },
+    'cart-pick': (el) => { if (S.sheet) { S.sheet.cartPick = el.dataset.store; S.sheet.move = false; render(); } },
     'cart-put': (el) => {
       const r = sheetRow(); const code = el.dataset.store; if (!r || !code) return;
       const c = cartState(r);
@@ -2498,6 +2515,9 @@
     'row-bought': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'bought', 'Bought ' + r.name); else render(); },
     'row-remove': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'skipped', 'Took ' + r.name + ' off'); else render(); },
     'toggle-details': () => { S.sheet.details = !S.sheet.details; render(); },
+    'is-fold': (el) => { const o = S.sheet.open || (S.sheet.open = {}); o[el.dataset.k] = !o[el.dataset.k]; render(); },
+    'is-move': () => { S.sheet.move = !S.sheet.move; render(); },
+    'is-note': () => { S.sheet.noteOpen = true; render(); const f = document.querySelector('[data-input="row-note"]'); if (f) f.focus(); },
     'd-seg': (el) => { S.sheet.d[el.dataset.field] = el.dataset.v; render(); },
     'save-details': () => {
       const sh = S.sheet; const it = itemById(sh.item_id);
