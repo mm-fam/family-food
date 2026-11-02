@@ -705,10 +705,10 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 /* Header (Nov 2): cart button with per-store corner counts; name opens options */
 .top-right { gap: 6px; }
 .shop-btn.small { min-height: 32px; padding: 0 10px; font-size: 13px; color: var(--muted); border: 1px solid var(--line); }
-.cart-btn { position: relative; width: 92px; height: 40px; border-radius: 14px; border: 0; background: var(--accent); color: #fff; padding: 0; flex: none; }
-.cart-btn .cart-ico { font-size: 22px; line-height: 40px; }
+.cart-btn { position: relative; width: 92px; height: 40px; border-radius: 14px; border: 2px solid var(--accent); background: var(--card); color: var(--ink); padding: 0; flex: none; }
+.cart-btn .cart-ico { font-size: 28px; line-height: 36px; }
 .cart-btn { margin: 9px 10px 9px 8px; }
-.cart-btn.on { background: var(--ink); }
+.cart-btn.on { background: var(--accent-soft); }
 .cart-btn .cc { position: absolute; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; font-size: 11px; font-weight: 700; line-height: 18px; color: #fff; text-align: center; border: 2px solid var(--card); box-sizing: content-box; }
 .cart-btn .cc.tl { top: -10px; left: -10px; } .cart-btn .cc.tr { top: -10px; right: -10px; }
 .cart-btn .cc.bl { bottom: -10px; left: -10px; } .cart-btn .cc.br { bottom: -10px; right: -10px; }
@@ -724,7 +724,7 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .pill-sep { flex: none; width: 1px; align-self: stretch; margin: 4px 2px; background: var(--line); }
 .list-tools .tools-r { display: flex; gap: 14px; align-items: center; }
 .push-link { font-weight: 700; }
-@media (prefers-color-scheme: dark) { .cart-btn { color: var(--bg); } .cart-btn .cc { color: #1b1b1b; } }
+@media (prefers-color-scheme: dark) { .cart-btn .cc { color: #1b1b1b; } }
 
 .cart-btn .cc.zero { background: var(--card); border-color: currentColor; }
 .cart-btn .cc.zero.ge { color: var(--ge); } .cart-btn .cc.zero.wf { color: var(--wf); } .cart-btn .cc.zero.tgt { color: var(--tgt); } .cart-btn .cc.zero.amz { color: var(--amz); }
