@@ -165,7 +165,8 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 23 = prices: state.products rows also carry price, unit_price, unit, price_at (Products columns Claude fills from
 //      store sites); each store can carry `sb` = the cheapest priced store-brand row (Products store_brand = Y).
 //      The app compares unit prices across stores (item screen, List tag, before Build the cart).
-const API_VERSION = 23;
+// 24 = cartJobsOpen: light read of open cart jobs for the cart watcher on the owner's PC (polls every minute).
+const API_VERSION = 24;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -224,6 +225,7 @@ function handle(req) {
     requestOrder: () => withLock(() => requestOrder(req)),
     cartJob: () => withLock(() => addCartJob(req)),
     cartJobCancel: () => withLock(() => cancelCartJob(req)),
+    cartJobsOpen: () => openCartJobs(),
     itemInfo: () => itemInfo(req),
     pointsLog: () => pointsLog(req),
     stockLog: () => withLock(() => stockLogAction(req)),
@@ -238,7 +240,7 @@ function handle(req) {
     const out = fn();
     // Every write returns fresh state so the app never has to guess.
     // Reads that don't change anything skip the full state.
-    const state = req.action === 'state' || req.action === 'ping' ? out : (req.action === 'itemInfo' || req.action === 'pointsLog') ? undefined : getState();
+    const state = req.action === 'state' || req.action === 'ping' ? out : (req.action === 'itemInfo' || req.action === 'pointsLog' || req.action === 'cartJobsOpen') ? undefined : getState();
     return reply({ ok: true, result: req.action === 'state' ? undefined : out, state: state });
   } catch (err) {
     return reply({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -1589,6 +1591,15 @@ function cancelCartJob(req) {
   if (JOB_OPEN.indexOf(String(row.status)) < 0) return { id: row.id, status: row.status };
   setFields(TABS.jobs, row._row, { status: 'cancelled', finished_at: nowStamp(), notes: 'Cancelled by ' + (req.by || 'someone') });
   return { id: row.id, status: 'cancelled' };
+}
+
+// api 24: what the cart watcher asks every minute. Read-only and small; no full state.
+function openCartJobs() {
+  if (!SpreadsheetApp.getActive().getSheetByName(TABS.jobs)) return { jobs: [] };
+  const jobs = readTab(TABS.jobs)
+    .filter((r) => JOB_OPEN.indexOf(String(r.status)) >= 0)
+    .map((r) => ({ id: r.id, at: String(r.at), store: r.store, kind: r.kind, status: String(r.status), started_at: String(r.started_at || '') }));
+  return { jobs: jobs };
 }
 
 function recentCartJobs(today) {

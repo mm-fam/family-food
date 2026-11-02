@@ -1,0 +1,13 @@
+{
+  "apiUrl": "PASTE the Apps Script /exec URL from config.js",
+  "pass": "PASTE the family passcode",
+  "sheetId": "PASTE the Sheet ID (the long part of the Sheet's URL)",
+  "claudePath": "",
+  "allowedTools": [
+    "Read",
+    "Grep",
+    "Glob",
+    "mcp__claude-in-chrome__*",
+    "mcp__claude_ai_Google_Sheets__*"
+  ]
+}
