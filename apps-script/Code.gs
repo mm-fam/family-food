@@ -82,7 +82,11 @@ const POINTS_LOG_DAYS = 120; // pointsLog sends answers from this many days back
 const HELPED_OPTIONS = 'Cooked it; Helped; Not this time';
 const HELPED_EXPIRE_DAYS = 3;
 // Missions (Inbox step 3): "go check how much X we have" cards for the kids, every day.
-const MISSIONS_PER_KID = 3;
+const MISSIONS_PER_KID = 3;      // fallback when there's only one kid
+// The girls' race (Mike, Nov 2): kids get more scoring cards than parents, and whoever is behind this week
+// (Mon–Sun points, counted when the day's cards are made) gets extra missions so the lead keeps changing.
+// Parents never get catch-up help. Shown on Inbox → How points work (state.points.race).
+const KID_MISSIONS = { lead: 3, tied: 4, behind: 5 };
 const MISSION_EXPIRE_DAYS = 2;     // a check goes stale fast; unanswered ones close
 const MISSION_RECHECK_DAYS = 3;    // skip items someone already looked at this recently
 const MISSION_PLAN_DAYS = 3;       // ingredients for meals planned today + the next 2 days
@@ -96,7 +100,7 @@ const SETTLE_STALE_DAYS = 7;       // a needed row untouched this long gets aske
 const SETTLE_CART_DAYS = 2;        // carted rows this long after the cart was filled: did the order come?
 const SETTLE_REASK_DAYS = 5;       // don't ask about the same row (or store order) again sooner
 const SETTLE_EXPIRE_DAYS = 3;      // unanswered settle cards close
-const SETTLE_PER_KID = 2;
+const SETTLE_PER_KID = 3;        // was 2 (Nov 2: more scoring cards for the girls)
 const SETTLE_PARENTS = 4;          // per day, shared by both parents
 const SETTLE_KID_OPTIONS = "It's here; Not here";
 const SETTLE_PARENT_OPTIONS = "Got it; Still need it; Don't need it";
@@ -192,7 +196,7 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 30 = a Plan slot can hold a catalog item instead of a meal (snacks we just buy).
 // 31 = deliveries (Nov 2, Mike): Items store WG (Wildgrain) / BB (Bleu Box) = food that arrives on its own. addToList
 //      skips them (a mission's out, meal ingredients); Probably due skips them; the app shows them as 🧊 on hand.
-const API_VERSION = 31;
+const API_VERSION = 32;
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
@@ -771,6 +775,22 @@ function saveItem(req) {
   return { id: item.id };
 }
 
+// Where the kids stand this week, and how many missions each gets today. All tied (e.g. Monday morning)
+// → everyone gets the tied number; otherwise the leader(s) get the lead number and everyone behind gets more.
+function kidRace(today, kids) {
+  const week = (pointsSummary(today).week) || {};
+  const pts = {}; kids.forEach((k) => (pts[k] = week[k] || 0));
+  const top = kids.length ? Math.max.apply(null, kids.map((k) => pts[k])) : 0;
+  const tied = kids.length < 2 || kids.every((k) => pts[k] === top);
+  const out = { week: pts, leader: [], behind: [], tied: tied, missions: {} };
+  kids.forEach((k) => {
+    if (kids.length < 2) { out.missions[k] = MISSIONS_PER_KID; return; }
+    if (tied) { out.missions[k] = KID_MISSIONS.tied; return; }
+    if (pts[k] === top) { out.leader.push(k); out.missions[k] = KID_MISSIONS.lead; } else { out.behind.push(k); out.missions[k] = KID_MISSIONS.behind; }
+  });
+  return out;
+}
+
 // Today's missions: things worth a look right now, split between the kids so each gets different ones.
 // Ingredients of meals planned in the next MISSION_PLAN_DAYS first, then the most overdue "probably due"
 // items. Skips anything on the List, sighted in the last MISSION_RECHECK_DAYS, or already on an open check.
@@ -801,14 +821,25 @@ function makeMissions(today, kids, review, plan, mealOf) {
   items.filter((i) => i.avg_days && i.last_bought)
     .map((i) => ({ id: i.id, r: daysBetween(String(i.last_bought).slice(0, 10), today) / Number(i.avg_days), late: daysBetween(String(i.last_bought).slice(0, 10), today) >= Number(i.avg_days) - 2 }))
     .filter((x) => x.late).sort((a, b) => b.r - a.r).forEach((x) => take(x.id, ''));
+  // Each kid's share comes from the race (leader 3, tied 4, behind 5); whoever is behind picks first,
+  // so the meal-ingredient checks go to her. Her extra ones are marked as catch-up missions.
+  const race = kidRace(today, kids);
+  const order = kids.slice().sort((a, b) => (race.week[a] || 0) - (race.week[b] || 0));
+  const left = {}; order.forEach((k) => (left[k] = race.missions[k]));
   const out = [];
-  const per = {};
-  picks.slice(0, MISSIONS_PER_KID * kids.length).forEach((p, i) => {
-    const kid = kids[i % kids.length];
-    per[kid] = (per[kid] || 0) + 1;
-    out.push({ type: 'check', audience: kid,
-      detail: 'Go check the ' + byId[p.id].name + ': how much do we have?' + (p.why ? ' It\'s for ' + p.why + '.' : '') + ' (' + p.id + ') Options: ' + MISSION_OPTIONS });
-  });
+  const given = {};
+  let i = 0;
+  while (i < picks.length && order.some((k) => left[k] > 0)) {
+    order.forEach((kid) => {
+      if (i >= picks.length || left[kid] <= 0) return;
+      const p = picks[i++];
+      left[kid]--;
+      given[kid] = (given[kid] || 0) + 1;
+      const extra = race.behind.indexOf(kid) >= 0 && given[kid] > KID_MISSIONS.lead;
+      out.push({ type: 'check', audience: kid,
+        detail: (extra ? '⚡ Catch-up mission! ' : '') + 'Go check the ' + byId[p.id].name + ': how much do we have?' + (p.why ? ' It\'s for ' + p.why + '.' : '') + ' (' + p.id + ') Options: ' + MISSION_OPTIONS });
+    });
+  }
   return out;
 }
 
@@ -909,9 +940,11 @@ function makeSettle(today, kids, review) {
   // Seen-at-home first, oldest first.
   const order = (a, b) => (a.why !== b.why ? (a.why === 'seen' ? -1 : 1) : (a.added < b.added ? -1 : 1));
   kidRows.sort(order);
+  const raceWeek = kids.length ? pointsSummary(today).week || {} : {};
   // Kids take up to SETTLE_PER_KID each, the rest go to the parents.
+  const kidOrder = kids.slice().sort((a, b) => (raceWeek[a] || 0) - (raceWeek[b] || 0)); // whoever is behind goes first
   kidRows.forEach((x, i) => {
-    const kid = kids[i % kids.length];
+    const kid = kidOrder[i % kidOrder.length];
     if (i < SETTLE_PER_KID * kids.length) {
       out.push({ type: 'settle', audience: kid,
         detail: 'Did we get the ' + x.r.name + '? It\'s been on the List since ' + since(x.added) + '. Go look and tell us. (' + x.r.id + ')' + (x.r.item_id ? ' (' + x.r.item_id + ')' : '') + ' Options: ' + SETTLE_KID_OPTIONS });
@@ -1208,6 +1241,7 @@ function pointsSummary(today) {
     const lw = sum(m, lastMonday, addDays(monday, -1));
     if (lw > best) { best = lw; out.lastWeekWinner = p; } else if (lw && lw === best) out.lastWeekWinner += ' + ' + p;
   });
+  out.extra = { missions: KID_MISSIONS, settle: SETTLE_PER_KID, qa: '18–22' };
   return out;
 }
 

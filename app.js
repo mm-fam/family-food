@@ -2162,7 +2162,7 @@
       '<span class="note">' + (streak ? '🔥 ' + streak + '-day streak' : 'Hit ' + goal + ' today to start a streak') + '</span></div></div>' +
       '<div class="board">' + people.map((p, i) => '<div class="board-p' + (p === me ? ' me' : '') + '"><span class="board-n">' + (winners.indexOf(p) >= 0 ? '👑 ' : '') + esc(p) + '</span><b>' + (P.week[p] || 0) + '</b>' +
         ((P.streak[p] || 0) ? '<span class="board-s">🔥' + P.streak[p] + '</span>' : '') + '</div>').join('') + '</div>' +
-      '<div class="note board-foot">This week’s points (Mon–Sun)' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div>' +
+      '<div class="note board-foot">This week’s points (Mon–Sun)' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div>' + raceLine() +
       '<div class="score-links"><button type="button" class="link-btn" data-act="points-open" data-tab="rules">ⓘ How points work</button>' +
       '<button type="button" class="link-btn" data-act="points-open" data-tab="history">📜 Points history</button></div></section>';
   }
@@ -2188,6 +2188,7 @@
         '<ul class="pr-list"><li>A kid’s add is a request: it earns its point when a parent approves it. A skipped request earns nothing.</li>' +
         '<li>Adding something that’s already on the List counts if you weren’t on it yet (you show up as “asked by … + you”).</li>' +
         '<li>Approve and Skip both count for the parent: saying no is a decision too (that includes answering a kid’s “we have it”).</li></ul>' : '') +
+      viewRaceRules() +
       '<h3 class="pr-h">🧑‍🍳 Kitchen help</h3>' +
       '<p class="note">The day after a planned dinner, a parent gets a card for each kid: “Did <i>kid</i> help cook <i>dinner</i>?” The points go to the <b>kid</b>, not to the parent who answers.</p>' +
       '<div class="pr-table">' + rules.filter((x) => ruleGroup(x) === 'kitchen').map(row).join('') + '<div class="pr-row"><span class="pr-what">🧑‍🍳 Kitchen help: Not this time</span><b class="pr-pts zero">0</b></div></div>' +
@@ -2210,6 +2211,29 @@
       '<p class="note">The leaderboard adds up points from Monday to Sunday and starts over every Monday. Whoever had the most points last week wears the 👑 all this week; a tie crowns everyone tied. Any prize is up to Mom and Dad.</p>' +
       '<h3 class="pr-h">📜 The record</h3>' +
       '<p class="note">Everything that scores is saved with the time, who got the points, how many, and why. See it in <button type="button" class="link-btn inline" data-act="points-tab" data-tab="history">History</button>. ' + pointsStartLine() + '</p>';
+  }
+  /* The girls' race (api 32): kids get more scoring cards, and whoever is behind this week gets extra missions. */
+  function viewRaceRules() {
+    const X = (D().points || {}).extra;
+    if (!X) return '';
+    const m = X.missions;
+    return '<h3 class="pr-h">⚡ Kids get more chances</h3>' +
+      '<p class="note">The leaderboard is a race, and the kids get more ways to score than Mom and Dad. Same points per card for everyone; the kids just get more cards.</p>' +
+      '<ul class="pr-list"><li><b>🔎 Missions every day:</b> whoever is <b>behind</b> this week gets <b>' + m.behind + '</b>, the leader gets ' + m.lead + ', and when you’re tied you each get ' + m.tied + '. Extra ones say “⚡ Catch-up mission!”. Parents don’t get missions.</li>' +
+      '<li><b>🧾 Did we get it?:</b> each kid gets up to ' + X.settle + ' a day, and whoever is behind gets first pick.</li>' +
+      '<li><b>💬 Questions:</b> kids’ decks are kept fuller (' + X.qa + ' cards) than the parents’.</li>' +
+      '<li>“Behind” is checked once a day, when the day’s cards are made, using this week’s points (Mon–Sun). Pass your sister and the extra missions switch to her the next day.</li></ul>';
+  }
+  function raceLine() {
+    const P = D().points || {};
+    if (!P.extra || !isKid(S.me)) return '';
+    const kids = D().settings.kids.filter((k) => P.week && k in P.week);
+    if (kids.length < 2) return '';
+    const top = Math.max.apply(null, kids.map((k) => P.week[k] || 0));
+    const mine = P.week[S.me] || 0;
+    if (kids.every((k) => (P.week[k] || 0) === top)) return '<div class="note board-foot">⚡ Tied! You each get ' + P.extra.missions.tied + ' missions tomorrow.</div>';
+    return mine < top ? '<div class="note board-foot">⚡ You’re ' + (top - mine) + ' behind: ' + P.extra.missions.behind + ' missions for you tomorrow. Catch up!</div>'
+      : '<div class="note board-foot">⚡ You’re in the lead! Whoever is behind gets extra missions, so keep going.</div>';
   }
   function viewPointsHistory(sh) {
     if (Number(D().api || 0) < 14) return '<p class="note">History shows once the latest server update is live.</p>';
