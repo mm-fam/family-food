@@ -780,3 +780,8 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
   .is-more { border-color: #3A413D; }
   .is-acc + .is-acc { border-top-color: #3A413D; }
 }
+.helper-line { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--muted); margin: 0 2px 10px; }
+.helper-line .dot { flex: none; width: 9px; height: 9px; border-radius: 5px; margin-top: 5px; background: var(--wf-edge); }
+.helper-line.off { color: var(--req-ink); } .helper-line.off .dot { background: var(--tgt-edge); }
+.how-it-works { font-size: 13px; color: var(--muted); line-height: 1.45; padding: 4px 4px 12px; }
+.how-it-works ol { margin: 4px 0 6px; padding-left: 18px; }

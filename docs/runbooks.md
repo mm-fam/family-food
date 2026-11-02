@@ -214,7 +214,9 @@ Rules: one Review row per person (one row = one answer); next free `rNNN`; `crea
 
 **Report:** "<store> cart: N lines, N matched, N added to the List, N back to needed, $total."
 
-**Totals (api 26):** every finished build or check writes Cart Jobs `subtotal` (the cart's item subtotal exactly as the store's cart page shows it, before tax and fees; 0 if empty) and `lines` (the store's item count). The app's Carts screen shows these as each cart's $ and the sum across carts, so they must match the site at that moment.
+**Heartbeat (api 27):** every cart-runner run first sets Settings `runner_seen` (text 'yyyy-MM-ddTHH:mm:ss). The Carts screen says "Cart helper checked in at …" (green) or "hasn't checked in since …" (red, after 75 minutes during 8 am–9 pm).
+
+**Totals (api 26):** every finished build or check writes Cart Jobs `subtotal` (the cart's item total after sale savings, before tax, fees and tip, as the store's cart page shows it; 0 if empty) and `lines` (the store's item count). The app's Carts screen shows these as each cart's $ and the sum across carts, so they must match the site at that moment.
 
 ## 13. Cart runner: phones start cart jobs, the owner's computer runs them (api 12)
 

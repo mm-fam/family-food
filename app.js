@@ -570,7 +570,7 @@
       if (!n && S.listCart !== v) return '';
       return '<button class="pill small' + (cls ? ' ' + cls : '') + (S.listCart === v ? ' on' : '') + '" data-act="list-cart" data-v="' + v + '" aria-pressed="' + (S.listCart === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
     };
-    return pill('none', 'No cart') + pill('going', '⏳ On the way') + CART_STORES.map((k) => pill('in:' + k, '🛒 ' + esc(sName(k)), storeOf(k).cls)).join('');
+    return pill('none', 'No cart') + pill('going', '⏳ Waiting on Claude') + CART_STORES.map((k) => pill('in:' + k, '🛒 ' + esc(sName(k)), storeOf(k).cls)).join('');
   }
 
   function rowMeta(r) {
@@ -619,9 +619,9 @@
     if (!r) return '';
     const c = cartState(r);
     if (c.kind === 'in') return '<span class="cart-tag ' + sCls(c.store) + '">🛒 In ' + (c.store && c.store !== 'Either' ? esc(sName(c.store)) + ' ' : '') + 'cart</span>';
-    if (c.kind === 'going') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Going to ' + esc(sName(c.store)) + ' cart</span>';
+    if (c.kind === 'going') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Adding to ' + esc(sName(c.store)) + ' cart</span>';
     if (c.kind === 'moving') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Moving to ' + esc(sName(c.store)) + ' cart</span>';
-    if (c.kind === 'leaving') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Coming out of ' + esc(sName(c.store)) + ' cart</span>';
+    if (c.kind === 'leaving') return '<span class="cart-tag soft ' + sCls(c.store) + '">⏳ Removing from ' + esc(sName(c.store)) + ' cart</span>';
     if (c.kind === 'failed') return '<span class="cart-tag warn" title="' + esc(c.note) + '">⚠ Not added' + (c.store ? ' to ' + esc(sName(c.store)) : '') + '</span>';
     return '';
   }
@@ -1046,9 +1046,9 @@
       let what = held ? '⏸ Next week' : row.status === 'requested' ? 'Asked for' : 'On the List';
       if (c) {
         if (c.kind === 'in') what = '🛒 In the ' + full(c.store) + ' cart';
-        else if (c.kind === 'going') what = '⏳ Going in the ' + full(c.store) + ' cart';
-        else if (c.kind === 'moving') what = '⏳ Moving to the ' + full(c.store) + ' cart';
-        else if (c.kind === 'leaving') what = '⏳ Coming out of the ' + full(c.store) + ' cart';
+        else if (c.kind === 'going') what = '⏳ Waiting on Claude to add it to the ' + full(c.store) + ' cart';
+        else if (c.kind === 'moving') what = '⏳ Waiting on Claude to move it to the ' + full(c.store) + ' cart';
+        else if (c.kind === 'leaving') what = '⏳ Waiting on Claude to take it out of the ' + full(c.store) + ' cart';
         else if (c.kind === 'failed') what = '⚠ Couldn’t add it' + (c.store ? ' to ' + full(c.store) : '');
       } else if (row.status === 'carted' && cartStore(row) && cartStore(row) !== 'Either') what = '🛒 In the ' + full(cartStore(row)) + ' cart';
       h += '<div class="is-now"><div class="is-now-text"><b>' + what + '</b> <span class="is-who">(' + esc(wantedBy(row).join(' + ')) + ')</span>' +
@@ -1259,6 +1259,18 @@
     return 'at ' + ((h % 12) || 12) + ':17 ' + (h >= 12 ? 'pm' : 'am');
   }
   // Where one cart stands, in plain words: { icon, cls, text }.
+  // Is the cart helper (the scheduled task on Mike's computer) alive? It writes Settings runner_seen every run.
+  function helperState() {
+    const seen = String((D().settings || {}).runner_seen || '');
+    if (!seen) return { ok: false, never: true, text: 'The cart helper on the home computer hasn’t checked in yet.' };
+    const t = new Date(seen.replace(' ', 'T'));
+    const mins = (Date.now() - t.getTime()) / 60000;
+    const h = new Date().getHours();
+    const quiet = h < 8 || h >= 22; // it only runs 8 am–9 pm
+    const ok = quiet ? mins < 14 * 60 : mins < 75;
+    return { ok: ok, seen: seen, text: ok ? 'Cart helper on the home computer checked in at ' + fmtWhen(seen) + '. Next check ' + nextRunText() + '.'
+      : 'Cart helper hasn’t checked in since ' + fmtWhen(seen) + '. The home computer may be asleep or the Claude app closed; changes wait until it’s back.' };
+  }
   function cartStatus(code) {
     const r = cartRows(code);
     const open = openJobs(code);
@@ -1270,7 +1282,10 @@
     if (r.leaving.length) todo.push(r.leaving.length + ' to take out');
     if (open.some((j) => j.kind === 'check') && !todo.length) todo.push('a fresh look at the cart');
     if (running) return { cls: 'run', text: '🔄 Claude is updating this cart right now.' };
-    if (open.length) return { cls: 'wait', text: '⏳ Waiting: ' + (todo.join(', ') || 'an update') + '. Claude does it ' + nextRunText() + (waiting ? ' (Mike’s computer was off last time).' : ', if Mike’s computer is on.') };
+    if (open.length) {
+      const hs = helperState();
+      return { cls: 'wait', text: '⏳ Waiting on Claude: ' + (todo.join(', ') || 'an update') + '. ' + (hs.ok || hs.never ? 'Next check ' + nextRunText() + '.' : 'The cart helper is offline (last seen ' + fmtWhen(hs.seen) + '), so this waits until the home computer is back.') };
+    }
     if (r.going.length || r.leaving.length) return { cls: 'wait', text: '⏳ ' + todo.join(', ') + ' not sent yet.' };
     if (last && last.status === 'failed') return { cls: 'fail', text: '⚠ The last update didn’t work: ' + (last.result || 'no reason given') + '.' };
     if (r.failed.length) return { cls: 'fail', text: '⚠ ' + r.failed.length + ' couldn’t be added. Tap to see why.' };
@@ -1287,7 +1302,9 @@
     const sum = known.reduce((t, k) => t + Number(lastTotal(k).subtotal), 0);
     const items = known.reduce((t, k) => t + (Number(lastTotal(k).lines) || 0), 0);
     const missing = CART_STORES.filter((k) => !lastTotal(k)).map((k) => storeOf(k).name);
-    let html = '<section class="card carts-total"><div class="ct-label">All carts</div><div class="ct-money">' + (known.length ? fmtMoney(sum) : '—') + '</div>' +
+    const hs = helperState();
+    let html = Number(D().api || 0) >= 27 ? '<div class="helper-line ' + (hs.ok ? 'ok' : 'off') + '"><span class="dot"></span>' + esc(hs.text) + '</div>' : '';
+    html += '<section class="card carts-total"><div class="ct-label">All carts</div><div class="ct-money">' + (known.length ? fmtMoney(sum) : '—') + '</div>' +
       '<div class="cart-sub">' + items + ' item' + (items === 1 ? '' : 's') + (missing.length ? ' · not read yet: ' + esc(missing.join(', ')) : '') + '</div></section>';
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
@@ -1298,7 +1315,7 @@
         '<div class="cart-sub">' + esc(t.sub) + '</div>' +
         '<div class="cart-status st-' + s2.cls + '">' + esc(s2.text) + '</div></button>';
     });
-    html += '<p class="hint">Totals are each store’s own cart subtotal (before tax and fees), from the last time Claude looked. Claude changes and reads the carts on Mike’s computer at :17 past every hour, 8 am–9 pm, when it’s on with Chrome open. A person always places the order.</p>';
+    html += '<div class="how-it-works"><b>How carts work</b><ol><li>You tap Put in cart or Take it out. The item shows ⏳ right away: asked for, not done yet.</li><li>The cart helper on the home computer checks at :17 past each hour, 8 am–9 pm, makes the change on the store’s site and reads the cart back.</li><li>The item flips to 🛒 In … cart and the totals update. Totals are the store’s own cart total after sale savings, before tax and fees.</li></ol>A person always places the order.</div>';
     return html;
   }
   function viewCartDetail(code) {

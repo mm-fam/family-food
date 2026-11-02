@@ -174,7 +174,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      cart too. Parents only; kids see carts read-only.
 // 26 = cart totals: Cart Jobs subtotal + lines (the store's own cart subtotal and line count, written by the cart runner
 //      when it finishes a job) ride along in state.cartJobs, so the Carts screen shows $ per cart and in total.
-const API_VERSION = 26;
+// 27 = state.settings.runner_seen: when the cart runner on the owner's computer last started a run (it writes Settings
+//      runner_seen first thing, every run), so the app can say plainly whether the cart helper is alive.
+const API_VERSION = 27;
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
 const PLAN_DAYS = 14; // Meals tab shows a rolling window: today + the next 13 days.
 const PLAN_KEEP_DAYS = 14; // nightly moves Plan rows older than this to Plan Archive.
@@ -437,6 +439,7 @@ function getState() {
       wf_order_day: settings.wf_order_day || '',
       order_requested: settings.order_requested || '',
       admins: String(settings.admins || '').split(',').map((s) => s.trim()).filter(String),
+      runner_seen: settings.runner_seen instanceof Date ? Utilities.formatDate(settings.runner_seen, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.runner_seen || ''),
     },
   };
 }
