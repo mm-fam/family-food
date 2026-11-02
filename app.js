@@ -438,8 +438,13 @@
     const eyebrow = instore ? (S.instore === 'all' ? 'Every store' : storeOf(S.instore).name) : eyebrows[S.tab];
     let right = '';
     if (instore) right = '<button class="btn btn-primary shop-done" data-act="store-done">Done</button>';
-    else {
-      if (S.tab === 'list') right += '<button class="btn btn-outline shop-btn" data-act="store-start">' + (canCarts() ? '🏪' : '🛒') + ' In store</button>';
+    else if (canCarts()) {
+      // Nov 2 header (Mike): the cart is the main button, In store is secondary, 💡 and switching live under your name.
+      if (S.tab === 'list') right += '<button class="btn btn-plain shop-btn small" data-act="store-start">🏪 In store</button>';
+      right += cartButton();
+      right += '<button class="me" data-act="open-me" aria-label="Options for ' + esc(S.me) + '">' + esc(S.me) + ' <span aria-hidden="true">⚙</span></button>';
+    } else {
+      if (S.tab === 'list') right += '<button class="btn btn-outline shop-btn" data-act="store-start">🛒 In store</button>';
       if (canV9()) right += '<button class="gear idea-btn" data-act="open-feedback" aria-label="Idea or feedback about the app">💡</button>';
       if (canCarts()) right += '<button class="gear' + (S.tab === 'carts' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'carts' ? 'list' : 'carts') + '" aria-label="Online carts">🛒</button>';
       else if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'list' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
@@ -538,6 +543,12 @@
   const kindOk = (r) => S.listKind === 'all' || (S.listKind === 'meal' ? forMeal(r) : !forMeal(r));
   function viewListKinds(rows) {
     const nMeal = rows.filter(forMeal).length;
+    if (canCarts()) {
+      // One scrolling row (Nov 2, Mike): what it's for, then where it stands with the carts.
+      const pill = (v, label, n) => '<button class="pill small' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
+      return '<div class="pill-scroll list-kinds">' + pill('all', 'All', rows.length) + pill('meal', '🍽 Meals', nMeal) + pill('stock', '🧺 Stock', rows.length - nMeal) +
+        '<span class="pill-sep" aria-hidden="true"></span>' + cartPills(rows.filter(kindOk)) + '</div>';
+    }
     const pill = (v, label, n) => '<button class="pill' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
     return '<div class="chips-row list-kinds">' + pill('all', 'All', rows.length) + pill('meal', '🍽 For meals', nMeal) + pill('stock', '🧺 Stock', rows.length - nMeal) + '</div>';
   }
@@ -552,18 +563,14 @@
     const code = S.listCart.slice(3);
     return ((c.kind === 'in' || c.kind === 'leaving') && c.store === code) || (c.kind === 'moving' && c.from === code);
   }
-  function viewListCarts(rows) {
-    if (!canCarts()) return '';
+  function cartPills(rows) {
     const count = (v) => { const keep = S.listCart; S.listCart = v; const n = rows.filter(cartOk).length; S.listCart = keep; return n; };
     const pill = (v, label, cls) => {
       const n = count(v);
       if (!n && S.listCart !== v) return '';
       return '<button class="pill small' + (cls ? ' ' + cls : '') + (S.listCart === v ? ' on' : '') + '" data-act="list-cart" data-v="' + v + '" aria-pressed="' + (S.listCart === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
     };
-    const pills = pill('none', 'Not in a cart') + pill('going', '⏳ On the way') + CART_STORES.map((k) => pill('in:' + k, '🛒 ' + esc(sName(k)), storeOf(k).cls)).join('');
-    const push = amParent() ? rows.filter(cartOk).filter(needsCart).length : 0;
-    return '<div class="pill-scroll list-carts">' + pills + '</div>' +
-      (push ? '<button class="btn btn-outline btn-block push-all" data-act="push-all">🛒 Put ' + push + (push === 1 ? ' item' : ' items') + ' in carts…</button>' : '');
+    return pill('none', 'No cart') + pill('going', '⏳ On the way') + CART_STORES.map((k) => pill('in:' + k, '🛒 ' + esc(sName(k)), storeOf(k).cls)).join('');
   }
 
   function rowMeta(r) {
@@ -747,7 +754,7 @@
     let html = '';
 
     html += viewInstallTip();
-    html += viewJobBanner();
+    if (!canCarts()) html += viewJobBanner(); // since api 25 the header cart button and the Carts screen show job status
     html += viewUseSoon();
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
@@ -760,15 +767,16 @@
     const fadedIds = {};
     faded.forEach((f) => (fadedIds[f.row.id] = f));
     if (active.length) html += viewListKinds(active);
-    if (active.length) html += viewListCarts(active.filter(kindOk));
     const shown = active.filter(kindOk).filter(cartOk);
     const all = shown.concat(faded.map((f) => f.row).filter(kindOk).filter(cartOk));
     const aisles = groupsIn(all);
     if (active.length || faded.length) {
       const allClosed = aisles.every((g) => isClosed('a:' + g));
       const only = shown.filter(storeOnly).length;
+      const push = canCarts() && amParent() ? shown.filter(needsCart).length : 0;
       html += '<div class="list-tools"><span>' + shown.length + ' item' + (shown.length === 1 ? '' : 's') + (S.listKind === 'meal' ? ' for meals' : S.listKind === 'stock' ? ' to stock up' : '') + (only ? ' · ' + only + ' store-only' : '') + '</span>' +
-        '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></div>';
+        '<span class="tools-r">' + (push ? '<button class="link-btn push-link" data-act="push-all">🛒 Put ' + push + ' in carts</button>' : '') +
+        '<button class="link-btn" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></span></div>';
       if (!shown.length && !faded.length) html += '<div class="empty">' + (S.listCart ? 'Nothing here with that cart filter.' : S.listKind === 'meal' ? 'Nothing on the List is for a planned meal this week.' : 'Everything on the List is for a meal.') + '</div>';
     }
     aisles.forEach((g) => {
@@ -798,7 +806,7 @@
           '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    html += '<p class="hint">One list for every store: wherever you shop, grab what you can. 🍽 For meals = added for a meal or used in a meal planned this week; 🧺 Stock = everything else. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap ' + (canCarts() ? '🏪' : '🛒') + ' In store to check things off.' + (canCarts() ? ' The cart pills show what’s in each store’s online cart; ' + (amParent() ? 'put things in from an item or with “Put … in carts”.' : 'a parent puts things in.') : '') + '</p>';
+    html += '<p class="hint">One list for every store: wherever you shop, grab what you can. 🍽 For meals = added for a meal or used in a meal planned this week; 🧺 Stock = everything else. A colored dot is where we usually get it; “Only at …” means the other stores don’t carry it. Tap an item to say we have it, push it to next week, or see its history. In the store, tap ' + (canCarts() ? '🏪' : '🛒') + ' In store to check things off.' + (canCarts() ? ' The 🛒 button up top shows how many are in each store’s online cart.' : '') + '</p>';
     return html;
   }
 
@@ -1171,6 +1179,35 @@
       }
     }
     return '<div class="is-block cart-block"><div class="is-label">Online cart</div><div class="cart-line">' + line + '</div>' + btns + '</div>';
+  }
+
+  /* ---------- header cart button (Nov 2) ---------- */
+  // One cart with a colored count in each corner: GE top-left, Whole Foods top-right, Target bottom-left,
+  // Amazon bottom-right. A count = lines in that cart plus lines on their way in. A soft pulse while Claude has work.
+  function cartCounts() {
+    const n = { GE: 0, WF: 0, TGT: 0, AMZ: 0 };
+    D().list.forEach((r) => {
+      const c = cartState(r);
+      if ((c.kind === 'in' || c.kind === 'going' || c.kind === 'moving') && n[c.store] !== undefined) n[c.store]++;
+    });
+    return n;
+  }
+  function cartButton() {
+    const n = cartCounts();
+    const busy = jobs().some((j) => JOB_OPEN.indexOf(j.status) >= 0);
+    const total = CART_STORES.reduce((t, k) => t + n[k], 0);
+    const corner = (k, pos) => (n[k] ? '<span class="cc ' + pos + ' ' + storeOf(k).cls + '">' + n[k] + '</span>' : '');
+    const label = 'Online carts: ' + CART_STORES.filter((k) => n[k]).map((k) => n[k] + ' ' + storeOf(k).name).join(', ') + (busy ? '. Claude has changes waiting.' : '');
+    return '<button class="cart-btn' + (S.tab === 'carts' ? ' on' : '') + (busy ? ' busy' : '') + '" data-act="tab" data-tab="' + (S.tab === 'carts' ? 'list' : 'carts') + '" aria-label="' + esc(total ? label : 'Online carts: empty') + '">' +
+      '<svg class="cart-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19.5" r="1.6" fill="currentColor"/><circle cx="17" cy="19.5" r="1.6" fill="currentColor"/></svg>' + corner('GE', 'tl') + corner('WF', 'tr') + corner('TGT', 'bl') + corner('AMZ', 'br') + '</button>';
+  }
+  function viewMeSheet() {
+    return '<div class="is-head"><div><h2>' + esc(S.me) + '</h2><div class="is-sub">' + (isKid(S.me) ? 'Kid profile' : 'Parent') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      '<div class="me-menu">' +
+      (canV9() ? '<button class="me-item" data-act="open-feedback"><span>💡</span><span><b>Idea for Poppy</b><small>Something confusing, missing, or a great idea</small></span></button>' : '') +
+      '<button class="me-item" data-act="tab" data-tab="carts"><span>🛒</span><span><b>Online carts</b><small>What’s in each store’s cart</small></span></button>' +
+      '<button class="me-item" data-act="switch-me"><span>🔄</span><span><b>Switch person</b><small>Not ' + esc(S.me) + '? Pick who’s using the phone</small></span></button>' +
+      '</div>';
   }
 
   /* ---------- carts (api 25) ---------- */
@@ -2172,6 +2209,7 @@
     if (sh.type === 'hearth') inner = viewHearthSheet(sh);
     if (sh.type === 'points') inner = viewPointsSheet(sh);
     if (sh.type === 'pushall') inner = viewPushSheet(sh);
+    if (sh.type === 'me') inner = viewMeSheet();
     if (sh.type === 'feedback') {
       inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
         '<label class="sr" for="fb-text">Your idea or feedback</label><textarea id="fb-text" class="field idea-text" data-input="draft" data-field="text" rows="6" placeholder="e.g. I wish I could see what’s for lunch tomorrow on the List">' + esc(sh.text || '') + '</textarea>' +
@@ -2193,7 +2231,7 @@
         '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-meal"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
     }
 
-    const hasX = ['item', 'mealcard', 'ideaview', 'day', 'hearth', 'points', 'pushall'].indexOf(sh.type) >= 0;
+    const hasX = ['item', 'mealcard', 'ideaview', 'day', 'hearth', 'points', 'pushall', 'me'].indexOf(sh.type) >= 0;
     return '<div class="scrim" data-act="close-sheet"><div class="sheet' + (hasX ? ' item-sheet' : '') + '" role="dialog" aria-modal="true">' + inner +
       (hasX ? '' : '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button>') + '</div></div>';
   }
@@ -2357,6 +2395,7 @@
         }
       }, kind === 'check' ? 'Cart check queued' : 'Cart build queued');
     },
+    'open-me': () => { S.sheet = { type: 'me' }; render(); },
     'cart-open': (el) => { S.cartOpen = el.dataset.store || ''; S.tab = 'carts'; store.set('ff_tab', 'carts'); S.sheet = null; render(); window.scrollTo(0, 0); },
     'cart-back': () => { S.cartOpen = ''; render(); window.scrollTo(0, 0); },
     'cart-pick': (el) => { if (S.sheet) { S.sheet.cartPick = el.dataset.store; render(); } },
