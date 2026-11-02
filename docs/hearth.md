@@ -9,6 +9,9 @@ The family's Hearth display shows a weekly **Meal Plan** grid: Breakfast · Lunc
 - **Where we're heading: plan in Poppy, push to Hearth.** Poppy holds the meals, their ingredients and the plan; one button produces the message for Hearth Helper, so the Hearth grid is filled automatically instead of by hand.
 - Hearth has **no API**. Its AI assistant, **Hearth Helper**, takes text, notes and photos (in the Hearth Companion app or by SMS) and turns a weekly meal list into the Meal Plan "for your approval". the admin already uses the same paste-a-block pattern for calendar events after the family meeting.
 
+## Meals vs items
+A **meal** has 2+ ingredients and a recipe. A breakfast, lunch or snack that's just one thing we buy is planned as an **item** in that slot (Plan `item_id`, api 30): the day sheet offers "Something we buy" and a search. Planned items go to Hearth by name and count for Missing for meals, the List meal tag, For meals and missions.
+
 ## In Poppy (api 8)
 - **Plan** rows have a `slot` (breakfast / lunch / snack / dinner; blank = dinner) and a `note`. One meal per date + slot.
 - **Leftovers:** a row whose note starts with "Leftover" (e.g. Wed lunch = Tue's sheet-pan chicken, note `Leftovers`). It shows as "Leftover <meal>", adds no ingredients and doesn't count as "made". A note with no meal (Mon "Leftover wraps") shows the note as is.
@@ -37,7 +40,7 @@ Dinner: …
 ## Runbook: load a Hearth week into Poppy (Claude)
 **When:** the admin shares a screenshot of the Hearth Meal Plan (or says the meal planner changed the week).
 1. Read every cell: day × Breakfast / Lunch / Snack / Dinner. Names cut off with "…" stay cut off (never complete them by guessing); ask the admin for the full names if he's there.
-2. Match each name to Meals (same dish = same meal; Hearth's spelling wins on new meals). New dish → new Meals row (next `mNN`), `kind` = the row it sits in, `item_ids` = only catalog items the name clearly names (Nounos vs other yogurt, which apples etc. stay unlinked), notes "From the meal planner's Hearth week <dates>" + "Not in the catalog yet: …". Never create Items for it.
+2. Match each name to Meals (same dish = same meal; Hearth's spelling wins on new meals). **A cell that's just one thing we buy** (trail mix, a yogurt) → plan the catalog item (Plan `item_id`, no meal; api 30); if the catalog doesn't have it, ask before creating an item, never a new meal. New dish → new Meals row (next `mNN`), `kind` = the row it sits in, `item_ids` = only catalog items the name clearly names (Nounos vs other yogurt, which apples etc. stay unlinked), notes "From the meal planner's Hearth week <dates>" + "Not in the catalog yet: …". Never create Items for it.
 3. "Leftover …" cells: Plan row with the source meal's id and note `Leftovers` when it's clear which meal; otherwise no meal and the cell text as the note.
 4. Write Plan rows (week_of, day, meal_id, date, slot, note); dates as text `yyyy-mm-dd`. Hearth wins over what Poppy had for that date + slot (overwrite). Back up first if more than ~20 rows change.
 5. Report: "Hearth week <dates>: N meals planned, N new meals, N cut-off names to confirm."
