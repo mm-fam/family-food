@@ -198,7 +198,8 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      skips them (a mission's out, meal ingredients); Probably due skips them; the app shows them as 🧊 on hand.
 // 34 = cart qty (Nov 2, Mike): a parent changing the qty of a carted List row sets cart_want = that same cart and
 //      queues its build job; the cart runner changes that line's qty in the store cart (no new line).
-const API_VERSION = 34;
+const API_VERSION = 35;
+const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
 const SLOTS = ['breakfast', 'lunch', 'snack', 'dinner']; // blank slot / kind = dinner
@@ -583,7 +584,7 @@ function productsMap() {
   const pick = (p) => ({
     name: String(p.product || ''), size: String(p.size || ''), aisle: String(p.aisle || ''),
     price: num(p.price), unit_price: num(p.unit_price), unit: String(p.unit || ''), price_at: day(p.price_at),
-    match: String(p.match || ''),
+    match: String(p.match || ''), pack: String(p.pack || ''), // api 35: Products pack ("8 ct"), blank = read from the name
   });
   readTab(TABS.products).forEach((p) => {
     if (!p.item_id || !p.store) return;
@@ -698,6 +699,11 @@ function addToList(req) {
     const already = wanted.map((w) => w.toLowerCase()).indexOf(String(req.by).toLowerCase()) >= 0;
     if (!already) f.wanted_by = wanted.concat([req.by]).join(';');
     if (req.bump === true) f.qty = (Number(existing.qty) || 1) + qty;
+    // api 35: a meal set to "make more" needs at least that many, even when the row was already on the List.
+    else if (req.min_qty && (Number(existing.qty) || 1) < req.min_qty) {
+      f.qty = req.min_qty;
+      Object.assign(f, cartQtyFields(existing, f.qty, req.by));
+    }
     setFields(TABS.list, existing._row, f);
     if (!already && !req._noPoints && !isKid(req.by)) awardPoints(req.by, 'list_add', existing.id, req.by, 'Added ' + existing.name + ' to the List');
     return { id: existing.id, merged: true, already: already };
@@ -755,7 +761,15 @@ function addMealToList(req) {
   const meal = readTab(TABS.meals).find((m) => m.id === req.meal_id);
   if (!meal) throw new Error('Meal not found');
   const ids = req.item_ids && req.item_ids.length ? req.item_ids : String(meal.item_ids).split(';').filter(String);
-  ids.forEach((itemId) => addToList({ item_id: itemId, by: req.by, meal_id: meal.id, bump: false, _noPoints: true }));
+  // api 35 (make more): Meals meat_qty (blank = 1) = how many of each Meat-group ingredient go on the List.
+  const meatQty = mealMeatQty(meal);
+  const meat = {};
+  if (meatQty > 1) readTab(TABS.items).forEach((it) => { if (String(it.group) === 'Meat') meat[it.id] = true; });
+  ids.forEach((itemId) => {
+    const o = { item_id: itemId, by: req.by, meal_id: meal.id, bump: false, _noPoints: true };
+    if (meat[itemId]) { o.qty = meatQty; o.min_qty = meatQty; }
+    addToList(o);
+  });
   return { added: ids.length };
 }
 
@@ -793,6 +807,16 @@ function setPlan(req) {
   return { date: date, day: fields.day, slot: slot };
 }
 
+// Blank = 1 (the default), so the column stays empty for most meals.
+function meatQtyField(v) {
+  const n = parseInt(v, 10);
+  return n >= 2 && n <= MEAT_QTY_MAX ? n : '';
+}
+function mealMeatQty(meal) {
+  const n = parseInt(meal && meal.meat_qty, 10);
+  return n >= 1 && n <= MEAT_QTY_MAX ? n : 1;
+}
+
 function saveMeal(req) {
   if (isKid(req.by)) throw new Error('Only parents can edit meals');
   const meals = readTab(TABS.meals);
@@ -801,12 +825,14 @@ function saveMeal(req) {
   if (existing) {
     const f = { name: req.name || existing.name, item_ids: ids, notes: req.notes || existing.notes };
     if (req.kind && headers(TABS.meals).indexOf('kind') >= 0) f.kind = String(req.kind).toLowerCase();
+    if (req.meat_qty !== undefined) { f.meat_qty = meatQtyField(req.meat_qty); ensureColumn(TABS.meals, 'meat_qty'); }
     setFields(TABS.meals, existing._row, f);
     return { id: existing.id };
   }
   const id = nextId(meals, 'id', 'm', 2);
   const row = { id: id, name: req.name, item_ids: ids, notes: req.notes || '' };
   if (headers(TABS.meals).indexOf('kind') >= 0) row.kind = SLOTS.indexOf(String(req.kind || '').toLowerCase()) >= 0 ? String(req.kind).toLowerCase() : 'dinner';
+  if (req.meat_qty !== undefined) { row.meat_qty = meatQtyField(req.meat_qty); ensureColumn(TABS.meals, 'meat_qty'); }
   appendObj(TABS.meals, row);
   return { id: id };
 }
@@ -1450,13 +1476,15 @@ function addFeedback(req) {
 
 // api 29: a new 💡 idea reaches the owner (Mike) in minutes, not at the next morning check. Email to the owner only,
 // never to anyone else in the family. Returns true when sent, '' when turned off, or the error text.
-function ideaAlert(id, who, tab, text) {
+// Nov 3 (api 35): the parameter used to be called `tab`, which hid the tab() helper, so every alert since api 29
+// failed with "tab is not a function". Keep it as tabName.
+function ideaAlert(id, who, tabName, text) {
   try {
     const st = settingsMap();
     if (/^(off|no|n)$/i.test(String(st.idea_alerts || '').trim())) return '';
     const to = String(st.alert_email || '').trim() || Session.getEffectiveUser().getEmail();
     if (!to) return 'no address';
-    const where = tab ? ' (' + tab + ' tab)' : '';
+    const where = tabName ? ' (' + tabName + ' tab)' : '';
     MailApp.sendEmail({
       to: to,
       subject: '💡 Poppy idea from ' + (who || 'someone') + where,
@@ -1536,7 +1564,9 @@ function dailyCards() {
         let given = 0;
         rows.forEach((p) => {
           if (given >= RATE_PER_DAY) return;
-          const open = review.some((r) => r.type === 'rate' && r.status === 'open' && String(r.audience) === who && String(r.detail).indexOf('(' + p.meal_id + ')') >= 0);
+          // api 35: a person with an open vote card on this meal gets that card after the meal instead (the app holds
+          // votes until the morning after), so no How was it? on top of it.
+          const open = review.some((r) => (r.type === 'rate' || r.type === 'vote') && r.status === 'open' && String(r.audience) === who && String(r.detail).indexOf('(' + p.meal_id + ')') >= 0);
           if (open) return;
           const slot = planSlot(p);
           add({ type: 'rate', audience: who, detail: 'How was ' + mealOf[p.meal_id].name + ' ' + when + (slot === 'dinner' ? '' : ' (' + slot + ')') + '? (' + p.meal_id + ') Options: ' + RATE_OPTIONS });

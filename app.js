@@ -138,6 +138,10 @@
   const D = () => S.data || { items: [], list: [], held: [], recent: [], meals: [], plan: [], review: [], due: [], stock: {}, mealStats: {}, ideas: [], settings: { parents: [], kids: [] } };
   const itemById = (id) => D().items.find((i) => i.id === id);
   const mealById = (id) => D().meals.find((m) => m.id === id);
+  // Make more (Nov 3, Mom's idea, api 35): Meals meat_qty (blank = 1) = how many of each meat go on the List.
+  const canMeatQty = () => Number(D().api || 0) >= 35;
+  const meatQty = (m) => { const n = parseInt(m && m.meat_qty, 10); return n >= 2 && n <= 3 ? n : 1; };
+  const isMeat = (id) => { const it = itemById(id); return !!(it && String(it.group) === 'Meat'); };
   const listRowFor = (itemId) => D().list.find((r) => r.item_id === itemId);
   const isKid = (name) => D().settings.kids.map((k) => k.toLowerCase()).indexOf(String(name || '').toLowerCase()) >= 0;
   const amParent = () => !isKid(S.me);
@@ -622,9 +626,36 @@
   // narrows to the rows no online cart has yet. needsCart is defined below; kindOk only runs at render time.
   S.listKind = 'all';
   const kindOk = (r) => S.listKind === 'all' || (S.listKind === 'cart' ? (canCarts() && needsCart(r)) : S.listKind === 'meal' ? forMeal(r) : !forMeal(r));
+  // Pack sizes (Nov 3, Mike's idea): how many come in one package. Products `pack` when Claude filled it,
+  // else read from the store's product name ("… Frozen - 8 Count", "8 Cups", "Pack of 12") or a size like "14 each".
+  const PACK_WORDS = 'count|ct|cups?|bars?|pouches|pouch|sandwiche?s|rolls?|bottles?|cans?|pieces?|pcs|each|packs?|pk|pods?|sticks?|cakes?|pies?|bags?|boxes?|cartons?|links?|patties|eggs?';
+  const PACK_RE = new RegExp('(?:^|[\\s(,-])(\\d{1,3})\\s*-?\\s*(?:' + PACK_WORDS + ')\\b', 'i');
+  function packCount(text) {
+    const t = String(text || '');
+    const m = t.match(/\bpack of (\d{1,3})\b/i) || t.match(PACK_RE);
+    const n = m ? parseInt(m[1], 10) : 0;
+    return n >= 2 && n <= 500 ? n : 0;
+  }
+  // { count, size, text } for an item at a store (falls back to any store we know the product at), or null.
+  function packOf(itemId, store) {
+    const prods = (D().products || {})[itemId] || {};
+    const k = prods[store] ? store : CART_STORES.find((x) => prods[x]) || Object.keys(prods)[0];
+    const p = k && prods[k];
+    if (!p) return null;
+    const size = String(p.size || '').trim();
+    const count = packCount(p.pack) || packCount(p.name) || packCount(size);
+    const sizeOnly = size && !(count && packCount(size) === count && !/\d\s*(oz|lb|g|kg|ml|l|fl)\b/i.test(size)) ? size : '';
+    if (!count && !sizeOnly) return null;
+    return { count: count, size: sizeOnly, text: count ? count + ' ct' + (sizeOnly ? ' · ' + sizeOnly : '') : sizeOnly, store: k };
+  }
+  const packHtml = (pk) => (pk ? '<span class="pack">' + (pk.count ? '📦 ' : '') + esc(pk.text) + '</span>' : '');
+
   function rowMeta(r) {
     const meta = [];
-    if (Number(r.qty) > 1) meta.push('×' + r.qty);
+    const pk = r.item_id ? packOf(r.item_id, cartStore(r) || r.store) : null;
+    if (pk && pk.count) { if (Number(r.qty) > 1) meta.push('×' + r.qty); meta.push(packHtml(pk)); }
+    else if (pk) meta.push((Number(r.qty) > 1 ? '×' + r.qty + ' ' : '') + '<span class="pack">' + esc(Number(r.qty) > 1 ? '(' + pk.text + ' each)' : pk.text) + '</span>');
+    else if (Number(r.qty) > 1) meta.push('×' + r.qty);
     if (r.note) meta.push(esc(r.note));
     return meta;
   }
@@ -1166,6 +1197,8 @@
       else if (i.last_bought) meta.push('bought ' + esc(daysAgo(i.last_bought)));
       const pt = priceTag({ item_id: i.id, store: i.store });
       if (pt) meta.push(pt);
+      const pkS = packOf(i.id, i.store);
+      if (pkS) meta.push(packHtml(pkS));
       const stk = (D().stock || {})[i.id];
       if (stk) meta.push('at home: ' + esc(levelText(stk.level)) + ' (' + esc(daysAgo(stk.at)) + ')');
       return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + i.id + '"><span class="row-name">' + esc(i.name) + '</span><span class="row-meta">' + meta.join(' · ') + '</span></button>' +
@@ -1258,6 +1291,7 @@
       } else if (row.status === 'carted' && cartStore(row) && cartStore(row) !== 'Either') what = '🛒 In the ' + full(cartStore(row)) + ' cart';
       h += '<div class="is-now"><div class="is-now-text"><b>' + what + '</b> <span class="is-who">(' + esc(wantedBy(row).join(' + ')) + ')</span>' +
         (mealTag(row) ? '<div class="is-now-meal">' + mealTag(row) + '</div>' : '') +
+        (packOf(row.item_id, cartStore(row) || row.store) ? '<div class="is-now-pack pack">' + (packOf(row.item_id, cartStore(row) || row.store).count ? '📦 ' : '') + 'Each one: ' + esc(packOf(row.item_id, cartStore(row) || row.store).text) + '</div>' : '') +
         (c && c.kind === 'failed' && c.note ? '<div class="note">' + esc(c.note) + '</div>' : '') + '</div>' +
         '<div class="stepper small" aria-label="How many"><button type="button" data-act="row-qty" data-d="-1" aria-label="Fewer">−</button><b>' + (Number(row.qty) || 1) +
         '</b><button type="button" data-act="row-qty" data-d="1" aria-label="More">+</button></div></div>';
@@ -1322,7 +1356,7 @@
           const stale = pr && (!freshPrice(p) || !likeItem(p));
           return '<div class="buy-row' + (low && low.store === k ? ' best' : '') + '"><span class="store-dot ' + storeOf(k).cls + '"></span>' +
             '<div class="buy-main"><div><b>' + esc(storeOf(k).name) + '</b>' + (p.aisle ? ' <span class="aisle-tag">' + esc(p.aisle) + '</span>' : '') + '</div>' +
-            '<small>' + esc(p.name) + (p.size ? ' · ' + esc(p.size) : '') + '</small></div>' +
+            '<small>' + esc(p.name) + (p.size ? ' · ' + esc(p.size) : '') + (packCount(p.pack) || packCount(p.name) || packCount(p.size) ? ' · 📦 ' + (packCount(p.pack) || packCount(p.name) || packCount(p.size)) + ' ct' : '') + '</small></div>' +
             '<span class="price-val' + (stale ? ' stale' : '') + '">' + (pr ? fmtUnit(p) + (likeItem(p) ? '' : '*') : '') + '</span></div>';
         }).join('');
         pk.forEach((k) => {
@@ -1935,7 +1969,8 @@
     const ids = mealItems(m).filter((id) => itemById(id));
     const need = ids.filter((id) => !listRowFor(id));
     h += '<div class="is-block"><div class="is-label">Ingredients</div>' + (ids.length
-      ? '<ul class="is-notes">' + ids.map((id) => '<li>' + esc(itemById(id).name) + (listRowFor(id) ? ' <span class="tag tag-listed">On list</span>' : '') + '</li>').join('') + '</ul>' +
+      ? (meatQty(m) > 1 && ids.some(isMeat) ? '<div class="meat-more">🍗 Making more: ' + meatQty(m) + ' of each meat go on the List</div>' : '') +
+        '<ul class="is-notes">' + ids.map((id) => '<li>' + esc(itemById(id).name) + (meatQty(m) > 1 && isMeat(id) ? ' <b>×' + meatQty(m) + '</b>' : '') + (listRowFor(id) ? ' <span class="tag tag-listed">On list</span>' : '') + '</li>').join('') + '</ul>' +
         (need.length ? '<button class="btn btn-outline btn-block" data-act="meal-add-all" data-id="' + m.id + '">Add ' + need.length + ' to the List</button>' : '<p class="note">Everything is on the List already.</p>')
       : '<p class="note">No ingredients linked yet.</p>') + '</div>';
     if (m.notes) h += '<div class="is-block"><div class="is-label">Notes</div><p class="is-fact">' + esc(m.notes) + '</p></div>';
@@ -2033,10 +2068,34 @@
   function myQuestions(withSnoozed) {
     return myQuestionsAll().filter((r) => withSnoozed || !snoozed(r));
   }
-  function myQuestionsAll() {
+  // Meal votes follow the meal (Nov 3, Mike's idea): a vote card on a meal that's planned from today on waits
+  // until the morning after we eat it, then asks "You had <meal> yesterday. How was it?". App only.
+  function voteMealId(r) {
+    if (!r || r.type !== 'vote') return '';
+    const d = String(r.detail || '');
+    const id = (d.match(/\((m\d{2,})\)/) || [])[1];
+    if (id) return id;
+    const n = ((d.match(/about (.+?)\?/) || [])[1] || '').toLowerCase();
+    const m = n && (D().meals || []).find((x) => String(x.name).toLowerCase() === n);
+    return m ? m.id : '';
+  }
+  // 'after' = had it in the last 2 days, 'held' = planned from today on, 'new' = never had, 'had' = had before.
+  function voteTiming(r) {
+    const id = voteMealId(r);
+    const st = id && (D().mealStats || {})[id];
+    if (!st) return '';
+    const today = D().today;
+    if (st.last && st.last >= addDays(today, -2)) return 'after';
+    if (st.next && st.next >= today) return 'held';
+    return st.made ? 'had' : 'new';
+  }
+  const voteHeld = (r) => voteTiming(r) === 'held';
+  function heldVotes() { return myQuestionsAll(true).filter(voteHeld); }
+  function myQuestionsAll(withHeld) {
     const review = D().review || [];
     return review.filter((r) => {
       if (r.type === 'meal_request') return false; // shown on the Meals tab instead
+      if (!withHeld && voteHeld(r)) return false; // waits for the morning after the meal
       if (r.type === 'have_check') { // a kid's "we have it": gone once the row left the List some other way
         const m = String(r.detail).match(/\((L\d{4,})\)/);
         if (m && !D().list.some((x) => x.id === m[1])) return false;
@@ -2105,7 +2164,7 @@
     if (t === 'settle' && !amParent() && Number(D().api || 0) >= 21) return 'mission';
     if (t === 'settle' || t === 'settle_order' || t === 'settle_meal') return 'settle';
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
-    if (t === 'rate' || t === 'still') return 'rate';
+    if (t === 'rate' || t === 'still' || (t === 'vote' && voteTiming(r) === 'after')) return 'rate'; // api 35: a vote right after the meal
     if (t === 'check' || t === 'mission') return 'mission';
     if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
@@ -2355,7 +2414,8 @@
       const napping = myQuestions(true).length, nb = nextBack();
       const when = nb ? (nb.toDateString() === new Date().toDateString() ? 'at ' + nb.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'tomorrow') : '';
       return top + '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">' +
-        (napping ? napping + (napping === 1 ? ' card' : ' cards') + ' put off; the next one is back ' + when + '. ' : '') + 'Lunch picks, How was it?, missions and questions show up here.</span></div>' +
+        (napping ? napping + (napping === 1 ? ' card' : ' cards') + ' put off; the next one is back ' + when + '. ' : '') +
+        (heldVotes().length ? heldVotes().length + (heldVotes().length === 1 ? ' meal vote waits' : ' meal votes wait') + ' until the morning after that meal. ' : '') + 'Lunch picks, How was it?, missions and questions show up here.</span></div>' +
         '<p class="hint">Everything here teaches Poppy what the family needs. A parent makes the final call.</p>';
     }
     const r = deck[0];
@@ -2404,7 +2464,8 @@
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
       '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() && !preStart() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : '+' + cardPoints(r)) + '</span>' : '') + '</div>' +
-      '<div class="qcard-q">' + esc(sp.q.replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|meal m\d+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
+      voteTagHtml(r) +
+      '<div class="qcard-q">' + esc(voteQuestion(r, sp.q).replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|meal m\d+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
       (S.askPassing === r.id ? viewPassPicker(r) : S.askSnoozing === r.id ? viewSnoozePicker(r) :
       '<div class="qcard-foot"><button type="button" class="btn btn-plain" data-act="review-skip" data-id="' + r.id + '">Don’t care</button>' +
@@ -2414,6 +2475,22 @@
     const isSettle = r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal';
     html += '<p class="hint">' + (isSettle ? (r.type === 'settle_meal' ? 'Take them off clears them from the List; Keep them leaves them as regular items. ' : r.type === 'settle_order' ? 'Yes takes the whole cart off the List. Some of it asks about each thing. ' : isKid(S.me) ? 'Go look where it lives (fridge, pantry, bathroom). It’s here takes it off the List. ' : 'Got it or Don’t need it takes it off the List; Still need it keeps it there. ') : '') + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
     return html;
+  }
+
+  // What a vote card says: right after the meal it asks how it was; otherwise a line says whether we've had it.
+  function voteMealName(r) { const m = mealById(voteMealId(r)); return m ? m.name : ''; }
+  function voteQuestion(r, q) {
+    if (voteTiming(r) !== 'after' || !voteMealName(r)) return q;
+    const st = (D().mealStats || {})[voteMealId(r)];
+    const when = st.last === addDays(D().today, -1) ? 'yesterday' : st.last === D().today ? 'today' : 'on ' + dayName(st.last);
+    return 'You had ' + voteMealName(r) + ' ' + when + '. How was it?';
+  }
+  function voteTagHtml(r) {
+    const t = voteTiming(r);
+    if (!t) return '';
+    const st = (D().mealStats || {})[voteMealId(r)] || {};
+    const txt = t === 'after' ? '🍽 Right after the meal' : t === 'new' ? '🆕 Haven’t tried it yet · would you want it?' : t === 'had' ? '🍽 Last had ' + (st.last ? shortDay(st.last) : 'a while ago') : '';
+    return txt ? '<div class="vote-tag">' + esc(txt) + '</div>' : '';
   }
 
   function resetAskCard() { S.askTyping = null; S.askDraft = ''; S.askSel = ''; S.askPassing = null; S.askSnoozing = null; }
@@ -2597,6 +2674,8 @@
       inner = '<h2>' + (sh.id ? 'Edit meal' : 'New meal') + '</h2>' +
         '<div><label for="sh-mname">Name</label><input id="sh-mname" class="field" style="width:100%" data-input="draft" data-field="name" value="' + esc(sh.name) + '" placeholder="e.g. Taco night"></div>' +
         (canSlots() ? '<div><label>Usually for</label>' + seg('kind', SLOTS.map((x) => [x[0], x[1]]), sh.kind || 'dinner') + '</div>' : '') +
+        (canMeatQty() && sh.id ? '<div><label>Meat to buy (each kind)</label>' + seg('meat_qty', [['1', '1'], ['2', '2 · make more'], ['3', '3']], sh.meat_qty || '1') +
+          '<p class="note">How many of each meat go on the List when you add this meal’s ingredients.</p></div>' : '') +
         '<div><label>Ingredients</label><div class="ing-edit">' + (sh.item_ids.length ? sh.item_ids.map((id) => {
           const it = itemById(id);
           return it ? '<button type="button" data-act="ing-remove" data-id="' + id + '" aria-label="Remove ' + esc(it.name) + '">' + esc(it.name) + ' ✕</button>' : '';
@@ -2731,7 +2810,7 @@
       }, 'Sent. Poppy will add it to Our meals.');
     },
     'new-meal': () => { S.sheet = { type: 'meal', id: '', name: '', item_ids: [], q: '', kind: S.mealKind && S.mealKind !== 'all' ? S.mealKind : 'dinner' }; render(); },
-    'edit-meal': (el) => { const m = mealById(el.dataset.id); if (m) { S.sheet = { type: 'meal', id: m.id, name: m.name, item_ids: mealItems(m), q: '', kind: kindOf(m) }; render(); } },
+    'edit-meal': (el) => { const m = mealById(el.dataset.id); if (m) { S.sheet = { type: 'meal', id: m.id, name: m.name, item_ids: mealItems(m), q: '', kind: kindOf(m), meat_qty: String(meatQty(m)) }; render(); } },
     'meal-kind': (el) => { S.mealKind = el.dataset.v; render(); },
     'open-day': (el) => { S.sheet = { type: 'day', day: el.dataset.day }; render(); },
     'points-open': (el) => { S.sheet = { type: 'points', tab: el.dataset.tab || 'rules', who: '' }; if (S.sheet.tab === 'history') loadPointsLog(); render(); },
@@ -2770,9 +2849,11 @@
       const sh = S.sheet;
       if (!String(sh.name).trim()) return;
       S.sheet = null;
-      act('mealSave', { id: sh.id, name: sh.name.trim(), item_ids: sh.item_ids, kind: sh.kind || 'dinner' }, () => {
+      const body = { id: sh.id, name: sh.name.trim(), item_ids: sh.item_ids, kind: sh.kind || 'dinner' };
+      if (canMeatQty() && sh.id && sh.meat_qty) body.meat_qty = Number(sh.meat_qty);
+      act('mealSave', body, () => {
         const m = mealById(sh.id);
-        if (m) { m.name = sh.name.trim(); m.item_ids = sh.item_ids.join(';'); m.kind = sh.kind || 'dinner'; }
+        if (m) { m.name = sh.name.trim(); m.item_ids = sh.item_ids.join(';'); m.kind = sh.kind || 'dinner'; if (body.meat_qty) m.meat_qty = body.meat_qty > 1 ? body.meat_qty : ''; }
         else D().meals.push({ id: tmpId(), name: sh.name.trim(), item_ids: sh.item_ids.join(';'), kind: sh.kind || 'dinner' });
       }, 'Saved ' + sh.name.trim());
     },
