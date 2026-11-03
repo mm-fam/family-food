@@ -61,6 +61,19 @@ const STILL_REASK_DAYS = 90;
 // dinner?" card (type helped) earns points for the kid it's about (Review points_to). Skips earn nothing.
 const POINTS = { task: 5, task_late: 2, check: 3, settle: 3, rate: 2, still: 2, helped_cooked: 10, helped_helped: 5, other: 1 };
 const POINTS_GOAL = 10; // daily goal; Settings points_goal overrides
+// Quick cards (rule `other`: questions, dinner votes, decisions) count toward the leaderboard only up to this many
+// a day per person (api 36, Mike Nov 3: whoever gets the most cards shouldn't run away with it). Settings quick_cap
+// overrides; 0 = no limit. Applied when points are counted, so Review keeps each card's face value.
+const QUICK_CAP = 8;
+function quickCap() {
+  const v = settingsMap().quick_cap;
+  return v === '' || v === undefined || v === null || isNaN(Number(v)) ? QUICK_CAP : Math.max(0, Number(v));
+}
+// POINT_RULES as the app shows them, with the live quick-card limit on `other`.
+function pointRulesOut() {
+  const cap = quickCap();
+  return POINT_RULES.map((x) => (x.key === 'other' && cap ? Object.assign({}, x, { cap: cap }) : x));
+}
 // The scoring rules as the family reads them (Inbox → How points work). One line per way to score, in the
 // order shown; `key` is what Review points_why stores. Keep in step with POINTS and cardPoints().
 const POINT_RULES = [
@@ -196,9 +209,13 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 30 = a Plan slot can hold a catalog item instead of a meal (snacks we just buy).
 // 31 = deliveries (Nov 2, Mike): Items store WG (Wildgrain) / BB (Bleu Box) = food that arrives on its own. addToList
 //      skips them (a mission's out, meal ingredients); Probably due skips them; the app shows them as 🧊 on hand.
+// 36 = quick-card limit (Nov 3, Mike): rule `other` (questions, votes, decisions, 1 point) counts only the first
+//      quick_cap (Settings; default 8, 0 = off) per person per day, applied when points are counted (scoredEvents),
+//      so it covers this week too and Review keeps face values. state.points.quickCap / quickToday; pointsLog
+//      entries past the cap come back with pts 0 and capped: true.
 // 34 = cart qty (Nov 2, Mike): a parent changing the qty of a carted List row sets cart_want = that same cart and
 //      queues its build job; the cart runner changes that line's qty in the store cart (no new line).
-const API_VERSION = 35;
+const API_VERSION = 36;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
@@ -1235,7 +1252,32 @@ function scoredEvents() {
     const pts = Number(r.pts) || 0, at = stampOf(r.at);
     if (pts && r.to && at) out.push({ src: 'ledger', r: r, at: at, to: String(r.to), pts: pts });
   });
-  return start ? out.filter((e) => e.at.slice(0, 10) >= start) : out;
+  const kept = start ? out.filter((e) => e.at.slice(0, 10) >= start) : out;
+  // Quick-card limit (api 36): in time order, each person's quick cards past the cap that day count 0 (capped).
+  const cap = quickCap();
+  if (cap) {
+    const seen = {};
+    kept.slice().sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)).forEach((e) => {
+      if (e.src !== 'review' || quickWhy(e.r) !== 'other') return;
+      const k = e.to.trim().toLowerCase() + '|' + e.at.slice(0, 10);
+      seen[k] = (seen[k] || 0) + 1;
+      if (seen[k] > cap) { e.pts = 0; e.capped = true; }
+    });
+  }
+  return kept;
+}
+// The rule a scored Review row came under (rows from before api 14 have no points_why: worked out from the card).
+function quickWhy(r) {
+  return String(r.points_why || '') || pointsWhy(Object.assign({}, r, { due_at: '' }), r.answer) || 'other';
+}
+// How many quick cards each person has had counted today, for the phone's "+1 / +0" preview.
+function quickToday(today) {
+  const n = {};
+  scoredEvents().forEach((e) => {
+    if (e.src !== 'review' || e.at.slice(0, 10) !== today || quickWhy(e.r) !== 'other') return;
+    n[e.to] = (n[e.to] || 0) + 1;
+  });
+  return n;
 }
 
 // Points history (Inbox → Points history): every scored answer from the last POINTS_LOG_DAYS days, newest first,
@@ -1273,7 +1315,7 @@ function pointsLog(req) {
     const answer = String(r.answer || '');
     entries.push({
       id: r.id, at: at, to: to, by: (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || '', pts: pts,
-      why: why, label: ruleByKey(why).label, guessed: guessed,
+      why: why, label: ruleByKey(why).label, guessed: guessed, capped: !!e.capped,
       q: String(r.detail || '').replace(/\s*Options:[\s\S]*$/, '').replace(/\s*\((i|m|x|r|f|c)\d{2,}\)|\s*\(\d{4}-\d\d-\d\d\)/g, '').trim(),
       answer: answer.replace(/\s*\([^()]*\)\s*$/, '').trim(),
     });
@@ -1290,7 +1332,7 @@ function pointsLog(req) {
     });
     return { weekStart: mon, totals: totals, goalDays: goals, winners: best ? Object.keys(totals).filter((p) => totals[p] === best) : [] };
   });
-  return { goal: goal, rules: POINT_RULES, days: POINTS_LOG_DAYS, entries: entries.slice(0, 400), weeks: weekList };
+  return { goal: goal, rules: pointRulesOut(), quickCap: quickCap(), days: POINTS_LOG_DAYS, entries: entries.slice(0, 400), weeks: weekList };
 }
 
 // The Inbox scoreboard: points today and this week (Mon–Sun) per person, streaks (days in a row at the
@@ -1311,7 +1353,7 @@ function pointsSummary(today) {
   const monday = addDays(today, -((dow + 6) % 7));
   const lastMonday = addDays(monday, -7);
   const sum = (m, a, b) => Object.keys(m).reduce((t, d) => t + (d >= a && d <= b ? m[d] : 0), 0);
-  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: POINT_RULES, start: pointsStart() };
+  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: pointRulesOut(), start: pointsStart(), quickCap: quickCap(), quickToday: {} };
   let best = 0;
   everyone.forEach((p) => {
     const m = byDay[p];
@@ -1324,6 +1366,10 @@ function pointsSummary(today) {
     const lw = sum(m, lastMonday, addDays(monday, -1));
     if (lw > best) { best = lw; out.lastWeekWinner = p; } else if (lw && lw === best) out.lastWeekWinner += ' + ' + p;
   });
+  if (out.quickCap) {
+    const q = quickToday(today);
+    everyone.forEach((p) => { const k = Object.keys(q).find((x) => x.trim().toLowerCase() === p.toLowerCase()); out.quickToday[p] = k ? q[k] : 0; });
+  }
   out.extra = { missions: KID_MISSIONS, settle: SETTLE_PER_KID, qa: '18–22' };
   return out;
 }
