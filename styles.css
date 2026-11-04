@@ -873,3 +873,8 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .pack { color: var(--muted); white-space: nowrap; }
 .meat-more { font-size: 13px; font-weight: 600; color: #8a4b00; background: #fff4e5; border-radius: 10px; padding: 6px 10px; margin: 6px 0; }
 .ph-pts.zero { color: var(--muted); }
+
+/* School hours (Nov 4): missions wait for home on school days */
+.home-wait { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 10px 0; background: var(--accent-soft); border-color: transparent; }
+.home-wait-txt { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.home-wait .btn { flex: none; white-space: nowrap; }

@@ -2048,7 +2048,7 @@
   function snoozeChoices() {
     const now = new Date(), at = (h) => { const d = new Date(now); d.setHours(h, 0, 0, 0); return d.getTime(); };
     const out = [{ label: 'In 2 hours', sub: new Date(now.getTime() + 2 * 3600e3).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), until: now.getTime() + 2 * 3600e3 }];
-    if (now.getHours() < 13) out.push({ label: 'After school', sub: '3 pm', until: at(15) });
+    if (now.getHours() < 16) { const d = new Date(now); d.setHours(16, 30, 0, 0); out.push({ label: 'After school', sub: '4:30 pm', until: d.getTime() }); }
     if (now.getHours() < 17) out.push({ label: 'Tonight', sub: '6 pm', until: at(18) });
     const t = new Date(now); t.setDate(t.getDate() + 1); t.setHours(6, 0, 0, 0);
     out.push({ label: 'Tomorrow', sub: 'morning', until: t.getTime() });
@@ -2066,7 +2066,30 @@
     return t ? new Date(t) : null;
   }
   function myQuestions(withSnoozed) {
-    return myQuestionsAll().filter((r) => withSnoozed || !snoozed(r));
+    const school = atSchool();
+    return myQuestionsAll().filter((r) => (withSnoozed || !snoozed(r)) && !(school && homeOnly(r)));
+  }
+  /* School hours (Nov 4, a kid's feedback via Mike): on a school day (Mon–Fri) the girls are out from 7:30 am to
+     4:30 pm, so cards that mean "go look at home" (🔎 Missions, which for kids includes "Did we get the …? Go look")
+     wait for home: out of the deck, the badge and the chips, with a 🏠 note saying how many and when they open.
+     Nothing expires or changes on the backend. "I'm home today" (snow day, sick day, holiday) opens them for the
+     rest of the day on that phone. Parents aren't affected. App only. */
+  const SCHOOL = { days: [1, 2, 3, 4, 5], from: 7 * 60 + 30, to: 16 * 60 + 30, opens: '4:30' };
+  const homeKey = () => 'ff_home_' + String(S.me).toLowerCase();
+  function atSchool() {
+    if (!S.me || !isKid(S.me)) return false;
+    const now = new Date(), mins = now.getHours() * 60 + now.getMinutes();
+    if (SCHOOL.days.indexOf(now.getDay()) < 0 || mins < SCHOOL.from || mins >= SCHOOL.to) return false;
+    return store.get(homeKey()) !== now.toDateString();
+  }
+  const homeOnly = (r) => sectionOf(r) === 'mission';
+  function homeWaiting() { return atSchool() ? myQuestionsAll().filter((r) => !snoozed(r) && homeOnly(r)) : []; }
+  function viewHomeWaiting() {
+    const n = homeWaiting().length;
+    if (!n) return '';
+    return '<section class="card home-wait"><div class="home-wait-txt"><b>🏠 ' + n + (n === 1 ? ' mission waits' : ' missions wait') + ' for home</b>' +
+      '<span class="note">They open at ' + SCHOOL.opens + ', after school. Until then, everything here works from anywhere.</span></div>' +
+      '<button type="button" class="btn btn-plain" data-act="im-home">I’m home</button></section>';
   }
   // Meal votes follow the meal (Nov 3, Mike's idea): a vote card on a meal that's planned from today on waits
   // until the morning after we eat it, then asks "You had <meal> yesterday. How was it?". App only.
@@ -2320,7 +2343,7 @@
     const m = X.missions;
     return '<h3 class="pr-h">⚡ Kids get more chances</h3>' +
       '<p class="note">The leaderboard is a race, and the kids get more ways to score than Mom and Dad. Same points per card for everyone; the kids just get more cards.</p>' +
-      '<ul class="pr-list"><li><b>🔎 Missions every day:</b> whoever is <b>behind</b> this week gets <b>' + m.behind + '</b>, the leader gets ' + m.lead + ', and when you’re tied you each get ' + m.tied + '. Extra ones say “⚡ Catch-up mission!”. Parents don’t get missions.</li>' +
+      '<ul class="pr-list"><li><b>🔎 Missions every day:</b> whoever is <b>behind</b> this week gets <b>' + m.behind + '</b>, the leader gets ' + m.lead + ', and when you’re tied you each get ' + m.tied + '. Extra ones say “⚡ Catch-up mission!”. Parents don’t get missions. On school days (Mon–Fri, 7:30 to 4:30) missions wait for home; tap “I’m home” if you’re home early.</li>' +
       '<li><b>🧾 Did we get it?:</b> each kid gets up to ' + X.settle + ' a day, and whoever is behind gets first pick.</li>' +
       '<li><b>💬 Questions:</b> kids’ decks are kept fuller (' + X.qa + ' cards) than the parents’.</li>' +
       '<li>“Behind” is checked once a day, when the day’s cards are made, using this week’s points (Mon–Sun). Pass your sister and the extra missions switch to her the next day.</li></ul>';
@@ -2419,7 +2442,7 @@
 
   function viewAsk() {
     const deck = askDeck();
-    const top = viewScoreboard() + viewApprovals();
+    const top = viewScoreboard() + viewApprovals() + viewHomeWaiting();
     if (!deck.length) {
       const napping = myQuestions(true).length, nb = nextBack();
       const when = nb ? (nb.toDateString() === new Date().toDateString() ? 'at ' + nb.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'tomorrow') : '';
@@ -2736,6 +2759,7 @@
         }, 'Passed to ' + to);
       });
     },
+    'im-home': () => { store.set(homeKey(), new Date().toDateString()); S.askSection = ''; showToast('🏠 Welcome home! Missions are open'); render(); },
     'ask-later': (el) => { const id = el.dataset.id; S.askPassing = null; S.askSnoozing = S.askSnoozing === id ? null : id; render(); },
     'ask-snooze': (el) => {
       const id = el.dataset.id, until = Number(el.dataset.until);
