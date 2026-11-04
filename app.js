@@ -264,20 +264,6 @@
   // and a recipe; a snack like trail mix is just an item.
   const canPlanItems = () => Number(D().api || 0) >= 30;
   const planItem = (p) => (p && !p.meal_id && p.item_id ? itemById(p.item_id) : null);
-  // Kids filling in a planned meal (api 37, Mike Nov 4): a parent already said yes by planning it, so a kid's add
-  // for that meal's ingredients (or an item planned in a slot) in the next 14 days goes straight on the List.
-  const canKidPlanned = () => Number(D().api || 0) >= 37;
-  function plannedSoon(mealId, itemId) {
-    if (!canKidPlanned() || (!mealId && !itemId)) return false;
-    const today = D().today, last = addDays(today, 13);
-    return D().plan.some((p) => {
-      const d = planDate(p);
-      if (!d || d < today || d > last || isLeftover(p)) return false;
-      return mealId ? p.meal_id === mealId : !p.meal_id && p.item_id === itemId;
-    });
-  }
-  // The status a new List row gets: parents' adds are needed; kids' are requests unless the thing is planned.
-  const addStatus = (mealId, itemId) => (!isKid(S.me) || plannedSoon(mealId, '') || plannedSoon('', itemId) ? 'needed' : 'requested');
   // The rows planned on one date, by slot.
   function planDay(date) {
     const o = {};
@@ -329,10 +315,10 @@
       }, isHeld ? item.name + ' is back on the list' : others.join(' + ') + ' already asked. Added you too.' + (amParent() ? ptsTag('list_add') : ''));
       return;
     }
-    const status = isKid(S.me) ? addStatus('', item.id) : 'needed';
+    const status = isKid(S.me) ? 'requested' : 'needed';
     const row = Object.assign({ id: tmpId(), item_id: item.id, name: item.name, store: item.store || 'Either', qty: 1, note: '', added_by: S.me, wanted_by: S.me, status: status }, extra || {});
     act('add', { item_id: item.id, qty: row.qty, meal_id: row.meal_id || '' }, () => { D().list.push(row); },
-      status === 'requested' ? 'Asked for ' + item.name + (ptsTag('list_add') ? ' · +1 when a parent approves' : '') : 'Added ' + item.name + (isKid(S.me) ? ' · it’s on the plan' : ptsTag('list_add')));
+      status === 'requested' ? 'Asked for ' + item.name + (ptsTag('list_add') ? ' · +1 when a parent approves' : '') : 'Added ' + item.name + ptsTag('list_add'));
   }
 
   function addNew(name, storeCode) {
@@ -892,6 +878,7 @@
   // Compact on purpose (Mike, Nov 2 ~9:28 am: it took too much room from the List itself). Nothing missing →
   // one quiet line. Meals with no ingredients set up sit behind a small link that opens a sheet.
   function viewMissing() {
+    if (isKid(S.me)) return ''; // meal ingredients are the parents' job (Mike, Nov 4)
     const m = missingForMeals();
     const groups = m.groups;
     if (!groups.length && !m.blank.length) return '';
@@ -903,7 +890,7 @@
       '<div class="miss-row"><div class="miss-main"><div class="miss-items">' +
         g.ids.map((id) => '<button class="link-btn" data-act="open-item" data-id="' + esc(id) + '">' + esc(itemById(id).name) + '</button>').join(', ') + '</div>' +
         '<div class="row-meta">' + esc(shortDay(g.date).split(' ')[0]) + ' · ' + esc(g.meal.name) + '</div></div>' +
-      '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="miss-add" data-meal="' + esc(g.meal.id) + '" data-ids="' + esc(g.ids.join(',')) + '">' + (kid && addStatus(g.meal.id, g.meal.id ? '' : g.ids[0]) === 'requested' ? 'Ask' : 'Add') + '</button>' +
+      '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="miss-add" data-meal="' + esc(g.meal.id) + '" data-ids="' + esc(g.ids.join(',')) + '">' + (kid ? 'Ask' : 'Add') + '</button>' +
         (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-ids="' + esc(g.ids.join(',')) + '">Have</button>') + '</div></div>').join('') + '</section>';
   }
   function viewMealGaps() {
@@ -1985,7 +1972,7 @@
     h += '<div class="is-block"><div class="is-label">Ingredients</div>' + (ids.length
       ? (meatQty(m) > 1 && ids.some(isMeat) ? '<div class="meat-more">🍗 Making more: ' + meatQty(m) + ' of each meat go on the List</div>' : '') +
         '<ul class="is-notes">' + ids.map((id) => '<li>' + esc(itemById(id).name) + (meatQty(m) > 1 && isMeat(id) ? ' <b>×' + meatQty(m) + '</b>' : '') + (listRowFor(id) ? ' <span class="tag tag-listed">On list</span>' : '') + '</li>').join('') + '</ul>' +
-        (need.length ? '<button class="btn btn-outline btn-block" data-act="meal-add-all" data-id="' + m.id + '">Add ' + need.length + ' to the List</button>' : '<p class="note">Everything is on the List already.</p>')
+        (isKid(S.me) ? '' : need.length ? '<button class="btn btn-outline btn-block" data-act="meal-add-all" data-id="' + m.id + '">Add ' + need.length + ' to the List</button>' : '<p class="note">Everything is on the List already.</p>')
       : '<p class="note">No ingredients linked yet.</p>') + '</div>';
     if (m.notes) h += '<div class="is-block"><div class="is-label">Notes</div><p class="is-fact">' + esc(m.notes) + '</p></div>';
     if (!kidAsks) h += '<div class="is-actions"><button class="btn btn-plain" data-act="edit-meal" data-id="' + m.id + '">Edit meal</button></div>';
@@ -2037,7 +2024,7 @@
       return '<div class="ing-row"><span class="row-name">' + esc(item.name) + '</span><button class="tag ' + (need ? 'tag-need' : 'tag-have') + '" data-act="ing" data-day="' + day + '" data-id="' + id + '">' +
         (need ? 'Need' : 'Have it') + '</button></div>';
     }).join('');
-    return '<div class="ing">' + rows + (toAdd ? '<button class="btn btn-primary btn-block" data-act="add-meal" data-day="' + day + '" data-id="' + meal.id + '">Add ' + toAdd + ' to the List</button>'
+    return '<div class="ing">' + rows + (isKid(S.me) ? '' : toAdd ? '<button class="btn btn-primary btn-block" data-act="add-meal" data-day="' + day + '" data-id="' + meal.id + '">Add ' + toAdd + ' to the List</button>'
       : '<div class="note">Everything for ' + esc(meal.name) + ' is covered.</div>') + '</div>';
   }
 
@@ -2803,11 +2790,12 @@
     'toggle-day': (el) => { S.openDay = S.openDay === el.dataset.day ? null : el.dataset.day; render(); },
     ing: (el) => { const p = S.mealPick[el.dataset.day] || (S.mealPick[el.dataset.day] = {}); p[el.dataset.id] = p[el.dataset.id] === false; render(); },
     'add-meal': (el) => {
+      if (isKid(S.me)) return; // only parents add a meal's ingredients
       const meal = mealById(el.dataset.id);
       const picks = S.mealPick[el.dataset.day] || {};
       const ids = mealItems(meal).filter((id) => itemById(id) && !isDelivery(itemById(id).store) && !listRowFor(id) && picks[id] !== false);
       if (!ids.length) return;
-      const status = addStatus(meal.id, '');
+      const status = isKid(S.me) ? 'requested' : 'needed';
       S.openDay = null;
       act('addMeal', { meal_id: meal.id, item_ids: ids }, () => {
         ids.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, status: status, meal_id: meal.id }); });
@@ -2838,10 +2826,11 @@
     },
     'feedback-to-meal': () => { S.sheet = { type: 'idea', text: (S.sheet && S.sheet.text) || '' }; render(); },
     'meal-add-all': (el) => {
+      if (isKid(S.me)) return; // only parents add a meal's ingredients
       const meal = mealById(el.dataset.id);
       const ids = mealItems(meal).filter((id) => itemById(id) && !isDelivery(itemById(id).store) && !listRowFor(id));
       if (!ids.length) return;
-      const status = addStatus(meal.id, '');
+      const status = isKid(S.me) ? 'requested' : 'needed';
       act('addMeal', { meal_id: meal.id, item_ids: ids }, () => {
         ids.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, wanted_by: S.me, status: status, meal_id: meal.id }); });
       }, 'Added ' + ids.length + ' for ' + meal.name);
@@ -2998,11 +2987,12 @@
     'row-later': () => { if (S.sheet) S.sheet.laterOpen = true; render(); },
     'row-hold': (el) => { const r = sheetRow(); S.sheet = null; if (r) holdRow(r, '', el.dataset.until || ''); else render(); },
     'miss-add': (el) => {
+      if (isKid(S.me)) return; // only parents add a meal's ingredients
       const meal = mealById(el.dataset.meal);
       const ids = String(el.dataset.ids || '').split(',').filter((id) => itemById(id) && !isDelivery(itemById(id).store) && !listRowFor(id));
       if (!meal && ids.length === 1) { addItem(itemById(ids[0])); return; } // a planned item, not a meal
       if (!meal || !ids.length) return;
-      const status = addStatus(meal.id, '');
+      const status = isKid(S.me) ? 'requested' : 'needed';
       act('addMeal', { meal_id: meal.id, item_ids: ids }, () => {
         ids.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, wanted_by: S.me, status: status, meal_id: meal.id }); });
       }, (status === 'requested' ? 'Asked for ' : 'Added ') + ids.length + ' for ' + meal.name);
