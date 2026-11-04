@@ -57,6 +57,10 @@ const RATE_PER_DAY = 2;    // unanswered "How was it?" cards close after this
 const STILL_PER_PERSON = 2;    // "Still eating …?" cards per person per week
 const STILL_EVERY_DAYS = 7;
 const STILL_REASK_DAYS = 90;
+// Head-to-head meal cards (api 39, Mike Nov 4): "Which do you like more: A or B?" for two meals of the same kind.
+const PICK_PER_DAY = 1;        // per person per day
+const PICK_EXPIRE_DAYS = 3;    // unanswered ones close
+const PICK_REASK_DAYS = 60;    // the same pair isn't asked of the same person again for this long
 // Inbox points (api 13). Every answered card earns points for whoever answered it; a "Did <kid> help with
 // dinner?" card (type helped) earns points for the kid it's about (Review points_to). Skips earn nothing.
 const POINTS = { task: 5, task_late: 2, check: 3, settle: 3, rate: 2, still: 2, helped_cooked: 10, helped_helped: 5, other: 1 };
@@ -217,7 +221,9 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      queues its build job; the cart runner changes that line's qty in the store cart (no new line).
 // 37 = (withdrawn) kids' adds for planned meals skipped approval; replaced the same day by 38.
 // 38 = only parents add a meal's ingredients (Nov 4, Mike): addMeal from a kid is refused.
-const API_VERSION = 38;
+// 39 = meal head-to-heads (Nov 4, Mike): daily `pick` cards ("Which do you like more: A or B? (mNN) (mNN)"), one
+//      per person; mealStats gains wins / matchups from them (the rating stays the vote average).
+const API_VERSION = 39;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
@@ -1438,7 +1444,7 @@ function recentIdeas(today) {
 // Everything is computed from Review, Plan (+ Plan Archive) and Receipts; nothing is typed.
 function mealStats(meals, today) {
   const out = {};
-  meals.forEach((m) => (out[m.id] = { votes: {}, voters: {}, score: 0, made: 0, last: '', next: '', cost: 0, priced: 0, linked: 0 }));
+  meals.forEach((m) => (out[m.id] = { votes: {}, voters: {}, score: 0, made: 0, last: '', next: '', cost: 0, priced: 0, linked: 0, wins: 0, matchups: 0 }));
 
   // Votes: "Dinner vote: how do you feel about <name>? (mNN)". Latest answer per person wins.
   const byName = {};
@@ -1454,6 +1460,21 @@ function mealStats(meals, today) {
     if (!emoji) return;
     const who = (a.match(/\(([^)]+)\)\s*$/) || [])[1] || r.audience || '?';
     out[id].voters[who] = emoji;
+  });
+
+  // Head-to-heads (api 39): latest answer per person per pair; "Same" counts as a matchup for both, a win for neither.
+  const picks = {};
+  const mealById = {}; meals.forEach((m) => (mealById[m.id] = m));
+  readTab(TABS.review).forEach((r) => {
+    if (String(r.type) !== 'pick' || !r.answer) return;
+    const p = parsePick(r, mealById);
+    if (!p) return;
+    picks[p.who + '|' + p.pair.slice().sort().join('|')] = p;
+  });
+  Object.keys(picks).forEach((k) => {
+    const p = picks[k];
+    p.pair.forEach((id) => out[id].matchups++);
+    if (p.winner) out[p.winner].wins++;
   });
 
   // Plan history: dates before today count as made; the first date from today on is "next".
@@ -1483,6 +1504,68 @@ function mealStats(meals, today) {
     const vs = Object.keys(st.voters).map((w) => st.voters[w]);
     vs.forEach((e) => (st.votes[e] = (st.votes[e] || 0) + 1));
     st.score = vs.length ? Math.round((vs.reduce((t, e) => t + VOTE_SCORE[e], 0) / vs.length) * 10) / 10 : 0;
+  });
+  return out;
+}
+
+// A pick card's answer: { pair: [mA, mB], winner: mA / mB / '', who }, or null if it isn't one we can read.
+function parsePick(r, mealsById) {
+  const d = String(r.detail || '');
+  const ids = (d.match(/\((m\d{2,})\)/g) || []).map((x) => x.slice(1, -1));
+  if (ids.length < 2 || !mealsById[ids[0]] || !mealsById[ids[1]]) return null;
+  const pair = ids.slice(0, 2);
+  const a = String(r.answer).trim();
+  const who = (a.match(/\(([^)]+)\)\s*$/) || [])[1] || r.audience || '?';
+  const said = a.replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!said || said === 'skip') return null;
+  // Option text is the meal name as the card showed it (between "more: " and " or " / "?").
+  const names = (d.match(/more: (.+?) or (.+?)\? \(m/) || []).slice(1).map((x) => x.toLowerCase());
+  let winner = '';
+  pair.forEach((id, i) => { if (said === names[i] || said === String(mealsById[id].name || '').toLowerCase()) winner = id; });
+  if (!winner && !/^same|^both|^tie|^can't|^no idea/.test(said)) return null;
+  return { pair: pair, winner: winner, who: who };
+}
+
+// One head-to-head card per person a day: two meals of the same kind (breakfast, lunch, snack or dinner) that this
+// person has an opinion on. Ties in their own votes first (that's where a pick tells us most), then meals the family
+// rates close together, then meals we've made. Never a pair asked of them in the last PICK_REASK_DAYS, never while
+// they still have one open.
+function makePicks(today, everyone, review, meals) {
+  const out = [];
+  const stats = mealStats(meals, today);
+  const kindOf = (m) => (SLOTS.indexOf(String(m.kind || '').toLowerCase()) >= 0 ? String(m.kind).toLowerCase() : 'dinner');
+  const known = meals.filter((m) => stats[m.id] && (stats[m.id].made > 0 || Object.keys(stats[m.id].voters).length));
+  const dayNum = Math.floor(new Date(today + 'T12:00:00').getTime() / 86400000);
+  everyone.forEach((who, k) => {
+    const mine = review.filter((r) => r.type === 'pick' && String(r.audience) === who);
+    if (mine.some((r) => r.status === 'open')) return;
+    const asked = {};
+    mine.forEach((r) => {
+      if (r.created && daysBetween(String(r.created).slice(0, 10), today) > PICK_REASK_DAYS) return;
+      const ids = (String(r.detail).match(/\((m\d{2,})\)/g) || []).map((x) => x.slice(1, -1)).slice(0, 2).sort();
+      if (ids.length === 2) asked[ids.join('|')] = true;
+    });
+    const pairs = [];
+    for (let i = 0; i < known.length; i++) {
+      for (let j = i + 1; j < known.length; j++) {
+        const a = known[i], b = known[j];
+        if (kindOf(a) !== kindOf(b) || asked[[a.id, b.id].sort().join('|')]) continue;
+        const va = stats[a.id].voters[who], vb = stats[b.id].voters[who];
+        const sa = stats[a.id].score, sb = stats[b.id].score;
+        let rank = 3;
+        if (va && vb && va === vb && VOTE_SCORE[va] >= 3) rank = 0;       // both loved / both liked: which more?
+        else if (va && vb && va === vb) rank = 1;
+        else if (sa && sb && Math.abs(sa - sb) <= 0.5) rank = 2;
+        if (rank === 3 && !(stats[a.id].made && stats[b.id].made)) continue;
+        pairs.push({ a: a, b: b, rank: rank, spin: (i * 31 + j * 17 + dayNum * 7 + k * 13) % 97 });
+      }
+    }
+    pairs.sort((x, y) => x.rank - y.rank || x.spin - y.spin);
+    pairs.slice(0, PICK_PER_DAY).forEach((p) => {
+      const label = { breakfast: 'breakfast', lunch: 'lunch', snack: 'snack', dinner: 'dinner' }[kindOf(p.a)];
+      const clean = (n) => String(n).replace(/[;?]/g, '').trim();
+      out.push({ type: 'pick', audience: who, detail: '🥊 Head-to-head! Which ' + label + ' do you like more: ' + clean(p.a.name) + ' or ' + clean(p.b.name) + '? (' + p.a.id + ') (' + p.b.id + ') Options: ' + clean(p.a.name) + '; ' + clean(p.b.name) + '; Same' });
+    });
   });
   return out;
 }
@@ -1580,7 +1663,7 @@ function dailyCards() {
     review.forEach((r) => {
       const age = r.created ? daysBetween(String(r.created).slice(0, 10), today) : 0;
       if (r.status === 'open' && ((r.type === 'rate' && age > RATE_EXPIRE_DAYS) || (r.type === 'helped' && age > HELPED_EXPIRE_DAYS) ||
-        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal') && age > SETTLE_EXPIRE_DAYS))) {
+        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || (r.type === 'pick' && age > PICK_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal') && age > SETTLE_EXPIRE_DAYS))) {
         setFields(TABS.review, r._row, { status: 'closed' });
       }
     });
@@ -1631,6 +1714,9 @@ function dailyCards() {
     // Did we get it? Settle List rows that no receipt will close (see makeSettle).
     makeSettle(today, kids, review).forEach((m) => add(m));
     makeMealSettle(today, review, plan, mealOf).forEach((m) => add(m));
+
+    // Head-to-heads: which of two meals of the same kind do you like more (see makePicks).
+    makePicks(today, everyone, review, meals).forEach((m) => add(m));
 
     // Waste learning: tossed the same thing twice lately → ask the parents to buy less (see makeWaste).
     makeWaste(today, review).forEach((m) => add(m));

@@ -48,7 +48,7 @@
     staplesQuery: '',
     openDay: null,
     mealPick: {},      // date -> { itemId: true/false } (need it?)
-    mealSort: 'az',    // Our meals order: az / top / cost / stale
+    mealSort: 'top',   // Our meals order: top (sections by rating, default since Nov 4) / az / cost / stale
     sheet: null,       // bottom sheet { type, ...draft }
     toast: null,
     setupError: '',
@@ -1843,13 +1843,45 @@
     html += '<section class="card"><div class="card-head"><span>OUR MEALS · ' + meals.length + '</span><span class="head-btns">' +
       // 💡 Idea covers new meals (Nov 1); + New stays only for backends without meal ideas.
       (canIdeas() ? '<button class="btn btn-outline" data-act="new-idea">💡 Meal idea</button>' : '<button class="btn btn-outline" data-act="new-meal">+ New</button>') + '</span></div>' + kindRow +
-      (canStats() && meals.length > 3 ? '<div class="chips-row meal-sorts">' + sortPill('az', 'A–Z') + sortPill('top', 'Favorites') + sortPill('cost', 'Cheapest') + sortPill('stale', 'Not lately') + '</div>' : '') +
-      (sorted.length ? sorted.map((m) => '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (canSlots() && kindOf(m) !== 'dinner' ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
-        '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span>' +
-        (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') + '</button></div>').join('')
+      (canStats() && meals.length > 3 ? '<div class="chips-row meal-sorts">' + sortPill('top', 'Favorites') + sortPill('stale', 'Not lately') + sortPill('cost', 'Cheapest') + sortPill('az', 'A–Z') + '</div>' : '') +
+      (sorted.length ? (S.mealSort === 'top' && canStats() ? mealSections(sorted) : sorted.map(mealRow).join(''))
         : '<div class="empty">No meals yet.</div>') + '</section>';
     html += '<p class="hint">Tap a meal to put it on a day, see its ingredients or edit it.' + (canSlots() ? ' Tap a day for breakfast, lunch and snack.' : '') + '' + (canIdeas() ? ' Found a good one online? Tap 💡 Idea and paste it; Poppy adds it to Our meals.' : '') + '</p>';
     return html;
+  }
+
+  function mealRow(m) {
+    return '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (canSlots() && kindOf(m) !== 'dinner' ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
+      '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span>' +
+      (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') + '</button></div>';
+  }
+
+  // Favorites view (Mike, Nov 4: "not all meals are created equal"): the list in sections by the family's rating,
+  // best first. Favorites and liked meals are open; not-rated-yet and not-loved start folded with a peek.
+  const MEAL_TIERS = [
+    ['fav', '⭐ FAMILY FAVORITES', 'Rated 3.5+ by 2 or more of us', false],
+    ['good', '👍 WE LIKE THESE', '', false],
+    ['new', '🆕 NOT RATED YET', 'Vote on these in the Inbox, or after we make them', true],
+    ['meh', '😐 NOT LOVED', 'Rated under 2.5', true],
+  ];
+  function mealTier(m) {
+    const st = statOf(m.id) || {};
+    const n = Object.keys(st.voters || {}).length;
+    if (!n) return 'new';
+    if (n >= 2 && st.score >= 3.5) return 'fav';
+    return st.score >= 2.5 ? 'good' : 'meh';
+  }
+  function mealSections(sorted) {
+    return MEAL_TIERS.map((t) => {
+      const rows = sorted.filter((m) => mealTier(m) === t[0]);
+      if (!rows.length) return '';
+      const key = 'mt:' + t[0];
+      if (!t[3] && !(key in S.closed)) setClosed(key, false); // favorites and liked start open
+      const closed = isClosed(key);
+      return '<div class="meal-tier"><button class="meal-tier-head" data-act="fold" data-key="' + key + '" aria-expanded="' + !closed + '"><span>' + t[1] + ' · ' + rows.length + '</span>' + chev(closed) + '</button>' +
+        (t[2] && !closed ? '<p class="meal-tier-note">' + esc(t[2]) + '</p>' : '') +
+        (closed ? '<button class="peek" data-act="fold" data-key="' + key + '">' + esc(rows.slice(0, 5).map((m) => m.name).join(', ')) + (rows.length > 5 ? '…' : '') + '</button>' : rows.map(mealRow).join('')) + '</div>';
+    }).join('');
   }
 
   /* ---------- meal stats, tags, card ---------- */
@@ -1870,7 +1902,8 @@
     if (voters.length) {
       const counts = VOTE_ORDER.filter((e) => st.votes[e]).map((e) => e + (st.votes[e] > 1 ? st.votes[e] : '')).join(' ');
       const fav = voters.length >= 2 && st.score >= 3.5;
-      tags.push('<span class="stat-tag' + (fav ? ' fav' : st.score && st.score < 2 ? ' meh' : '') + '" title="' + esc(voters.map((w) => w + ' ' + st.voters[w]).join(', ')) + '">' + (fav ? 'Favorite · ' : '') + counts + '</span>');
+      tags.push('<span class="stat-tag' + (fav ? ' fav' : st.score && st.score < 2.5 ? ' meh' : '') + '" title="' + esc(voters.map((w) => w + ' ' + st.voters[w]).join(', ')) + '">' + (fav ? 'Favorite · ' : '') + '★ ' + Number(st.score).toFixed(1) + ' · ' + counts + '</span>');
+      if (st.matchups) tags.push('<span class="stat-tag" title="Head-to-head cards in the Inbox">Won ' + (st.wins || 0) + ' of ' + st.matchups + ' head-to-heads</span>');
     }
     if (st.next) tags.push('<span class="stat-tag next">' + (st.next === D().today ? (kindOf(m) === 'dinner' ? 'Tonight' : 'Today') : 'Next ' + esc(shortDay(st.next))) + '</span>');
     if (st.made) tags.push('<span class="stat-tag">Made ' + st.made + '× · last ' + esc(md(st.last)) + '</span>');
@@ -1879,12 +1912,14 @@
     return tags;
   }
 
+  const winRate = (st) => (st.matchups ? (st.wins || 0) / st.matchups : 0.5);
   function sortMeals(meals) {
     const k = S.mealSort || 'az';
     const st = (m) => statOf(m.id) || {};
     const by = {
       az: () => 0,
-      top: (a, b) => (st(b).score || 0) - (st(a).score || 0) || Object.keys(st(b).voters || {}).length - Object.keys(st(a).voters || {}).length,
+      top: (a, b) => (st(b).score || 0) - (st(a).score || 0) || winRate(st(b)) - winRate(st(a)) ||
+        Object.keys(st(b).voters || {}).length - Object.keys(st(a).voters || {}).length || String(st(b).last || '').localeCompare(String(st(a).last || '')),
       cost: (a, b) => (costKnown(st(a)) ? st(a).cost : 1e9) - (costKnown(st(b)) ? st(b).cost : 1e9),
       stale: (a, b) => String(st(a).last || '0000') < String(st(b).last || '0000') ? -1 : String(st(a).last || '0000') > String(st(b).last || '0000') ? 1 : 0,
     }[k] || (() => 0);

@@ -443,6 +443,9 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 /* ---------- meals: stat tags, meal card, ideas ---------- */
 .head-btns { display: flex; gap: 6px; }
 .meal-sorts { padding: 8px 14px 4px; border-top: 1px solid var(--line-soft); }
+.meal-tier { border-top: 1px solid var(--line-soft); }
+.meal-tier-head { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 14px 6px; background: none; border: 0; font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); text-align: left; cursor: pointer; }
+.meal-tier-note { margin: -2px 14px 6px; font-size: 12px; color: var(--muted); }
 .stat-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--line-soft); color: var(--muted); white-space: nowrap; }
 .stat-tag.fav { background: #FDF0C4; color: #7A4F01; }
 .stat-tag.meh { background: var(--req-bg); color: var(--req-ink); }
