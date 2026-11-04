@@ -12,7 +12,7 @@ A shared phone app where anyone in the family adds what we need, picks dinners, 
 |---|---|
 | Mom | Runs household food. Final say on menus, carts, what's bought. |
 | Mike | Builder and admin. Owns the repo, Sheet, Apps Script deployment, Chrome sessions. |
-| Kids | App users. Adds land as `requested`; a parent approves. |
+| Kids | App users. Adds land as `requested`; a parent approves. Exception (api 37): adding ingredients of a meal a parent already planned in the next 14 days (or an item planned in a slot) goes straight on the List as `needed`, no approval, no points. |
 | Claude | Operator: receipt ingest, cart building, catalog upkeep, Review questions, code changes. |
 
 ## Stores

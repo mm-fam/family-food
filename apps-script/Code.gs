@@ -215,7 +215,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      entries past the cap come back with pts 0 and capped: true.
 // 34 = cart qty (Nov 2, Mike): a parent changing the qty of a carted List row sets cart_want = that same cart and
 //      queues its build job; the cart runner changes that line's qty in the store cart (no new line).
-const API_VERSION = 36;
+// 37 = kids filling in a planned meal (Nov 4, Mike): a kid's add for an ingredient of a meal a parent already planned
+//      (or for an item planned in a slot) in the next 14 days goes straight on the List as `needed`, no approval.
+//      The parent already said yes by planning it. No points (same as any addMeal); note "for <meal> (<kid>)".
+const API_VERSION = 37;
+const KID_PLANNED_DAYS = 14; // api 37: how far ahead a planned meal / item lets a kid's add skip approval
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
@@ -655,6 +659,17 @@ function planSlot(p) {
   return SLOTS.indexOf(s) >= 0 ? s : 'dinner';
 }
 
+// api 37: is this meal (or this item, planned in a slot) on the Plan from today through KID_PLANNED_DAYS ahead?
+function plannedSoon(mealId, itemId) {
+  if (!mealId && !itemId) return false;
+  const today = isoDate(new Date()), last = addDays(today, KID_PLANNED_DAYS - 1);
+  return readTab(TABS.plan).some((p) => {
+    const d = planDate(p);
+    if (!d || d < today || d > last || isLeftover(p)) return false;
+    return mealId ? p.meal_id === mealId : !p.meal_id && p.item_id === itemId;
+  });
+}
+
 // Leftover rows (note starts with "Leftover") don't count as made and add no ingredients.
 function isLeftover(p) {
   return /^leftover/i.test(String(p.note || ''));
@@ -736,7 +751,7 @@ function addToList(req) {
     note: req.note || '',
     added_by: req.by,
     added_at: nowStamp(),
-    status: isKid(req.by) ? 'requested' : 'needed',
+    status: isKid(req.by) && !req._planned && !plannedSoon('', itemId) ? 'requested' : 'needed',
     updated_at: nowStamp(),
     meal_id: req.meal_id || '',
     wanted_by: req.by,
@@ -782,8 +797,11 @@ function addMealToList(req) {
   const meatQty = mealMeatQty(meal);
   const meat = {};
   if (meatQty > 1) readTab(TABS.items).forEach((it) => { if (String(it.group) === 'Meat') meat[it.id] = true; });
+  // api 37: a kid filling in a meal a parent already planned isn't asking for anything new.
+  const planned = isKid(req.by) && plannedSoon(meal.id, '');
   ids.forEach((itemId) => {
     const o = { item_id: itemId, by: req.by, meal_id: meal.id, bump: false, _noPoints: true };
+    if (planned) { o._planned = true; o.note = 'for ' + meal.name + ' (' + req.by + ')'; }
     if (meat[itemId]) { o.qty = meatQty; o.min_qty = meatQty; }
     addToList(o);
   });
