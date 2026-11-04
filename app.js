@@ -1831,7 +1831,7 @@
     }
 
     html += viewOnHand();
-    html += viewIdeas();
+    // Meal ideas section removed Nov 4 (Mike: it clogs the tab). Meals that came from an idea carry a 💡 tag instead.
 
     const kinds = canSlots() ? SLOTS.filter((x) => meals.some((m) => kindOf(m) === x[0])) : [];
     if (S.mealKind && S.mealKind !== 'all' && !kinds.some((x) => x[0] === S.mealKind)) S.mealKind = 'all';
@@ -1931,11 +1931,14 @@
     if (st.next) tags.push('<span class="stat-tag next">' + (st.next === D().today ? (kindOf(m) === 'dinner' ? 'Tonight' : 'Today') : 'Next ' + esc(shortDay(st.next))) + '</span>');
     if (st.made) tags.push('<span class="stat-tag">Made ' + st.made + '× · last ' + esc(md(st.last)) + '</span>');
     if (costKnown(st)) tags.push('<span class="stat-tag" title="Latest receipt prices of ' + st.priced + ' of ' + st.linked + ' ingredients">' + tierOf(st.cost) + ' · ~$' + Math.round(st.cost) + (st.priced < st.linked ? '+' : '') + '</span>');
+    if (fromIdea(m.id)) tags.push('<span class="stat-tag idea">💡 From an idea</span>');
     if (!voters.length && !st.made && !st.next) tags.push('<span class="stat-tag new">New</span>');
     return tags;
   }
 
   const winRate = (st) => (st.matchups ? (st.wins || 0) / st.matchups : 0.5);
+  // A meal made from a 💡 Meal idea (Meal Ideas meal_id, e.g. "m43;m44").
+  const fromIdea = (id) => (D().ideas || []).some((x) => String(x.meal_id || '').split(';').map((v) => v.trim()).indexOf(id) >= 0);
   function sortMeals(meals) {
     const k = S.mealSort || 'az';
     const st = (m) => statOf(m.id) || {};

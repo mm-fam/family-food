@@ -451,6 +451,7 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .stat-tag.meh { background: var(--req-bg); color: var(--req-ink); }
 .stat-tag.next { background: var(--accent-soft); color: var(--accent-deep); }
 .stat-tag.new { background: #E6EEF9; color: #234A7A; }
+.stat-tag.idea { background: #FFF6D6; color: #6B4E00; }
 .is-head .tags { margin-top: 6px; }
 .is-block.first { border-top: 0; padding-top: 0; }
 .wk { display: flex; flex-direction: column; gap: 6px; }
