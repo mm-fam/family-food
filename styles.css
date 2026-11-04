@@ -898,3 +898,8 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .hero-meal .stat-tag { background: rgba(255,255,255,.6); color: #4A2A05; }
 .hero-go { margin-top: 4px; font-size: 14px; font-weight: 700; }
 .hero-star { margin-right: 6px; }
+
+/* Our meals search + Filter (Nov 4) */
+.meal-tools { display: flex; flex-direction: column; gap: 8px; padding: 4px 14px 10px; }
+.meal-tier-note.found { margin: 4px 14px 8px; }
+.seg-fit button { flex: 1 1 auto; padding: 0 6px; text-overflow: clip; }

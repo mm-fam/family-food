@@ -48,6 +48,8 @@
     staplesQuery: '',
     openDay: null,
     mealPick: {},      // date -> { itemId: true/false } (need it?)
+    mealQuery: '',     // Our meals search (name or ingredient)
+    mealFiltersOpen: false,
     mealSort: 'top',   // Our meals order: top (sections by rating, default since Nov 4) / az / cost / stale
     sheet: null,       // bottom sheet { type, ...draft }
     toast: null,
@@ -1833,20 +1835,7 @@
     html += viewOnHand();
     // Meal ideas section removed Nov 4 (Mike: it clogs the tab). Meals that came from an idea carry a 💡 tag instead.
 
-    const kinds = canSlots() ? SLOTS.filter((x) => meals.some((m) => kindOf(m) === x[0])) : [];
-    if (S.mealKind && S.mealKind !== 'all' && !kinds.some((x) => x[0] === S.mealKind)) S.mealKind = 'all';
-    const shown = kinds.length > 1 && S.mealKind && S.mealKind !== 'all' ? meals.filter((m) => kindOf(m) === S.mealKind) : meals;
-    const sorted = sortMeals(shown);
-    const kindPill = (v, label, n) => '<button class="pill small' + ((S.mealKind || 'all') === v ? ' on' : '') + '" data-act="meal-kind" data-v="' + v + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
-    const kindRow = kinds.length > 1 ? '<div class="chips-row meal-kinds">' + kindPill('all', 'All', meals.length) +
-      kinds.slice(-1).concat(kinds.slice(0, -1).filter((x) => x[0] !== 'dinner')).filter((x, i, arr) => arr.indexOf(x) === i).map((x) => kindPill(x[0], x[1] === 'Lunch' ? 'Lunches' : x[1] + 's', meals.filter((m) => kindOf(m) === x[0]).length)).join('') + '</div>' : '';
-    const sortPill = (v, label) => '<button class="pill small' + (S.mealSort === v ? ' on' : '') + '" data-act="meal-sort" data-v="' + v + '">' + label + '</button>';
-    html += '<section class="card"><div class="card-head"><span>OUR MEALS · ' + meals.length + '</span><span class="head-btns">' +
-      // 💡 Idea covers new meals (Nov 1); + New stays only for backends without meal ideas.
-      (canIdeas() ? '<button class="btn btn-outline" data-act="new-idea">💡 Meal idea</button>' : '<button class="btn btn-outline" data-act="new-meal">+ New</button>') + '</span></div>' + kindRow +
-      (canStats() && meals.length > 3 ? '<div class="chips-row meal-sorts">' + sortPill('top', 'Favorites') + sortPill('stale', 'Not lately') + sortPill('cost', 'Cheapest') + sortPill('az', 'A–Z') + '</div>' : '') +
-      (sorted.length ? (S.mealSort === 'top' && canStats() ? mealSections(sorted) : sorted.map(mealRow).join(''))
-        : '<div class="empty">No meals yet.</div>') + '</section>';
+    html += viewOurMeals(meals);
     html += '<p class="hint">Tap a meal to put it on a day, see its ingredients or edit it.' + (canSlots() ? ' Tap a day for breakfast, lunch and snack.' : '') + '' + (canIdeas() ? ' Found a good one online? Tap 💡 Idea and paste it; Poppy adds it to Our meals.' : '') + '</p>';
     return html;
   }
@@ -1871,6 +1860,70 @@
         (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') +
         '<span class="hero-go">' + (amParent() ? 'Put it on a night →' : 'Want this? →') + '</span></button>';
     }).join('');
+  }
+
+  // Our meals (Nov 4, Mike: 45 meals now): a search box (meal name or any ingredient) and a Filter button
+  // that opens Kind + Sort, like Shop's. No pill rows spilling onto two lines. While searching, results are one
+  // flat list (best match first); otherwise Favorites shows the rating sections.
+  const MEAL_SORTS = [['top', 'Favorites'], ['stale', 'Not lately'], ['cost', 'Cheapest'], ['az', 'A–Z']];
+  const KIND_LABEL = { breakfast: 'Breakfasts', lunch: 'Lunches', snack: 'Snacks', dinner: 'Dinners' };
+  function mealFiltersOn() {
+    const on = [];
+    if (S.mealKind && S.mealKind !== 'all') on.push(KIND_LABEL[S.mealKind] || S.mealKind);
+    if ((S.mealSort || 'top') !== 'top') on.push('Sorted ' + (MEAL_SORTS.find((p) => p[0] === S.mealSort) || [])[1]);
+    return on.filter(Boolean);
+  }
+  const normQ = (t) => String(t || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9 ]+/g, ' ');
+  // 2 = a word of the meal's name starts with every typed word, 1 = every word found in name or ingredients, 0 = no.
+  function mealMatch(m, q) {
+    const words = normQ(q).split(/\s+/).filter(String);
+    if (!words.length) return 1;
+    const name = normQ(m.name);
+    const ings = mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => normQ([i.name, i.brand_size, i.aliases].join(' '))).join(' ');
+    const hay = name + ' ' + ings;
+    if (!words.every((w) => hay.indexOf(w) >= 0)) return 0;
+    const nameWords = name.split(/\s+/);
+    return words.every((w) => nameWords.some((x) => x.indexOf(w) === 0)) ? 2 : 1;
+  }
+  function viewOurMeals(meals) {
+    const kinds = canSlots() ? SLOTS.filter((x) => meals.some((m) => kindOf(m) === x[0])) : [];
+    if (S.mealKind && S.mealKind !== 'all' && !kinds.some((x) => x[0] === S.mealKind)) S.mealKind = 'all';
+    const kind = S.mealKind || 'all';
+    const sort = S.mealSort || 'top';
+    const q = String(S.mealQuery || '').trim();
+    let shown = kinds.length > 1 && kind !== 'all' ? meals.filter((m) => kindOf(m) === kind) : meals;
+    let sorted = sortMeals(shown);
+    if (q) {
+      const score = {}; sorted.forEach((m) => (score[m.id] = mealMatch(m, q)));
+      sorted = sorted.filter((m) => score[m.id]).sort((a, b) => score[b.id] - score[a.id]); // stable: keeps the sort inside
+    }
+    const on = mealFiltersOn();
+    const open = !!S.mealFiltersOpen;
+    let h = '<section class="card"><div class="card-head"><span>OUR MEALS · ' + meals.length + '</span><span class="head-btns">' +
+      // 💡 Idea covers new meals (Nov 1); + New stays only for backends without meal ideas.
+      (canIdeas() ? '<button class="btn btn-outline" data-act="new-idea">💡 Meal idea</button>' : '<button class="btn btn-outline" data-act="new-meal">+ New</button>') + '</span></div>';
+    h += '<div class="meal-tools"><div class="shop-search"><form class="addbar" data-form="meal-q" autocomplete="off"><label class="sr" for="meal-q">Search meals</label>' +
+      '<input id="meal-q" class="field" type="search" data-input="meal-q" placeholder="Meal or ingredient…" value="' + esc(S.mealQuery) + '" enterkeyhint="search">' +
+      (S.mealQuery ? '<button type="button" class="search-x" data-act="meal-clear-q" aria-label="Clear the search">✕</button>' : '') + '</form>' +
+      (canStats() || kinds.length > 1 ? '<button type="button" class="filter-btn' + (open ? ' open' : '') + (on.length ? ' active' : '') + '" data-act="meal-filters" aria-expanded="' + open + '" aria-controls="meal-filters">' +
+        '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+        '<span>Filter</span>' + (on.length ? '<span class="filter-n">' + on.length + '</span>' : '') + '</button>' : '') + '</div>';
+    if (open) {
+      const seg = (act, cur, v, label) => '<button type="button" class="' + (cur === v ? 'on' : '') + '" data-act="' + act + '" data-v="' + v + '" aria-pressed="' + (cur === v) + '">' + label + '</button>';
+      h += '<div class="filter-panel" id="meal-filters">' +
+        (kinds.length > 1 ? '<div class="fp-label">Kind</div><div class="seg seg-fit">' + seg('meal-kind', kind, 'all', 'All') +
+          ['dinner', 'breakfast', 'lunch', 'snack'].filter((k) => kinds.some((x) => x[0] === k)).map((k) => seg('meal-kind', kind, k, slotLabel(k))).join('') + '</div>' : '') +
+        (canStats() ? '<div class="fp-label">Sort</div><div class="seg">' + MEAL_SORTS.map((p) => seg('meal-sort', sort, p[0], p[1])).join('') + '</div>' : '') +
+        '<div class="fp-foot">' + (on.length ? '<button type="button" class="link-btn" data-act="meal-filters-clear">Clear filters</button>' : '<span></span>') +
+        '<button type="button" class="btn btn-primary small" data-act="meal-filters">Done</button></div></div>';
+    } else if (on.length) {
+      h += '<div class="filter-sum"><span>' + esc(on.join(' · ')) + '</span><button type="button" class="link-btn" data-act="meal-filters-clear">Clear</button></div>';
+    }
+    h += '</div>';
+    if (q) h += '<div class="meal-tier-note found">' + (sorted.length ? sorted.length + (sorted.length === 1 ? ' meal' : ' meals') + ' with “' + esc(q) + '”' : 'No meals with “' + esc(q) + '”' + (kind !== 'all' ? ' in ' + esc(KIND_LABEL[kind]) : '')) + '</div>';
+    h += (sorted.length ? (!q && sort === 'top' && canStats() ? mealSections(sorted) : sorted.map(mealRow).join(''))
+      : (q ? '' : '<div class="empty">No meals yet.</div>')) + '</section>';
+    return h;
   }
 
   function mealRow(m) {
@@ -2910,6 +2963,9 @@
     'new-meal': () => { S.sheet = { type: 'meal', id: '', name: '', item_ids: [], q: '', kind: S.mealKind && S.mealKind !== 'all' ? S.mealKind : 'dinner' }; render(); },
     'edit-meal': (el) => { const m = mealById(el.dataset.id); if (m) { S.sheet = { type: 'meal', id: m.id, name: m.name, item_ids: mealItems(m), q: '', kind: kindOf(m), meat_qty: String(meatQty(m)) }; render(); } },
     'meal-kind': (el) => { S.mealKind = el.dataset.v; render(); },
+    'meal-filters': () => { S.mealFiltersOpen = !S.mealFiltersOpen; render(); },
+    'meal-filters-clear': () => { S.mealKind = 'all'; S.mealSort = 'top'; render(); },
+    'meal-clear-q': () => { S.mealQuery = ''; render(); const f = document.getElementById('meal-q'); if (f) f.focus(); },
     'open-day': (el) => { S.sheet = { type: 'day', day: el.dataset.day }; render(); },
     'points-open': (el) => { S.sheet = { type: 'points', tab: el.dataset.tab || 'rules', who: '' }; if (S.sheet.tab === 'history') loadPointsLog(); render(); },
     'points-tab': (el) => { const sh = S.sheet; if (!sh || sh.type !== 'points') return; sh.tab = el.dataset.tab; if (sh.tab === 'history' && !sh.log) loadPointsLog(); render(); const b = document.querySelector('.sheet'); if (b) b.scrollTop = 0; },
@@ -3191,6 +3247,7 @@
     if (el.id === 'add') { S.query = el.value; render(); return; }
     const kind = el.dataset && el.dataset.input;
     if (kind === 'staples-q') { S.staplesQuery = el.value; render(); }
+    if (kind === 'meal-q') { S.mealQuery = el.value; render(); return; }
     if (kind === 'ask-draft') { S.askDraft = el.value; }
     if (kind === 'd' && S.sheet && S.sheet.d) S.sheet.d[el.dataset.field] = el.value;
     if (kind === 'draft' && S.sheet) {
@@ -3237,6 +3294,7 @@
   document.addEventListener('submit', async (ev) => {
     const form = ev.target;
     ev.preventDefault();
+    if (form.dataset.form === 'meal-q') { if (document.activeElement) document.activeElement.blur(); return; }
     if (form.dataset.form === 'unlock') {
       const v = document.getElementById('pass').value.trim();
       if (!v) return;
@@ -3329,7 +3387,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   setInterval(() => {
     // Don't redraw under someone mid-edit.
-    if (document.hidden || S.sheet || S.query) return;
+    if (document.hidden || S.sheet || S.query || S.mealQuery) return;
     if (Date.now() - stripTouched < 3000) return; // mid-swipe through a week strip
     const a = document.activeElement;
     if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT')) return;
