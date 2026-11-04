@@ -1815,6 +1815,7 @@
     const planned = (days) => days.filter((d) => (canSlots() ? SLOTS.some((x) => planText(planDay(d)[x[0]])) : mealById(plan[d] || '')));
     const hearthBtn = canSlots() && amParent() ? '<button class="btn btn-outline btn-sm" data-act="open-hearth">→ Hearth</button>' : '';
     let html = viewMealRequests();
+    html += viewHeroMeals(meals);
     html += '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="head-btns"><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + (canSlots() ? ' days' : ' dinners') + '</span>' + hearthBtn + '</span></div>' +
       weekStrip('this', w.thisWeek, plan, meals) + '</section>';
 
@@ -1850,8 +1851,30 @@
     return html;
   }
 
+ // Featured meals (Nov 4, Mike: "fun ways to feature and bring attention to certain meals"). Meals column
+  // `feature` = "<badge> | <tagline>", e.g. "👨‍🍳 Dad's Signature | The chips stay in." Blank = not featured.
+  // Set in the Sheet for now. Featured meals get a hero card on top of Meals and a 🌟 in the list.
+  function featureOf(m) {
+    const f = String((m && m.feature) || '').trim();
+    if (!f) return null;
+    const parts = f.split('|');
+    return { badge: parts[0].trim(), line: parts.slice(1).join('|').trim() };
+  }
+  function viewHeroMeals(meals) {
+    return meals.filter(featureOf).map((m) => {
+      const f = featureOf(m);
+      return '<button class="hero-meal" data-act="open-meal" data-id="' + m.id + '">' +
+        '<span class="hero-spark" aria-hidden="true">✨</span>' +
+        '<span class="hero-badge">' + esc(f.badge) + '</span>' +
+        '<span class="hero-name">' + esc(m.name) + '</span>' +
+        (f.line ? '<span class="hero-line">' + esc(f.line) + '</span>' : '') +
+        (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') +
+        '<span class="hero-go">' + (amParent() ? 'Put it on a night →' : 'Want this? →') + '</span></button>';
+    }).join('');
+  }
+
   function mealRow(m) {
-    return '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (canSlots() && kindOf(m) !== 'dinner' ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
+    return '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (featureOf(m) ? '<span class="hero-star" title="' + esc(featureOf(m).badge) + '">🌟</span>' : '') + (canSlots() && kindOf(m) !== 'dinner' ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
       '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span>' +
       (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') + '</button></div>';
   }
@@ -1976,7 +1999,7 @@
     });
     const thisWk = addDays(D().today, -DAYS.indexOf(dayName(D().today)));
     const wkLabel = (wk) => (wk === thisWk ? 'This week' : wk === addDays(thisWk, 7) ? 'Next week' : 'Week of ' + md(wk));
-    let h = '<div class="is-head"><div><h2>' + esc(m.name) + '</h2>' + (mealTags(m).length ? '<div class="tags">' + mealTags(m).join('') + '</div>' : '') + '</div>' +
+    let h = '<div class="is-head"><div>' + (featureOf(m) ? '<div class="hero-badge in-card">' + esc(featureOf(m).badge) + '</div>' : '') + '<h2>' + esc(m.name) + '</h2>' + (featureOf(m) && featureOf(m).line ? '<p class="hero-line in-card">' + esc(featureOf(m).line) + '</p>' : '') + (mealTags(m).length ? '<div class="tags">' + mealTags(m).join('') + '</div>' : '') + '</div>' +
       '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
     const kidAsks = canV9() && isKid(S.me);
     if (kidAsks) {
