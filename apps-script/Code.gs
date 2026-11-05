@@ -57,7 +57,7 @@ const RATE_PER_DAY = 2;    // unanswered "How was it?" cards close after this
 const STILL_PER_PERSON = 2;    // "Still eating …?" cards per person per week
 const STILL_EVERY_DAYS = 7;
 const STILL_REASK_DAYS = 90;
-// Head-to-head meal cards (api 39, Mike Nov 4): "Which do you like more: A or B?" for two meals of the same kind.
+// Head-to-head meal cards (api 39, owner Nov 4): "Which do you like more: A or B?" for two meals of the same kind.
 const PICK_PER_DAY = 1;        // per person per day
 const PICK_EXPIRE_DAYS = 3;    // unanswered ones close
 const PICK_REASK_DAYS = 60;    // the same pair isn't asked of the same person again for this long
@@ -66,7 +66,7 @@ const PICK_REASK_DAYS = 60;    // the same pair isn't asked of the same person a
 const POINTS = { task: 5, task_late: 2, check: 3, settle: 3, rate: 2, still: 2, helped_cooked: 10, helped_helped: 5, other: 1 };
 const POINTS_GOAL = 10; // daily goal; Settings points_goal overrides
 // Quick cards (rule `other`: questions, dinner votes, decisions) count toward the leaderboard only up to this many
-// a day per person (api 36, Mike Nov 3: whoever gets the most cards shouldn't run away with it). Settings quick_cap
+// a day per person (api 36, owner Nov 3: whoever gets the most cards shouldn't run away with it). Settings quick_cap
 // overrides; 0 = no limit. Applied when points are counted, so Review keeps each card's face value.
 const QUICK_CAP = 8;
 function quickCap() {
@@ -100,7 +100,7 @@ const HELPED_OPTIONS = 'Cooked it; Helped; Not this time';
 const HELPED_EXPIRE_DAYS = 3;
 // Missions (Inbox step 3): "go check how much X we have" cards for the kids, every day.
 const MISSIONS_PER_KID = 3;      // fallback when there's only one kid
-// The girls' race (Mike, Nov 2): kids get more scoring cards than parents, and whoever is behind this week
+// The girls' race (owner, Nov 2): kids get more scoring cards than parents, and whoever is behind this week
 // (Mon–Sun points, counted when the day's cards are made) gets extra missions so the lead keeps changing.
 // Parents never get catch-up help. Shown on Inbox → How points work (state.points.race).
 const KID_MISSIONS = { lead: 3, tied: 4, behind: 5 };
@@ -110,7 +110,7 @@ const MISSION_PLAN_DAYS = 3;       // ingredients for meals planned today + the 
 const MISSION_OPTIONS = 'Plenty; Some; A little; Out';
 const MISSION_LEVEL = { plenty: 'plenty', some: 'some', 'a little': 'low', low: 'low', out: 'out', none: 'out' };
 const NON_FOOD = ['Personal care', 'Household', 'Paper & cleaning', 'Other'];
-// Settling the List without a receipt (api 17, Mike Nov 1): daily "Did we get it?" cards.
+// Settling the List without a receipt (api 17, owner Nov 1): daily "Did we get it?" cards.
 // Kids go look (It's here / Not here); parents decide (Got it / Still need it / Don't need it).
 // After a cart was built, one "Did the <store> order come?" card to the parents settles the whole cart.
 const SETTLE_STALE_DAYS = 7;       // a needed row untouched this long gets asked about
@@ -122,7 +122,7 @@ const SETTLE_PARENTS = 4;          // per day, shared by both parents
 const SETTLE_KID_OPTIONS = "It's here; Not here";
 const SETTLE_PARENT_OPTIONS = "Got it; Still need it; Don't need it";
 const SETTLE_ORDER_OPTIONS = 'Yes, all of it; Some of it; Not yet';
-// Use soon (api 22, inventory-design step 3): perishables with Items shelf_days (from Joni's answers) show at the
+// Use soon (api 22, inventory-design step 3): perishables with Items shelf_days (from a parent's answers) show at the
 // top of the List from the day before they go bad. Bought = the newest of the last receipt and a List row marked
 // bought; a Stock sighting with `expires` (Still good, or a printed date) after that moves the date.
 const USE_SOON_AHEAD = 1;   // show from this many days before the last good day
@@ -180,7 +180,7 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      on a List row scores right away; a kid's becomes a parents' card (type have_check, "Take it off the List?")
 //      and the row stays until a parent says yes, then the kid scores. "A little" / a count (stockLog with list_id)
 //      and Next week with a level score too. Handling a have_check card scores the parent `approve`.
-// 21 = reconciling is missions only (Mike): no points for List taps (api 20's reconcile rule is gone). A kid's
+// 21 = reconciling is missions only (owner): no points for List taps (api 20's reconcile rule is gone). A kid's
 //      Plenty / Some on the List, and a kid's "It's here" on a Did we get it? card, both go to the parents as a
 //      have_check card ("Take it off the List?"); nothing a kid says takes a row off by itself. The mission or
 //      Did we get it? card still pays its points when answered; the parent gets 1 for answering the have_check.
@@ -206,38 +206,43 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      someone marked bought (In store, Did we get it?, Bought it), so "Probably due", "Not lately" and Use soon
 //      don't wait for receipts. The Items J:M formulas are untouched (receipts only). state.freshness = newest
 //      Receipts date per store.
-// 29 = ideas and alternatives (Nov 2, Mike): a 💡 idea (feedback) emails the owner right away (MailApp, owner only;
+// 29 = ideas and alternatives (Nov 2, owner): a 💡 idea (feedback) emails the owner right away (MailApp, owner only;
 //      Settings idea_alerts = off stops it, alert_email overrides the address); Items open_to_try (Y = "we'd try
 //      something else": parents set it in Details) tells the cart runner's price pass to look up alternatives and
 //      the morning check to offer them as parents' `try` cards.
 // 30 = a Plan slot can hold a catalog item instead of a meal (snacks we just buy).
-// 31 = deliveries (Nov 2, Mike): Items store WG (Wildgrain) / BB (Bleu Box) = food that arrives on its own. addToList
+// 31 = deliveries (Nov 2, owner): Items store WG (Wildgrain) / BB (Bleu Box) = food that arrives on its own. addToList
 //      skips them (a mission's out, meal ingredients); Probably due skips them; the app shows them as 🧊 on hand.
-// 36 = quick-card limit (Nov 3, Mike): rule `other` (questions, votes, decisions, 1 point) counts only the first
+// 36 = quick-card limit (Nov 3, owner): rule `other` (questions, votes, decisions, 1 point) counts only the first
 //      quick_cap (Settings; default 8, 0 = off) per person per day, applied when points are counted (scoredEvents),
 //      so it covers this week too and Review keeps face values. state.points.quickCap / quickToday; pointsLog
 //      entries past the cap come back with pts 0 and capped: true.
-// 34 = cart qty (Nov 2, Mike): a parent changing the qty of a carted List row sets cart_want = that same cart and
+// 34 = cart qty (Nov 2, owner): a parent changing the qty of a carted List row sets cart_want = that same cart and
 //      queues its build job; the cart runner changes that line's qty in the store cart (no new line).
 // 37 = (withdrawn) kids' adds for planned meals skipped approval; replaced the same day by 38.
-// 38 = only parents add a meal's ingredients (Nov 4, Mike): addMeal from a kid is refused.
-// 39 = meal head-to-heads (Nov 4, Mike): daily `pick` cards ("Which do you like more: A or B? (mNN) (mNN)"), one
+// 38 = only parents add a meal's ingredients (Nov 4, owner): addMeal from a kid is refused.
+// 39 = meal head-to-heads (Nov 4, owner): daily `pick` cards ("Which do you like more: A or B? (mNN) (mNN)"), one
 //      per person; mealStats gains wins / matchups from them (the rating stays the vote average).
-// 40 = best price (Nov 4, Mike): Items best_price = Y ("any store, best price"). When such an item is on the List
+// 40 = best price (Nov 4, owner): Items best_price = Y ("any store, best price"). When such an item is on the List
 //      and another store sells the same product cheaper (fresh, like items, 10%+ and $0.50+), the parents get one
 //      ⚖ `bestprice` card with every store's price; the answer puts the row in that store's cart (cartPush).
-// 41 = voice adds (Nov 4, Mike): voiceAdd {by, text} for the "Add to Poppy" Siri Shortcut. Splits a spoken phrase
+// 41 = voice adds (Nov 4, owner): voiceAdd {by, text} for the "Add to Poppy" Siri Shortcut. Splits a spoken phrase
 //      ("milk, eggs and two avocados") into parts, matches each to the catalog (name, aliases, store product names;
 //      what we buy now wins ties), adds it like the app's + (kids' adds are requests), and returns `say`, one
 //      sentence Siri reads back. No match → added as a new item, noted "by Siri" so a parent can tidy the name.
-// 42 = stores ready (Nov 4, Mike): cartJob {store: 'ALL', kind: 'signin'} asks the cart runner to confirm every store is
+// 42 = stores ready (Nov 4, owner): cartJob {store: 'ALL', kind: 'signin'} asks the cart runner to confirm every store is
 //      signed in on the cart computer (it also does it on its first run each day from 6 am). The runner writes Settings
 //      `stores_ok` ("GE=ok;WF=ok;TGT=out;AMZ=ok") + `stores_checked`; state.settings.stores_ok / stores_checked carry them.
-// 43 = voice adds ask instead of guessing (Nov 4, Mike: "don't turn sugar into brown sugar"): voiceAdd only adds an
+// 43 = voice adds ask instead of guessing (Nov 4, owner: "don't turn sugar into brown sugar"): voiceAdd only adds an
 //      exact name/alias match or the only item whose whole name was said; anything else is a `voice` card in the
 //      speaker's Inbox (up to 3 likely items, New item, Something else, Never mind). The answer adds it and teaches
 //      Poppy: the spoken words become an alias, so next time it's sure.
-const API_VERSION = 43;
+// 44 = hardening (Nov 4, owner): text written to the Sheet that starts with = + - @ is stored as plain text (no
+//      formula injection); every write needs a `by` that is a parent, a kid or the cart runner.
+const API_VERSION = 44;
+const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
+  'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
+  'mealRequest', 'useSoon', 'feedback', 'voiceAdd'];
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
@@ -314,6 +319,14 @@ function handle(req) {
   };
   const fn = actions[req.action];
   if (!fn) return reply({ ok: false, error: 'unknown_action' });
+  // Hardening (api 44): every write must come from someone in Settings parents/kids (or the cart runner), so a
+  // typo'd or made-up name can't write rows, and the kid checks inside each action (isKid) can't be skipped by
+  // leaving the name off. Reads stay open to anyone with the passcode.
+  if (WRITE_ACTIONS.indexOf(req.action) >= 0) {
+    const who = String(req.by || '').trim().toLowerCase();
+    const known = people().map((p) => p.toLowerCase()).concat(['cart runner']);
+    if (known.indexOf(who) < 0) return reply({ ok: false, error: 'Unknown person: pick who you are again (tap your name)' });
+  }
   try {
     const out = fn();
     // Every write returns fresh state so the app never has to guess.
@@ -395,10 +408,18 @@ function headers(name) {
   return sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
 }
 
+// Hardening (api 44): text that starts with = + - @ would turn into a live Sheet formula (a typed note "=IMPORTXML(…)"
+// could pull data out). Every value written through appendObj / setFields is stored as plain text instead.
+// Values that already start with ' (dates written as text) and non-strings pass through. Real formulas are only
+// ever written with setFormulasR1C1 (Items J:M), never through these helpers.
+function safeCell(v) {
+  return typeof v === 'string' && /^[=+\-@]/.test(v) ? "'" + v : v;
+}
+
 function appendObj(name, obj) {
   dropReadCache();
   const head = headers(name);
-  sheet(name).appendRow(head.map((h) => (obj[h] === undefined ? '' : obj[h])));
+  sheet(name).appendRow(head.map((h) => (obj[h] === undefined ? '' : safeCell(obj[h]))));
 }
 
 function setFields(name, rowNum, fields) {
@@ -407,7 +428,7 @@ function setFields(name, rowNum, fields) {
   const sh = sheet(name);
   Object.keys(fields).forEach((k) => {
     const col = head.indexOf(k);
-    if (col >= 0) sh.getRange(rowNum, col + 1).setValue(fields[k]);
+    if (col >= 0) sh.getRange(rowNum, col + 1).setValue(safeCell(fields[k]));
   });
 }
 
@@ -760,7 +781,7 @@ function voiceCandidates(items, productsByItem, part) {
   });
   return out.sort((x, y) => y.total - x.total);
 }
-// Sure enough to add without asking (Mike, Nov 4: "don't turn sugar into brown sugar"): an exact name or alias,
+// Sure enough to add without asking (owner, Nov 4: "don't turn sugar into brown sugar"): an exact name or alias,
 // or the only item whose whole name was said. Anything else is a question in the speaker's Inbox, and the answer
 // teaches Poppy (the spoken words become an alias).
 function voiceSure(cands) {
@@ -918,7 +939,7 @@ function addToList(req) {
       return { id: existing.id, merged: true, unheld: true };
     }
     // Someone else asking for the same thing is recorded by name, not as a silent qty bump,
-    // so the family can see "Mike + Joni" and decide whether that means one or two.
+    // so the family can see "owner + parent" and decide whether that means one or two.
     const wanted = wantedList(existing);
     const f = { updated_at: nowStamp() };
     const already = wanted.map((w) => w.toLowerCase()).indexOf(String(req.by).toLowerCase()) >= 0;
@@ -955,7 +976,7 @@ function addToList(req) {
   return { id: id, merged: false };
 }
 
-// Everyone who asked for a List row: wanted_by (Mike;Joni), falling back to added_by for older rows.
+// Everyone who asked for a List row: wanted_by (owner;parent), falling back to added_by for older rows.
 function wantedList(row) {
   const names = String(row.wanted_by || '').split(';').map((s) => s.trim()).filter(String);
   return names.length ? names : [String(row.added_by || '').trim()].filter(String);
@@ -1810,7 +1831,7 @@ function addFeedback(req) {
   return { id: id };
 }
 
-// api 29: a new 💡 idea reaches the owner (Mike) in minutes, not at the next morning check. Email to the owner only,
+// api 29: a new 💡 idea reaches the owner (owner) in minutes, not at the next morning check. Email to the owner only,
 // never to anyone else in the family. Returns true when sent, '' when turned off, or the error text.
 // Nov 3 (api 35): the parameter used to be called `tab`, which hid the tab() helper, so every alert since api 29
 // failed with "tab is not a function". Keep it as tabName.
@@ -2215,8 +2236,8 @@ function cartQtyFields(row, qty, by) {
   return { cart_want: st, cart_by: by || '', cart_note: '' };
 }
 
-// ---------- Best price (api 40, Nov 4, Mike) ----------
-// "Any store, best price" items (Items best_price = Y): Mike decides case by case, once he can see every store's
+// ---------- Best price (api 40, Nov 4, owner) ----------
+// "Any store, best price" items (Items best_price = Y): owner decides case by case, once he can see every store's
 // price side by side. Compared only like items (not `alt`), priced in the last BEST_FRESH_DAYS, in the same unit
 // as the usual store's product. One parents' ⚖ card per List row, never re-asked for that row.
 function bestPriceFor(row, item, prods) {

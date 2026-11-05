@@ -112,8 +112,43 @@
     } finally { if (isWrite) writing--; }
   }
 
+  /* Offline outbox (hardening, Nov 4): a change made with no signal (an aisle with no bars) is kept on the phone
+     in order and sent when the connection is back, instead of being lost. Only network failures queue; a server
+     "no" (wrong passcode, a kid trying a parent's action) still shows as an error. While anything waits, the screen
+     keeps the change it already showed and a small pill says how many are waiting. */
+  const OUTBOX = 'ff_outbox';
+  function outbox() { try { return JSON.parse(store.get(OUTBOX) || '[]'); } catch (e) { return []; } }
+  function setOutbox(q) { if (q.length) store.set(OUTBOX, JSON.stringify(q)); else store.del(OUTBOX); }
+  function isOffline(e) {
+    const m = String(e && e.message || e);
+    return m === 'Failed to fetch' || /networkerror|load failed|network connection|internet connection/i.test(m) || navigator.onLine === false;
+  }
+  let flushing = false;
+  async function flushOutbox() {
+    if (flushing || !S.pass || !apiUrl()) return;
+    let q = outbox();
+    if (!q.length) return;
+    flushing = true;
+    let sent = 0;
+    try {
+      while (q.length) {
+        const job = q[0];
+        try { await api(job.action, Object.assign({}, job.payload, { by: job.by })); sent++; }
+        catch (e) {
+          if (isOffline(e)) break;
+          showToast('A saved change couldn’t be sent: ' + String(e && e.message || e));
+        }
+        q.shift();
+        setOutbox(q);
+      }
+    } finally { flushing = false; }
+    if (sent && !outbox().length) showToast('Back online: ' + sent + ' saved change' + (sent === 1 ? '' : 's') + ' sent');
+    if (!S.dragging) render();
+  }
+
   async function refresh() {
     if (!S.pass || !apiUrl() || !S.data) return; // before the first load, firstLoad() owns the screen
+    if (outbox().length) { await flushOutbox(); if (outbox().length) { render(); return; } }
     try { await api('state'); if (!S.dragging) render(); }
     catch (e) { handleError(e); }
   }
@@ -132,8 +167,18 @@
     if (toastMsg) showToast(toastMsg, undo);
     if (optimistic) optimistic();
     render();
+    // Something is already waiting to send: keep the order, queue this one behind it.
+    if (outbox().length) { const q = outbox(); q.push({ action: action, payload: payload || {}, by: S.me, at: Date.now() }); setOutbox(q); render(); flushOutbox(); return; }
     try { await api(action, payload); render(); }
-    catch (e) { handleError(e); refresh(); }
+    catch (e) {
+      if (isOffline(e)) {
+        const q = outbox(); q.push({ action: action, payload: payload || {}, by: S.me, at: Date.now() }); setOutbox(q);
+        showToast('No signal. Saved on this phone; it sends when you’re back online.');
+        render();
+        return;
+      }
+      handleError(e); refresh();
+    }
   }
 
   /* ------------------------------------------------------------ data helpers */
@@ -152,7 +197,7 @@
     const a = (D().settings.admins && D().settings.admins.length) ? D().settings.admins : D().settings.parents.slice(0, 1);
     return a.map((x) => x.toLowerCase()).indexOf(String(S.me).toLowerCase()) >= 0;
   };
-  // Everyone who asked for a row (wanted_by "Mike;Joni"), falling back to added_by.
+  // Everyone who asked for a row (wanted_by "owner;parent"), falling back to added_by.
   const wantedBy = (r) => {
     const w = String(r.wanted_by || '').split(';').map((x) => x.trim()).filter(String);
     return w.length ? w : [r.added_by].filter(Boolean);
@@ -286,7 +331,7 @@
     return isNaN(d) ? '' : DAYS[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.getDate();
   }
 
-  // Pulls the last "had …" from a row note, e.g. "had 6 (Joni)" → "6".
+  // Pulls the last "had …" from a row note, e.g. "had 6 (parent)" → "6".
   function haveLevel(r) {
     const m = String(r.note || '').match(/had ([^;(]+?)\s*(\(|;|$)/g);
     if (!m) return '';
@@ -466,8 +511,9 @@
   // First load of state (return visit or right after Unlock). Shows a "still working" hint after 4 s.
   async function firstLoad() {
     if (S.data && S.stale) {
-      // A saved copy is on screen already: load fresh state quietly behind it.
+      // A saved copy is on screen already: load fresh state quietly behind it (changes saved offline go first).
       render();
+      if (outbox().length) { await flushOutbox(); if (outbox().length) return true; }
       try { await api('state'); }
       catch (e) { handleError(e); }
       if (!S.dragging) render();
@@ -524,10 +570,10 @@
     let right = '';
     if (instore) right = '<button class="btn btn-primary shop-done" data-act="store-done">Done</button>';
     else if (canCarts()) {
-      // Nov 2 header (Mike): the cart is the main button, In store is secondary, 💡 and switching live under your name.
+      // Nov 2 header (owner): the cart is the main button, In store is secondary, 💡 and switching live under your name.
       right += cartButton();
       if (S.tab === 'list') right += '<button class="btn btn-plain shop-btn small" data-act="store-start">🏪 In store</button>';
-      // Nov 2 (Mike): a mini ⚙ and a mini 💡 stacked in the name cell, so an idea is one tap away.
+      // Nov 2 (owner): a mini ⚙ and a mini 💡 stacked in the name cell, so an idea is one tap away.
       right += '<div class="me me-cell"><button class="me-name" data-act="open-me" aria-label="Options for ' + esc(S.me) + '">' + esc(S.me) + '</button>' +
         '<span class="me-icons"><button data-act="open-me" aria-label="Settings and switching">⚙</button>' +
         (canV9() ? '<button data-act="open-feedback" aria-label="Idea or feedback about the app">💡</button>' : '') + '</span></div>';
@@ -540,7 +586,9 @@
     }
     let top = '<header class="top"><div class="top-row"><div>' + (eyebrow ? '<div class="eyebrow">' + esc(eyebrow) + '</div>' : '') + '<h1>' + title + '</h1></div>' +
       '<div class="top-right">' + right + '</div></div>';
-    if (S.stale) top += '<div class="stale-pill" role="status">Updating…</div>';
+    const waiting = outbox().length;
+    if (waiting) top += '<div class="stale-pill" role="status">⏳ ' + waiting + ' change' + (waiting === 1 ? '' : 's') + ' waiting for signal</div>';
+    else if (S.stale) top += '<div class="stale-pill" role="status">Updating…</div>';
     if (instore) top += viewStorePicker();
     else if (S.tab === 'shop') top += viewShopTop();
     top += '</header>';
@@ -587,7 +635,7 @@
   const groupsIn = (rows) => GROUPS.concat(Array.from(new Set(rows.map(groupOf))).filter((g) => GROUPS.indexOf(g) < 0))
     .filter((g) => rows.some((r) => groupOf(r) === g));
 
-  // "Mike + Joni": who asked. Two or more names are highlighted so a double ask gets a second look.
+  // "owner + parent": who asked. Two or more names are highlighted so a double ask gets a second look.
   function whoHtml(r) {
     const names = wantedBy(r);
     if (!names.length) return '';
@@ -597,7 +645,7 @@
   }
 
   // Which meal a List row is for: the meal it was added for (meal_id), or else a meal planned in the next
-  // 7 days that uses this item (Mike, Nov 1: filter the List to meal items vs just stock).
+  // 7 days that uses this item (owner, Nov 1: filter the List to meal items vs just stock).
   function mealFor(r) {
     if (!r) return null;
     // A meal link only counts while that meal is on the plan (2 days back through the plan window); a meal that
@@ -630,11 +678,11 @@
       : '<span class="meal-tag">🍽 ' + esc(f.meal.name) + '</span>';
   }
   // List filter pills: All · Needs a cart · For meals · Stock (not tied to a meal). Starts on All each time the
-  // app opens. One List (Mike, Nov 2): rows in a cart stay in their aisle with their 🛒 tag; "Needs a cart"
+  // app opens. One List (owner, Nov 2): rows in a cart stay in their aisle with their 🛒 tag; "Needs a cart"
   // narrows to the rows no online cart has yet. needsCart is defined below; kindOk only runs at render time.
   S.listKind = 'all';
   const kindOk = (r) => S.listKind === 'all' || (S.listKind === 'cart' ? (canCarts() && needsCart(r)) : S.listKind === 'meal' ? forMeal(r) : !forMeal(r));
-  // Pack sizes (Nov 3, Mike's idea): how many come in one package. Products `pack` when Claude filled it,
+  // Pack sizes (Nov 3, the owner's idea): how many come in one package. Products `pack` when Claude filled it,
   // else read from the store's product name ("… Frozen - 8 Count", "8 Cups", "Pack of 12") or a size like "14 each".
   const PACK_WORDS = 'count|ct|cups?|bars?|pouches|pouch|sandwiche?s|rolls?|bottles?|cans?|pieces?|pcs|each|packs?|pk|pods?|sticks?|cakes?|pies?|bags?|boxes?|cartons?|links?|patties|eggs?';
   const PACK_RE = new RegExp('(?:^|[\\s(,-])(\\d{1,3})\\s*-?\\s*(?:' + PACK_WORDS + ')\\b', 'i');
@@ -763,7 +811,7 @@
 
   /* Prices (api 23): Products rows carry price, unit_price, unit, price_at per store. Only fresh prices
      (30 days) in the same unit are compared. A List tag shows only when another store is 10%+ and $0.50+
-     cheaper for the same amount (Mike, Nov 2), and never for store-only or "either store" rows. */
+     cheaper for the same amount (owner, Nov 2), and never for store-only or "either store" rows. */
   const PRICE_FRESH_DAYS = 30;
   const PRICE_MIN_PCT = 0.10;
   const PRICE_MIN_SAVE = 0.50;
@@ -842,11 +890,11 @@
 
   const chev = (closed) => '<span class="chev" aria-hidden="true">' + (closed ? '▸' : '▾') + '</span>';
 
-  /* ---------- the List (Nov 2, Mike): what's still open ----------
+  /* ---------- the List (Nov 2, owner): what's still open ----------
      Carts live on the Carts screen now, so the List answers one question: what do we still have to deal with?
      Top to bottom: a summary line, 🍽 Missing for meals (planned in the next 7 days, not on the List, not seen
      at home lately), the List itself (one section by aisle; rows in a cart carry their 🛒 tag, the Needs a cart
-     pill narrows to the rest; Mike, Nov 2 ~10:20 am), Later (parked on purpose:
+     pill narrows to the rest; owner, Nov 2 ~10:20 am), Later (parked on purpose:
      "Next week", "In 2 weeks" or no date, built on hold_until; no date = LATER_NO_DATE). */
   const LATER_NO_DATE = '9999-12-31';
   const laterBack = (r) => { const u = String(r.hold_until || '').slice(0, 10); return !u || u >= '9000' ? '' : u; };
@@ -885,10 +933,10 @@
     });
     return { groups: byMeal, blank: blank, meals: meals };
   }
-  // Compact on purpose (Mike, Nov 2 ~9:28 am: it took too much room from the List itself). Nothing missing →
+  // Compact on purpose (owner, Nov 2 ~9:28 am: it took too much room from the List itself). Nothing missing →
   // one quiet line. Meals with no ingredients set up sit behind a small link that opens a sheet.
   function viewMissing() {
-    if (isKid(S.me)) return ''; // meal ingredients are the parents' job (Mike, Nov 4)
+    if (isKid(S.me)) return ''; // meal ingredients are the parents' job (owner, Nov 4)
     const m = missingForMeals();
     const groups = m.groups;
     if (!groups.length && !m.blank.length) return '';
@@ -962,7 +1010,7 @@
 
     html += viewMissing();
 
-    // One List by aisle (Mike, Nov 2): in-cart rows sit with the rest and show their 🛒 tag.
+    // One List by aisle (owner, Nov 2): in-cart rows sit with the rest and show their 🛒 tag.
     // Pills: All · 🛒 Needs a cart · 🍽 Meals · 🧺 Stock.
     const shown = active.filter(kindOk);
     const all = shown.concat(faded.map((f) => f.row).filter(kindOk));
@@ -1003,7 +1051,7 @@
   const canUseSoon = () => Number(D().api || 0) >= 22;
   // api 29: Items open_to_try ("we'd try something else": the price pass looks up alternatives, offered as `try` cards).
   const canTry = () => Number(D().api || 0) >= 29;
-  // api 40 (Nov 4, Mike): "any store, best price" items (Items best_price = Y).
+  // api 40 (Nov 4, owner): "any store, best price" items (Items best_price = Y).
   const canBest = () => Number(D().api || 0) >= 40;
   const isBest = (it) => !!it && /^y/i.test(String(it.best_price || ''));
   function useSoonWhen(x) {
@@ -1041,7 +1089,7 @@
   const boughtToday = (r) => r.status === 'bought' && String(r.updated_at || '').slice(0, 10) === D().today;
 
   function viewInStore() {
-    // A virtual cart (Mike, Nov 1): tapping a row puts it in the cart, and it leaves the List for good (status
+    // A virtual cart (owner, Nov 1): tapping a row puts it in the cart, and it leaves the List for good (status
     // bought, logged). No crossed-out rows, no taking it back out here; to get it back, add it again from Shop,
     // where the item shows what happened to it ("in the cart today").
     const open = D().list.filter(inStore);
@@ -1090,7 +1138,7 @@
 
   /* ---------- shop tab (add things) ---------- */
   // Why something left the List lately (the last finished List row for it, past week): shown on its Shop row,
-  // so "where did it go?" has an answer. e.g. "In the cart today (Joni)", "We had some · yesterday", "Taken off · Sun".
+  // so "where did it go?" has an answer. e.g. "In the cart today (parent)", "We had some · yesterday", "Taken off · Sun".
   function lastOutcome(itemId) {
     const rows = (D().recent || []).filter((r) => r.item_id === itemId).sort((a, b) => String(a.updated_at) < String(b.updated_at) ? 1 : -1);
     const r = rows[0];
@@ -1104,7 +1152,7 @@
   }
 
   // Smart filters. Each returns item ids; pills with nothing in them are hidden.
-  // Nov 2 (Mike): "On the list" is gone (the List tab is that view); "Not lately" and "Cheaper elsewhere" are new.
+  // Nov 2 (owner): "On the list" is gone (the List tab is that view); "Not lately" and "Cheaper elsewhere" are new.
   function smartSets() {
     const items = D().items.filter((i) => i.status !== 'Drop');
     const listed = {};
@@ -1144,7 +1192,7 @@
   const SHOP_STORES = [['all', 'All'], ['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['DLV', '🧊 Deliveries']];
   const SHOP_SORTS = [['most', 'Most bought'], ['last', 'Last bought'], ['az', 'A–Z']];
 
-  // Shop top (Nov 2, Mike): search with a ✕ to clear it, and a Filter button that opens the filter panel
+  // Shop top (Nov 2, owner): search with a ✕ to clear it, and a Filter button that opens the filter panel
   // (Show / Store on one row / Sort / Hide what's on the List). Folded each time; when filters are on, a
   // one-line summary with Clear sits under the search so nothing is hidden by surprise.
   function shopFiltersOn() {
@@ -1276,7 +1324,7 @@
   const fmtShort = (iso) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
   const money = (v) => (v === '' || v == null || isNaN(Number(v)) ? '' : '$' + Number(v).toFixed(2));
 
-  // Item screen (Nov 2 cleanup, Mike): quick things up top (where it stands, how many, cart, have some,
+  // Item screen (Nov 2 cleanup, owner): quick things up top (where it stands, how many, cart, have some,
   // Next week / Bought it / Take off), then four folded sections for the deeper look: What we buy (product,
   // aisle and price per store in one list), History, What we know, Details. Sections start folded every time.
   function viewItemSheet(sh) {
@@ -1446,7 +1494,7 @@
     return h;
   }
 
-  // Item screen header (Nov 4, Mike: "there's no price"): the exact product we buy and its shelf price, up top.
+  // Item screen header (Nov 4, owner: "there's no price"): the exact product we buy and its shelf price, up top.
   // Product = the usual store's Products row (else the first one we know); falls back to Items brand_size.
   // Price only from a like item (not an `alt` row); the date shows how old it is.
   function viewItemProduct(itemId, storeCode, it) {
@@ -1548,7 +1596,7 @@
   // Cart totals (api 26): the store's own cart subtotal and line count from the latest finished job.
   const lastTotal = (code) => jobs().find((j) => j.store === code && j.status === 'done' && j.subtotal !== '' && j.subtotal != null);
   const fmtMoney = (v) => '$' + Number(v).toFixed(2);
-  // When the cart runner next looks (hourly at :17, 8 am–9 pm on Mike's computer).
+  // When the cart runner next looks (hourly at :17, 8 am–9 pm on the owner's computer).
   function nextRunText() {
     const d = new Date();
     let h = d.getHours() + (d.getMinutes() >= 17 ? 1 : 0);
@@ -1557,7 +1605,7 @@
     return 'at ' + ((h % 12) || 12) + ':17 ' + (h >= 12 ? 'pm' : 'am');
   }
   // Where one cart stands, in plain words: { icon, cls, text }.
-  // Is the cart helper (the scheduled task on Mike's computer) alive? It writes Settings runner_seen every run.
+  // Is the cart helper (the scheduled task on the owner's computer) alive? It writes Settings runner_seen every run.
   function helperState() {
     const seen = String((D().settings || {}).runner_seen || '');
     if (!seen) return { ok: false, never: true, text: 'The cart helper on the home computer hasn’t checked in yet.' };
@@ -1881,14 +1929,14 @@
     }
 
     html += viewOnHand();
-    // Meal ideas section removed Nov 4 (Mike: it clogs the tab). Meals that came from an idea carry a 💡 tag instead.
+    // Meal ideas section removed Nov 4 (owner: it clogs the tab). Meals that came from an idea carry a 💡 tag instead.
 
     html += viewOurMeals(meals);
     html += '<p class="hint">Tap a meal to put it on a day, see its ingredients or edit it.' + (canSlots() ? ' Tap a day for breakfast, lunch and snack.' : '') + '' + (canIdeas() ? ' Found a good one online? Tap 💡 Idea and paste it; Poppy adds it to Our meals.' : '') + '</p>';
     return html;
   }
 
- // Featured meals (Nov 4, Mike: "fun ways to feature and bring attention to certain meals"). Meals column
+ // Featured meals (Nov 4, owner: "fun ways to feature and bring attention to certain meals"). Meals column
   // `feature` = "<badge> | <tagline>", e.g. "👨‍🍳 Dad's Signature | The chips stay in." Blank = not featured.
   // Set in the Sheet for now. Featured meals get a hero card on top of Meals and a 🌟 in the list.
   function featureOf(m) {
@@ -1910,7 +1958,7 @@
     }).join('');
   }
 
-  // Our meals (Nov 4, Mike: 45 meals now): a search box (meal name or any ingredient) and a Filter button
+  // Our meals (Nov 4, owner: 45 meals now): a search box (meal name or any ingredient) and a Filter button
   // that opens Kind + Sort, like Shop's. No pill rows spilling onto two lines. While searching, results are one
   // flat list (best match first); otherwise Favorites shows the rating sections.
   const MEAL_SORTS = [['top', 'Favorites'], ['stale', 'Not lately'], ['cost', 'Cheapest'], ['az', 'A–Z']];
@@ -1980,7 +2028,7 @@
       (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') + '</button></div>';
   }
 
-  // Favorites view (Mike, Nov 4: "not all meals are created equal"): the list in sections by the family's rating,
+  // Favorites view (owner, Nov 4: "not all meals are created equal"): the list in sections by the family's rating,
   // best first. Favorites and liked meals are open; not-rated-yet and not-loved start folded with a peek.
   const MEAL_TIERS = [
     ['fav', '⭐ FAMILY FAVORITES', 'Rated 3.5+ by 2 or more of us', false],
@@ -2149,7 +2197,7 @@
 
     const ids = mealItems(m).filter((id) => itemById(id));
     const need = ids.filter((id) => !listRowFor(id));
-    // Parents edit ingredients right here (Nov 4, Mike): ✕ takes one off, the box below adds one (or a new item).
+    // Parents edit ingredients right here (Nov 4, owner): ✕ takes one off, the box below adds one (or a new item).
     // Each change saves at once; no trip through Edit meal.
     const canEditIng = amParent();
     h += '<div class="is-block"><div class="is-label">Ingredients</div>' + (ids.length
@@ -2255,7 +2303,7 @@
     const school = atSchool();
     return myQuestionsAll().filter((r) => (withSnoozed || !snoozed(r)) && !(school && homeOnly(r)));
   }
-  /* School hours (Nov 4, a kid's feedback via Mike): on a school day (Mon–Fri) the girls are out from 7:30 am to
+  /* School hours (Nov 4, a kid's feedback via owner): on a school day (Mon–Fri) the girls are out from 7:30 am to
      4:30 pm, so cards that mean "go look at home" (🔎 Missions, which for kids includes "Did we get the …? Go look")
      wait for home: out of the deck, the badge and the chips, with a 🏠 note saying how many and when they open.
      Nothing expires or changes on the backend. "I'm home today" (snow day, sick day, holiday) opens them for the
@@ -2277,7 +2325,7 @@
       '<span class="note">They open at ' + SCHOOL.opens + ', after school. Until then, everything here works from anywhere.</span></div>' +
       '<button type="button" class="btn btn-plain" data-act="im-home">I’m home</button></section>';
   }
-  // Meal votes follow the meal (Nov 3, Mike's idea): a vote card on a meal that's planned from today on waits
+  // Meal votes follow the meal (Nov 3, the owner's idea): a vote card on a meal that's planned from today on waits
   // until the morning after we eat it, then asks "You had <meal> yesterday. How was it?". App only.
   function voteMealId(r) {
     if (!r || r.type !== 'vote') return '';
@@ -2354,7 +2402,7 @@
     return 'text';
   }
 
-  /* Inbox sections (Nov 1, Mike): the deck is grouped, most important first.
+  /* Inbox sections (Nov 1, owner): the deck is grouped, most important first.
      Kids:    Due soon -> How was it? -> Missions -> Quick questions
      Parents: (Approvals list above the deck) -> Decisions -> Due soon -> How was it? -> Missions -> Quick questions
      A Review `section` column wins when it exists; otherwise the section comes from the card's type and text. */
@@ -2887,10 +2935,10 @@
         '</section>';
     });
     if (requested && !canJobs()) {
-      html += '<section class="card store-card"><div class="note"><b>Cart requested:</b> ' + esc(requested) + '. Claude fills the cart on Mike’s computer, then any swaps show up in Ask.</div>' +
+      html += '<section class="card store-card"><div class="note"><b>Cart requested:</b> ' + esc(requested) + '. Claude fills the cart on the home computer, then any swaps show up in Ask.</div>' +
         (amParent() ? '<button class="btn btn-plain" data-act="clear-order">Clear</button>' : '') + '</section>';
     }
-    html += '<p class="hint">' + (canJobs() ? '<b>Build</b> fills the store’s online cart from the List. <b>Check</b> reads what’s in the cart (even things added on the store’s site) and tags those List rows “In cart”. Claude does both on Mike’s computer, so it needs to be on with Chrome open; jobs wait until it is. ' : '') + 'Carts are filled for you to review. A person always taps checkout.</p>';
+    html += '<p class="hint">' + (canJobs() ? '<b>Build</b> fills the store’s online cart from the List. <b>Check</b> reads what’s in the cart (even things added on the store’s site) and tags those List rows “In cart”. Claude does both on the home computer, so it needs to be on with Chrome open; jobs wait until it is. ' : '') + 'Carts are filled for you to review. A person always taps checkout.</p>';
     return html;
   }
 
@@ -3522,6 +3570,7 @@
   let stripTouched = 0;
   document.addEventListener('scroll', (ev) => { if (ev.target && ev.target.classList && ev.target.classList.contains('week-strip')) stripTouched = Date.now(); }, true);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  window.addEventListener('online', () => refresh());
   setInterval(() => {
     // Don't redraw under someone mid-edit.
     if (document.hidden || S.sheet || S.query || S.mealQuery) return;

@@ -50,4 +50,4 @@ Paste the new `Code.gs` over the old one, then **Deploy â†’ Manage deployments â
 | Adding, approving, checking off, meal planning | Family, in the app |
 | "Probably due" and nightly cleanup | Apps Script, automatically |
 | Matching receipts to items, clearing bought items, filing unknown codes in Review | Claude, from forwarded receipt emails |
-| Filling store carts | Claude in Chrome on Mike's computer, when asked. A person always checks out. |
+| Filling store carts | Claude in Chrome on the owner's computer, when asked. A person always checks out. |
