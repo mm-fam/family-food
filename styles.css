@@ -422,6 +422,10 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .item-sheet { gap: 12px; }
 .is-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .is-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.is-sub-edit { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 4px 0; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; text-align: left; }
+.is-details > div.flash { animation: is-flash 1.6s ease-out; border-radius: 10px; }
+@keyframes is-flash { 0%, 40% { background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); } 100% { background: transparent; box-shadow: 0 0 0 6px transparent; } }
+.is-sub-pen { color: var(--accent); font-weight: 600; margin-left: 4px; }
 .is-prod { display: flex; flex-direction: column; gap: 2px; margin-top: -6px; font-size: 13px; }
 .is-prod-name { color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .is-prod-price b { font-size: 17px; }

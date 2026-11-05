@@ -1350,8 +1350,11 @@
     const kid = isKid(S.me);
     const open = sh.open || (sh.open = {});
     const storeCode = (row && row.store) || (it && it.store) || 'Either';
-    let h = '<div class="is-head"><div><h2>' + esc(sh.name) + '</h2><div class="is-sub"><span class="store-dot ' + storeOf(storeCode).cls + '"></span>' + esc(storeOf(storeCode).name) +
-      (it && it.group ? ' · ' + esc(it.group) : '') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+    // Store · aisle under the name (Nov 4, owner: "I went to the item to change it and couldn't"): for parents it's a
+    // button that opens Details and scrolls to it, where store and aisle are edited. Kids see plain text.
+    const subTxt = '<span class="store-dot ' + storeOf(storeCode).cls + '"></span>' + esc(storeOf(storeCode).name) + (it && it.group ? ' · ' + esc(it.group) : '');
+    let h = '<div class="is-head"><div><h2>' + esc(sh.name) + '</h2>' +
+      (it && sh.d && !kid ? '<button type="button" class="is-sub is-sub-edit" data-act="is-edit" aria-label="Change store or aisle">' + subTxt + ' <span class="is-sub-pen">✎ change</span></button>' : '<div class="is-sub">' + subTxt + '</div>') + '</div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
       viewItemProduct(sh.item_id, storeCode, it); // not in the sticky head: it scrolls away
 
     // ---- Quick: where it stands, how many, the cart
@@ -1490,7 +1493,8 @@
     // Details (store, swaps, how often): parents edit, kids read.
     if (it && sh.d) {
       const swap = canV46() ? ({ Y: 'store may substitute', N: 'don’t substitute' }[sh.d.ok_swap] || 'ask about substitutes') : ({ Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping');
-      more += acc('details', 'Details', esc([sh.d.status || '', swap, sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
+      const keep = { Always: 'always keep it', Sometimes: 'now and then', Drop: 'stopped buying' }[sh.d.status] || '';
+      more += acc('details', 'Details', esc([keep, swap, sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg' + (opts.length > 4 ? ' seg-grid' : '') + '">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         return '<div class="is-details">' + (sh.fresh && !kid ? '<p class="note fresh-note">✨ New to Poppy. Fill in the brand and size, the aisle, where we get it and how it’s sold, so search, Siri and the carts get it right.</p>' : '') +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
@@ -1499,7 +1503,8 @@
             : '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>') +
           (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +
           (canTry() ? '<div><label>Open to trying something else?</label>' + seg('open_to_try', [['', 'No, we like it'], ['Y', 'Yes, suggest some']]) + '<p class="note">Yes = Claude looks for other brands and store brands at our stores and asks you in the Inbox (⚖ Decisions). Nothing changes until you say so.</p></div>' : '') +
-          '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
+          // "How often" alone didn't say what it asked (owner, Nov 4). Same values: Always / Sometimes / Drop.
+          '<div><label>Do we keep buying it?</label>' + seg('status', [['Always', 'Always keep it'], ['Sometimes', 'Now and then'], ['Drop', 'Stop buying']]) + '<p class="note">Always = a staple we try never to run out of. Now and then = we buy it when we want it. Stop buying = Poppy stops suggesting it.</p></div>' +
           (canV45() ? '<div><label>How it’s sold</label>' + seg('sold_by', [['', 'Each / package'], ['lb', 'By the pound']]) + '<p class="note">By the pound = the List and carts count pounds (½ lb steps). Put the cut and thickness in the trip note, e.g. “ribeye, 1½ in thick, 2 steaks”.</p></div>' +
             '<div><label for="d-spoken">Words we say</label><input id="d-spoken" class="field" style="width:100%" data-input="d" data-field="spoken" value="' + esc(sh.d.spoken || '') + '" placeholder="e.g. milk, fairlife"' + (kid ? ' disabled' : '') + '><p class="note">What the family calls it, comma-separated. Shop search and Siri find it by these.</p></div>' : '') +
           '<div><label for="d-brand">Brand / size</label><input id="d-brand" class="field" style="width:100%" data-input="d" data-field="brand_size" value="' + esc(sh.d.brand_size) + '"' + (kid ? ' disabled' : '') + '></div>' +
@@ -3400,6 +3405,14 @@
       o[k] = !o[k]; render();
       const acc = o[k] && document.querySelector('.is-acc-head[data-k="' + k + '"]');
       if (acc && acc.parentNode.scrollIntoView) acc.parentNode.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    },
+    'is-edit': () => {
+      const o = S.sheet.open || (S.sheet.open = {});
+      o.details = true; render();
+      // Land on the Aisle picker (what's usually wrong on a new item), with Store we use just above it in view.
+      const f = document.getElementById('d-aisle');
+      const box = f && f.parentNode;
+      if (box && box.scrollIntoView) { box.scrollIntoView({ block: 'center', behavior: 'smooth' }); box.classList.add('flash'); setTimeout(() => box.classList.remove('flash'), 1600); }
     },
     'is-move': () => { S.sheet.move = !S.sheet.move; render(); },
     'is-note': () => { S.sheet.noteOpen = true; render(); const f = document.querySelector('[data-input="row-note"]'); if (f) f.focus(); },
