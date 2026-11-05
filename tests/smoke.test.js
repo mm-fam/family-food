@@ -193,3 +193,44 @@ test("Laptop's on: one 'all' job plus a check per store", () => {
   assert.strictEqual(open.filter((j) => j.kind === 'check').length, 4);
   assert.ok(!b.call({ action: 'cartJob', pass: PASS, by: 'Kim', store: 'ALL', kind: 'all' }).ok, 'kids can’t start it');
 });
+
+test('store options: option rows never become what we buy; which cards and picks (api 51)', () => {
+  const t = require('./fixture').tabs();
+  t.Items.push(require('./fixture').H.Items.map((h) => ({ id: 'i007', name: 'To-go coffee cups', store: 'TGT', group: 'Paper & cleaning', status: 'Sometimes', notes: 'Added in app by Pat' })[h] || ''));
+  t.Products.push(['i007', 'TGT', 'Compostable Hot Cups with Lids - 16oz/12ct - up&up', '16 oz, 12 ct', '', 'likely', 'test', '', '', '', 4.49, 0.37, 'ct', "'2026-11-04", '', '']);
+  t.Products.push(['i007', 'TGT', 'Dixie To Go Disposable Hot Cups & Lids - 16oz', '16 oz', '', 'option', 'options 2026-11-05', '', '', '', 6.39, 0.36, 'ct', "'2026-11-05", '', '18 ct']);
+  t.Products.push(['i007', 'TGT', 'Dixie To Go Disposable Hot Cups & Lids - 12oz', '12 oz', '', 'option', 'options 2026-11-05', '', '', '', 5.99, 0.23, 'ct', "'2026-11-05", '', '26 ct']);
+  t.Products.push(['i005', 'GE', 'Kerrygold Butter', '8 oz', '', 'option', 'options 2026-11-05', '', '', '', 4.99, 0.62, 'oz', "'2026-11-05", '', '']);
+  t.Settings.push(['options_new', 'Y']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  let s = b.call({ action: 'state', pass: PASS, by: 'Pat' }).state;
+  // An option alone is never what we buy; the guess stays until someone picks.
+  assert.ok(!(s.products.i005 && s.products.i005.GE), 'option row is not what we buy');
+  assert.match(s.products.i007.TGT.name, /up&up/);
+  // One card for the cups (the guess + 2 options); butter has only one choice, so no card.
+  const cards = s.review.filter((r) => r.type === 'which');
+  assert.strictEqual(cards.length, 1);
+  assert.strictEqual(cards[0].audience, 'Pat');
+  assert.match(cards[0].detail, /Which To-go coffee cups at Target\? \(i007\) Options: .*what we buy now; Dixie .*; None of these$/);
+  assert.ok(!/options_new', 'Y'/.test(JSON.stringify(rows(b, 'Settings'))));
+  // Asking again doesn't repeat it.
+  b.call({ action: 'state', pass: PASS, by: 'Pat' });
+  assert.strictEqual(rows(b, 'Review').filter((r) => r[2] === 'which').length, 1);
+  // A kid's answer changes nothing; a parent's picks the 16 oz Dixie.
+  const label = cards[0].detail.split('Options: ')[1].split('; ').find((x) => /12oz/.test(x) === false && /^Dixie/.test(x));
+  let r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: cards[0].id, answer: label + ' (Kim)' });
+  assert.strictEqual(r.result.which, null);
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: cards[0].id, answer: label + ' (Pat)' });
+  assert.strictEqual(r.result.which.product, 'Dixie To Go Disposable Hot Cups & Lids - 16oz');
+  assert.strictEqual(r.state.products.i007.TGT.name, 'Dixie To Go Disposable Hot Cups & Lids - 16oz');
+  const p = rows(b, 'Products');
+  assert.strictEqual(p.find((x) => /up&up/.test(x[2]))[5], 'alt');
+  // Item screen: every product we know, the current one marked; Use this switches back.
+  const info = b.call({ action: 'itemInfo', pass: PASS, by: 'Pat', item_id: 'i007' }).result;
+  assert.strictEqual(info.products.length, 3);
+  assert.strictEqual(info.products.filter((x) => x.current).length, 1);
+  assert.match(b.call({ action: 'productPick', pass: PASS, by: 'Kim', item_id: 'i007', store: 'TGT', product: 'x' }).error, /parent/);
+  r = b.call({ action: 'productPick', pass: PASS, by: 'Sam', item_id: 'i007', store: 'TGT', product: 'Compostable Hot Cups with Lids - 16oz/12ct - up&up' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.match(r.state.products.i007.TGT.name, /up&up/);
+});

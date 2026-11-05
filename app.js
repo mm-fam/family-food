@@ -717,6 +717,7 @@
 
   // Sold by the pound (api 45): qty is pounds, in ½ lb steps.
   const canV45 = () => Number(D().api || 0) >= 45;
+  const canOptions = () => Number(D().api || 0) >= 51; // store options + Which one? cards + Use this
   const canV46 = () => Number(D().api || 0) >= 46; // substitution rules + backups
   const byLb = (itemId) => { const it = itemId && itemById(itemId); return !!(it && canV45() && it.sold_by === 'lb'); };
   const lbText = (q) => { const n = Number(q) || 0.5; return (n % 1 ? String(n).replace(/\.5$/, '½').replace(/^0½/, '½') : String(n)) + ' lb'; };
@@ -1456,6 +1457,26 @@
         }
         return b;
       });
+    }
+
+    // Options at the store (api 51, Nov 4, owner: "a better way of understanding what options we have at these
+    // stores"): every product Poppy has seen for this item, per store, from the cart runner's lookups, receipts and
+    // carts. ✓ = what we buy there; a parent's Use this makes another one what the next cart build adds.
+    const ip = canOptions() && sh.info && Array.isArray(sh.info.products) ? sh.info.products : [];
+    const optStores = CART_STORES.filter((k) => ip.filter((p) => p.store === k).length > 1 || ip.some((p) => p.store === k && p.match === 'option'));
+    if (optStores.length) {
+      const nAt = optStores.map((k) => ip.filter((p) => p.store === k).length + ' at ' + storeOf(k).name).join(' · ');
+      more += acc('opts', 'Options at the store', esc(nAt), () => optStores.map((k) => {
+        const rows = ip.map((p, i) => Object.assign({ i: i }, p)).filter((p) => p.store === k)
+          .sort((a, b) => (b.current - a.current) || ((Number(a.unit_price) || 1e9) - (Number(b.unit_price) || 1e9))).slice(0, 6);
+        return '<div class="opt-store"><span class="store-dot ' + storeOf(k).cls + '"></span><b>' + esc(storeOf(k).name) + '</b></div>' + rows.map((p) => {
+          const n = packCount(p.pack) || packCount(p.name) || packCount(p.size);
+          return '<div class="buy-row opt-row' + (p.current ? ' best' : '') + '"><div class="buy-main"><div>' + esc(p.name) + '</div><small>' +
+            [sizeIfNew(p.name, p.size), n ? '📦 ' + n + ' ct' : '', p.current ? '✓ What we buy' : p.match === 'option' ? 'Seen ' + esc(fmtShort(p.price_at) || 'lately') : p.match === 'alt' ? 'Bought before / backup' : ''].filter(Boolean).map(esc).join(' · ') + '</small></div>' +
+            '<span class="price-val">' + (Number(p.price) > 0 ? '<b>' + money(p.price) + '</b>' : '') + (hasPrice(p) ? '<small>' + fmtUnit(p) + '</small>' : '') +
+            (!p.current && amParent() ? '<button class="btn btn-outline btn-small" data-act="opt-use" data-i="' + p.i + '">Use this</button>' : '') + '</span></div>';
+        }).join('');
+      }).join('') + '<p class="note">Claude looks these up at the store for new items. Use this = the next cart build adds that one.</p>');
     }
 
     if (it) {
@@ -2517,7 +2538,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still' || (t === 'vote' && voteTiming(r) === 'after')) return 'rate'; // api 35: a vote right after the meal
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed', 'which'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }
@@ -3409,6 +3430,16 @@
       o[k] = !o[k]; render();
       const acc = o[k] && document.querySelector('.is-acc-head[data-k="' + k + '"]');
       if (acc && acc.parentNode.scrollIntoView) acc.parentNode.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    },
+    'opt-use': (el) => {
+      const sh = S.sheet;
+      const p = sh && sh.info && sh.info.products && sh.info.products[Number(el.dataset.i)];
+      if (!p) return;
+      act('productPick', { item_id: sh.item_id, store: p.store, product: p.name }, () => {
+        sh.info.products.forEach((x) => { if (x.store === p.store) x.current = x === p; });
+        const pr = (D().products = D().products || {})[sh.item_id] = (D().products || {})[sh.item_id] || {};
+        pr[p.store] = Object.assign({}, pr[p.store] || {}, { name: p.name, size: p.size, price: p.price, unit_price: p.unit_price, unit: p.unit, price_at: p.price_at, pack: p.pack, match: 'exact' });
+      }, 'Next ' + storeOf(p.store).name + ' cart gets: ' + p.name);
     },
     'is-edit': () => {
       const o = S.sheet.open || (S.sheet.open = {});

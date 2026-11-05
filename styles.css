@@ -961,3 +961,10 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .back-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 10px; padding: 12px 14px;
   font: inherit; font-size: 17px; font-weight: 600; color: var(--accent-deep); background: var(--accent-soft); border: 0; border-radius: 12px; cursor: pointer; text-align: left; }
 .back-bar .bb-chev { font-size: 26px; line-height: 1; margin-top: -3px; }
+
+/* Options at the store (api 51) */
+.opt-store { display: flex; align-items: center; gap: 6px; margin: 10px 0 2px; font-size: 14px; }
+.opt-store:first-child { margin-top: 0; }
+.buy-row.opt-row { grid-template-columns: 1fr auto; }
+.opt-row .buy-main > div { line-height: 1.3; }
+.opt-row .btn-small { margin-top: 6px; padding: 5px 10px; font-size: 13px; min-height: 0; }

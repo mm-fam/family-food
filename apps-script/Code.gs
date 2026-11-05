@@ -262,10 +262,17 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      30 minutes"): cartJob {store: 'ALL', kind: 'all'} queues one `all` job plus a cart `check` per store. The runner
 //      then does, within ~30 min: waiting cart changes, sign-ins, every cart re-read, order history for all stores and
 //      the price pass, even if the daily passes already ran today.
-const API_VERSION = 50;
+// 51 = store options (Nov 4, owner: "a better way of understanding what options we have at these stores"): Products
+//      match `option` = a real product the cart runner saw at that store for an item (size, count, price), not bought
+//      yet; never "what we buy" until someone picks it. The runner looks up 3–4 options for new items (and List items
+//      with no exact product) and sets Settings `options_new`; the next state call turns them into one `which` card
+//      per item + store ("Which … at Target?", to the parent who added it, else the parents). The answer, or
+//      productPick {item_id, store, product} from the item screen, makes that product `exact` (other exact / likely
+//      rows there become `alt`). itemInfo returns `products`: every store product we know for the item.
+const API_VERSION = 51;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
-  'mealRequest', 'useSoon', 'feedback', 'voiceAdd'];
+  'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick'];
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
@@ -339,6 +346,7 @@ function handle(req) {
     useSoon: () => withLock(() => useSoonAction(req)),
     feedback: () => withLock(() => addFeedback(req)),
     voiceAdd: () => withLock(() => voiceAdd(req)),
+    productPick: () => withLock(() => productPick(req)),
   };
   const fn = actions[req.action];
   if (!fn) return reply({ ok: false, error: 'unknown_action' });
@@ -521,6 +529,7 @@ function getState() {
   TIMING_ = {};
   try {
     timed('dailyCards', dailyCards); // may write (first open of the day), so it runs before the read cache
+    timed('whichCards', whichCards); // api 51: only does anything when the runner set Settings options_new
     READ_CACHE_ = {};
     const st = buildState();
     TIMING_.total = Date.now() - t0;
@@ -679,6 +688,7 @@ function productsMap() {
   });
   readTab(TABS.products).forEach((p) => {
     if (!p.item_id || !p.store) return;
+    if (String(p.match) === 'option') return; // api 51: seen at the store, not picked yet
     const k = p.item_id + '|' + p.store;
     if (Number(p.backup) > 0) (bk[k] = bk[k] || []).push(p);
     const r = rank[String(p.match)] === undefined ? 3 : rank[String(p.match)];
@@ -1469,7 +1479,131 @@ function answerReview(req) {
   const best = r.type === 'bestprice' ? bestPriceAnswer(r, answer, who) : null;
   const voice = r.type === 'voice' ? voiceAnswer(r, answer, who) : null;
   const subbed = r.type === 'subbed' ? subbedAnswer(r, answer, who) : null;
-  return { id: r.id, points: pts, why: why, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed };
+  const which = r.type === 'which' ? whichAnswer(r, answer, who) : null;
+  return { id: r.id, points: pts, why: why, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which };
+}
+
+// api 51: store options. Every Products row we know for one item, for the item screen's "Options at the store":
+// [{store, name, size, price, unit_price, unit, pack, match, price_at, current}], current = what we buy there now.
+function itemProducts(id) {
+  if (!tab(TABS.products)) return [];
+  const cur = productsMap()[id] || {};
+  const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? '' : Number(v));
+  const day = (v) => (v instanceof Date ? isoDate(v) : String(v || '').slice(0, 10));
+  const seen = {};
+  return readTab(TABS.products).filter((p) => p.item_id === id && p.store && p.product).map((p) => ({
+    store: String(p.store), name: String(p.product), size: String(p.size || ''), price: num(p.price), unit_price: num(p.unit_price),
+    unit: String(p.unit || ''), pack: String(p.pack || ''), match: String(p.match || ''), price_at: day(p.price_at),
+    current: !!(cur[p.store] && cur[p.store].name === String(p.product)),
+  })).filter((p) => { const k = p.store + '|' + p.name; if (seen[k]) return false; seen[k] = true; return true; });
+}
+
+// A product name as a card choice: no ";" (it splits options), no trailing "(…)" (answers end with "(Name)").
+function optionName(s) { return String(s || '').replace(/;/g, ',').replace(/[()]/g, '').replace(/\s+/g, ' ').trim(); }
+function optionLabel(p, isCurrent) {
+  const name = optionName(p.product);
+  const size = String(p.size || '').trim();
+  const price = Number(p.price) > 0 ? '$' + Number(p.price).toFixed(2) : '';
+  const up = Number(p.unit_price) > 0 && p.unit ? (p.unit === 'ct' ? '$' + Number(p.unit_price).toFixed(2) + ' each' : '$' + Number(p.unit_price).toFixed(2) + '/' + p.unit) : '';
+  const bits = [name];
+  if (size && name.toLowerCase().indexOf(size.toLowerCase().replace(/\s+/g, '')) < 0 && name.toLowerCase().indexOf(size.toLowerCase()) < 0) bits.push(optionName(size));
+  const pack = String(p.pack || '').trim();
+  if (pack && (name + ' ' + size).toLowerCase().replace(/\s+/g, '').indexOf(pack.toLowerCase().replace(/\s+/g, '')) < 0) bits.push(optionName(pack));
+  if (price) bits.push(price + (up ? ', ' + up : ''));
+  if (isCurrent) bits.push('what we buy now');
+  return bits.join(' · ');
+}
+
+// Make a store product what we buy for an item at that store: it becomes `exact`, other exact / likely rows
+// there become `alt` (noted), and any open `which` card for that item + store closes.
+function pickProduct(id, store, prow, who, why) {
+  const prods = readTab(TABS.products);
+  prods.filter((p) => p.item_id === id && p.store === store && p._row !== prow._row && (p.match === 'exact' || p.match === 'likely'))
+    .forEach((p) => setFields(TABS.products, p._row, { match: 'alt', notes: (String(p.notes || '') + '; was ' + p.match + ' until ' + isoDate(new Date())).replace(/^; /, '') }));
+  setFields(TABS.products, prow._row, { match: 'exact', notes: (String(prow.notes || '') + '; picked (' + who + ', ' + isoDate(new Date()) + ')').replace(/^; /, '') });
+  if (why !== 'card') {
+    readTab(TABS.review).filter((r) => r.type === 'which' && r.status === 'open' && String(r.detail).indexOf('(' + id + ')') >= 0 && String(r.detail).indexOf(' at ' + STORE_NAMES[store] + '?') >= 0)
+      .forEach((r) => { ensureColumn(TABS.review, 'outcome'); setFields(TABS.review, r._row, { status: 'closed', outcome: 'picked on the item screen (' + who + ')' }); });
+  }
+  return { item: id, store: store, product: String(prow.product) };
+}
+
+// productPick {item_id, store, product}: a parent taps "Use this" under Options at the store.
+function productPick(req) {
+  if (isKid(req.by)) throw new Error('Ask a parent to pick');
+  const id = String(req.item_id || ''), store = String(req.store || ''), name = String(req.product || '');
+  if (!id || JOB_STORES.indexOf(store) < 0 || !name) throw new Error('Missing item, store or product');
+  if (!tab(TABS.products)) throw new Error('No store products yet');
+  const prow = readTab(TABS.products).find((p) => p.item_id === id && p.store === store && String(p.product) === name);
+  if (!prow) throw new Error('That product isn’t saved for this item any more');
+  return pickProduct(id, store, prow, String(req.by), 'screen');
+}
+
+// The person to ask "Which one?": the parent who put it on the List (or added the item), else both parents.
+function whichAudience(item, list) {
+  const parents = people().filter((p) => !isKid(p));
+  const isParent = (n) => parents.map((x) => x.toLowerCase()).indexOf(String(n || '').toLowerCase()) >= 0;
+  const rows = list.filter((r) => r.item_id === item.id && r.added_by).sort((a, b) => (String(a.added_at) < String(b.added_at) ? 1 : -1));
+  const adder = (rows[0] && rows[0].added_by) || (String(item.notes || '').match(/Added in app by (\w+)/) || [])[1];
+  const found = adder && parents.find((p) => p.toLowerCase() === String(adder).toLowerCase());
+  return isParent(adder) && found ? found : 'parents';
+}
+
+// api 51: one "Which … at <store>?" card per item + store that has `option` rows and hasn't been asked. Runs on any
+// state call, but only after the cart runner set Settings options_new (so polling costs one small read).
+const WHICH_PER_RUN = 3, WHICH_MAX_CHOICES = 5;
+function whichCards() {
+  const st = settingsMap();
+  if (!String(st.options_new || '').trim()) return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    if (!String(settingsMap().options_new || '').trim() || !tab(TABS.products)) return;
+    const review = readTab(TABS.review);
+    const items = readTab(TABS.items);
+    const list = readTab(TABS.list);
+    const prods = readTab(TABS.products);
+    const cur = productsMap();
+    const asked = (id, store) => review.some((r) => r.type === 'which' && String(r.detail).indexOf('(' + id + ')') >= 0 && String(r.detail).indexOf(' at ' + STORE_NAMES[store] + '?') >= 0);
+    const groups = {};
+    prods.forEach((p) => { if (String(p.match) === 'option' && p.item_id && JOB_STORES.indexOf(p.store) >= 0) (groups[p.item_id + '|' + p.store] = groups[p.item_id + '|' + p.store] || []).push(p); });
+    let n = nextIdNum(review), made = 0, left = 0;
+    Object.keys(groups).forEach((k) => {
+      const id = k.split('|')[0], store = k.split('|')[1];
+      const it = items.find((x) => x.id === id);
+      if (!it || it.status === 'Drop' || asked(id, store)) return;
+      if (made >= WHICH_PER_RUN) { left++; return; }
+      const now = cur[id] && cur[id][store] && prods.find((p) => p.item_id === id && p.store === store && String(p.product) === cur[id][store].name);
+      const seen = {};
+      const choices = (now ? [now] : []).concat(groups[k]).filter((p) => { const x = optionName(p.product).toLowerCase(); if (seen[x]) return false; seen[x] = true; return true; }).slice(0, WHICH_MAX_CHOICES);
+      if (choices.length < 2) return;
+      ensureColumn(TABS.review, 'audience');
+      appendObj(TABS.review, { id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), status: 'open', answer: '', type: 'which', audience: whichAudience(it, list),
+        detail: '🔎 Which ' + it.name + ' at ' + STORE_NAMES[store] + '? (' + id + ') Options: ' + choices.map((p) => optionLabel(p, p === now)).join('; ') + '; None of these' });
+      review.push({ type: 'which', detail: '(' + id + ') at ' + STORE_NAMES[store] + '?' });
+      made++;
+    });
+    if (!left) setSetting('options_new', '');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// "Which … at <store>?" answered: that product becomes what we buy there. "None of these" → nothing changes; the
+// morning check reads the card and asks what to look for instead.
+function whichAnswer(r, answer, who) {
+  if (isKid(who)) return null;
+  const id = (String(r.detail).match(/\((i\d{3,})\)/) || [])[1];
+  const store = JOB_STORES.find((k) => String(r.detail).indexOf(' at ' + STORE_NAMES[k] + '?') >= 0);
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim();
+  if (!id || !store || !a || /^skip$/i.test(a)) return null;
+  if (/^none of these/i.test(a)) return { item: id, store: store, none: true };
+  if (!tab(TABS.products)) return null;
+  const rows = readTab(TABS.products).filter((p) => p.item_id === id && p.store === store && optionName(p.product))
+    .filter((p) => a.toLowerCase().indexOf(optionName(p.product).toLowerCase()) === 0)
+    .sort((x, y) => optionName(y.product).length - optionName(x.product).length);
+  if (!rows.length) return { item: id, store: store, found: false };
+  return pickProduct(id, store, rows[0], who, 'card');
 }
 
 // api 46: "The store sent X instead of Y. Next time?" → the item's substitution rule. A parent's answer only.
@@ -2155,7 +2289,7 @@ function itemInfo(req) {
     .filter((r) => String(r.detail).indexOf(tag) >= 0 && String(r.answer || '').trim() && String(r.answer).indexOf('skip') !== 0)
     .slice(-5).reverse()
     .map((r) => ({ q: String(r.detail).replace(/\s*Options:[\s\S]*$/, '').replace(/\s*\(i\d{3,}\)/g, ''), answer: String(r.answer) }));
-  return { item_id: id, purchases: purchases, stock: stock, answers: answers };
+  return { item_id: id, purchases: purchases, stock: stock, answers: answers, products: itemProducts(id) };
 }
 
 // "We have some" from the item screen when it isn't on the List: just log the sighting.
