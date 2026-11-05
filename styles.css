@@ -441,6 +441,12 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .is-list li { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; padding: 5px 0; border-top: 1px dashed var(--line-soft); }
 .is-notes { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; gap: 4px; }
 .is-notes .q { color: var(--muted); }
+.vote-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.vote-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; font-size: 15px; border-bottom: 1px solid var(--line-soft); }
+.vote-list li:last-child { border-bottom: 0; }
+.vote-list .vote-who { font-weight: 600; }
+.vote-list .vote-emoji { font-size: 18px; vertical-align: -2px; }
+.vote-list li.none .vote-what { color: var(--muted); font-size: 14px; }
 .is-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 0 2px; border: 0; border-top: 1px solid var(--line-soft);
   background: transparent; font-size: 14px; font-weight: 600; color: var(--ink); text-align: left; }
 .is-details { display: flex; flex-direction: column; gap: 12px; }

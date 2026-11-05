@@ -2172,6 +2172,26 @@
   }
 
   // The meal card: plan it on a night, its ingredients, its stats, edit.
+  // Who voted what (Nov 4, owner): one row per person on the meal card, latest vote from vote / rate cards.
+  const VOTE_LABEL = { '😍': 'Love it', '🙂': 'Like it', '😐': "It's OK", '👎': 'Not for me' };
+  function mealVotesBlock(m) {
+    if (!canStats()) return '';
+    const st = statOf(m.id) || { voters: {} };
+    const voters = st.voters || {};
+    const lower = (x) => String(x).toLowerCase();
+    const fam = (D().settings.parents || []).concat(D().settings.kids || []);
+    const names = fam.concat(Object.keys(voters).filter((w) => fam.map(lower).indexOf(lower(w)) < 0 && w !== '?'));
+    const voteOf = (n) => voters[Object.keys(voters).find((w) => lower(w) === lower(n))];
+    const n = names.filter(voteOf).length;
+    return '<div class="is-block"><div class="is-label">Family votes' + (n ? ' · ★ ' + Number(st.score).toFixed(1) : '') + '</div>' +
+      '<ul class="vote-list">' + names.map((p) => {
+        const v = voteOf(p);
+        return '<li class="' + (v ? '' : 'none') + '"><span class="vote-who">' + esc(p) + '</span><span class="vote-what">' + (v ? '<span class="vote-emoji">' + v + '</span> ' + esc(VOTE_LABEL[v] || '') : 'No vote yet') + '</span></li>';
+      }).join('') + '</ul>' +
+      (st.matchups ? '<p class="note">Won ' + (st.wins || 0) + ' of ' + st.matchups + ' head-to-heads.</p>' : '') +
+      (!n ? '<p class="note">Votes come from the Inbox dinner votes and How was it? cards.</p>' : '') + '</div>';
+  }
+
   function viewMealCard(sh) {
     const m = mealById(sh.id);
     if (!m) return '<p class="note">That meal is gone.</p>';
@@ -2210,6 +2230,8 @@
           '<b>' + (d === D().today ? 'Today' : dayName(d)) + '</b><small>' + (mine ? '✓' : other ? esc(other.name) : md(d)) + '</small></button>';
       }).join('') + '</div></div>').join('') +
       '<p class="note">Tap a ' + (slot === 'dinner' ? 'night' : 'day') + ' to plan it, tap again to take it off. One with something else on it gets swapped.</p></div>';
+
+    h += mealVotesBlock(m);
 
     const ids = mealItems(m).filter((id) => itemById(id));
     const need = ids.filter((id) => !listRowFor(id));
