@@ -832,7 +832,8 @@ function voiceAdd(req) {
   const bits = [];
   if (added.length) bits.push((kid ? 'Asked for ' : 'Added ') + voiceJoin(added) + (kid ? '. A parent will OK it.' : ' to the list.'));
   if (already.length) bits.push(voiceJoin(already) + (already.length > 1 ? ' were' : ' was') + ' already on the list.');
-  if (asked.length) bits.push('Not sure which ' + voiceJoin(asked) + ' you mean, so it’s a question in your Inbox.');
+  if (asked.length) bits.push('Which ' + voiceJoin(asked) + '? I put a question in your Inbox.');
+  if (unknown.length) bits.push(voiceJoin(unknown) + (unknown.length > 1 ? ' are' : ' is') + ' new to Poppy. Check your Inbox to add ' + (unknown.length > 1 ? 'them' : 'it') + '.');
   return { say: bits.join(' ') || 'Nothing to add.', added: added, already: already, asked: asked, unknown: unknown };
 }
 
