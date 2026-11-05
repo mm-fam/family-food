@@ -6,7 +6,9 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 
 ## 1. Receipt ingest
 
-**When:** daily scheduled task (once set up), or when Mike says "receipts came in".
+> **Emailed receipts are retired (Nov 4, owner).** Every store's own order history is the source now, read daily by the cart runner on the owner's computer (§13 steps 10–12: Giant Eagle, Whole Foods + Amazon, Target). The morning check no longer searches Gmail for receipts; it only does the freshness line below. The email how-to is kept here in case a store's history can't be read. Steps 2–7 under **Write it** (matching, new items, List rows, How was it? cards) still apply to order-history lines.
+
+**When:** only by hand now, if a store's order history can't be read.
 
 **Find the emails (Gmail).** Run these in parallel; one broad query misses things.
 - Giant Eagle itemized: subject `"Your Digital Receipt from"`. Senders seen: `receipts@info.gianteagle.com`, `curbside@info.gianteagle.com`. Order *confirmation* emails usually have only an estimated total. Skip those and wait for the digital receipt.
@@ -29,7 +31,7 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 
 **Report:** "<store> <date>: N lines, N matched, N new items, N questions, N list items cleared." Nothing else unless something broke.
 
-**Freshness line (every morning check):** read the newest Receipts date per store (the app gets the same as `state.freshness`). Add one report line only when something looks stale: Giant Eagle's newest is more than 10 days old while a GE cart was built or a GE order is likely ("🧾 Newest Giant Eagle purchase on file: Oct 18 (15 days). Is the cart helper's order-history pass running?"), or Settings `ge_orders_through` is more than 2 days old (the pass hasn't run). Whole Foods and Target come only from emails: mention them only if a parent said an order came and no receipt arrived. "Probably due", "Not lately" and Use soon all read these dates (plus List rows marked bought), so a stale source makes them wrong.
+**Freshness line (every morning check):** read the newest Receipts date per store (the app gets the same as `state.freshness`) and Settings `ge_orders_through`, `amz_orders_through`, `tgt_orders_through`. Add one report line only when something looks stale: a `*_orders_through` more than 2 days old ("🧾 Whole Foods / Amazon order history hasn't been read since Nov 3. Is the cart computer on?"), or a store whose newest purchase is more than 10 days old while a cart was built there. "Probably due", "Not lately" and Use soon all read these dates (plus List rows marked bought), so a stale source makes them wrong.
 
 ---
 
@@ -258,6 +260,20 @@ Setup (once): install Claude Code on the PC and sign in with the family's Claude
    **Growing the catalog (Mike, Nov 2):** Shop shows *items* (a family like "Chobani yogurt cups"); Products holds the exact store products under each item. A `GE site (no item yet)` product bought **once** stays as is (one-offs don't clutter Shop). When the same product (same sku) shows up **a second time**, the morning check gives it a home: an obvious flavor/size/brand variant of an existing item → a Products row on that item (`likely` if bought in the last 12 months, else `alt`; source `GE order history <date>`; notes "Bought N×; last <date>"; sku as text) and back-fill `item_id` on its Receipts rows; a clearly new kind of thing → a new Item (status `Sometimes`, notes "From GE order history (<date>)", J:M formulas copied down, K:L formatted yyyy-mm-dd) plus its Products row; unsure → a clarify card to Joni. Items whose newest buy is over a year old get a "Still buying …?" card to Joni instead of being assumed current.
    e. Then, as receipt ingest step 5: List rows `carted` with `cart` = GE and `cart_at` before the order's date whose item is in the order → `bought`, updated_at now, note "Giant Eagle order <date>". Leave `needed` rows alone (Did we get it? cards settle those).
    f. Set Settings `ge_orders_through` = today as text 'yyyy-mm-dd (add the row if missing). Report line only when something was added: "🧾 Giant Eagle order Nov 8: 41 lines (38 matched), 12 List rows bought".
+11. **Daily Whole Foods + Amazon order history** (Nov 4; replaces emailed receipts). Once a day, after step 10, when Settings `amz_orders_through` is blank or before today and Amazon is signed in. Read-only. WF and regular Amazon orders live in the same household Amazon account (the one the WF cart is in).
+   a. **Which orders:** Your Orders for this year (`/your-orders/orders?timeFilter=year-YYYY&startIndex=N`), newest first, until orders are older than 7 days before the newest WF/AMZ Receipts date. **The order list is encrypted in the page ("Siege"):** fetch the page HTML, put its body in a hidden `div` in an orders tab, and `eval` the inline `SiegeClientSideDecryption.decrypt…` scripts; after ~1.2 s the `.order-card` text gives date, total, order number and status. (Iframes and new-tab navigation broke this loop.)
+   b. **Skip** cancelled orders, orders already in Receipts (order_ref `WF <first 11 of order #>` / `AMZ <order #>`), and orders not yet delivered or picked up (they're read on a later day, so substitutions land correctly).
+   c. **Whole Foods lines** (every line; WF is groceries): in-store (`Purchased at Whole Foods`): `/gp/your-account/order-details?orderID=…` → plain HTML lines `Name $total Qty: N @ $unit each` / `Qty: 0.4 lb @ $x/lb`. Delivery: `/gp/css/summary/print.html?orderID=…` in a same-origin iframe, `innerText` after "Items in your order", lines `name ⇥ qty ⇥ weight ⇥ $total`; a "Replacement for: …" line means the replacement is what came. Receipts row per line: date (delivery/purchase date), `WF`, `WF <first 11 of order #>`, raw = product name, item_id = WF Products row with that exact product name (`exact` before `likely`), else blank; qty (weight items: 1); price = unit price `$0.00`; match `WF site`, or `WF site (no item yet)`. Unmatched products follow step 10's **Growing the catalog** rule (a second purchase gets a home; one-offs stay as they are).
+   d. **Regular Amazon lines: add-only rule.** The account also carries personal shopping (gifts, clothes, personal things). Take ONLY lines that match an existing Poppy item (an AMZ Products product name, or an Item name/alias the product clearly is). Skip everything else silently: no Receipts row, no new item, no Review card, no note. Matched → Receipts row (`AMZ`, `AMZ <order #>`, match `AMZ site`).
+   e. As step 10 e: List rows `carted` at WF/AMZ (or WF `needed` rows for a WF order) whose item is in the order → `bought`, updated_at now, note "Whole Foods order <date>" / "Amazon order <date>" (a placed order already counts as bought; rows already `bought` are left alone).
+   f. Set Settings `amz_orders_through` = today as text 'yyyy-mm-dd (add the row if missing). Report line only when something was added: "🧾 Whole Foods Nov 6: 18 lines (16 matched) · Amazon: 2 household lines".
+   Writing many rows: one pipe-delimited string per row into a scratch tab, split with `=ARRAYFORMULA(SPLIT(A1:A,"|",TRUE,FALSE))`, copyPaste PASTE_VALUES into Receipts, delete the scratch tab, then format the date column yyyy-mm-dd. javascript_tool output is cut at ~1,000 characters: write lines into a `<pre>` and read them with get_page_text.
+12. **Daily Target order history** (Nov 4). Once a day, after step 11, when Settings `tgt_orders_through` is blank or before today and Target is signed in. Read-only.
+   a. Open `target.com/orders` (online orders: Drive Up, Pickup, shipped) and `target.com/orders?type=instore` (in-store receipts on the account). Hook `window.fetch` before the list loads to capture the order-history and order-details API requests the page makes (Target's own `api.target.com/...order...` calls) and replay them, or read the order detail pages as text. **First run:** write what worked (request names, fields) into this step so later runs are quicker.
+   b. New orders = completed / picked up / delivered, not yet in Receipts (order_ref `TGT <order number>`; in-store: `TGT <receipt number>`).
+   c. Lines: household, paper, cleaning, personal care and food lines → Receipts (`TGT`, order_ref, raw = product name, item_id = TGT Products row by TCIN or exact name, else blank, qty, unit price, match `TGT site` / `TGT site (no item yet)`; Growing the catalog rule as step 10). Skip clothing, toys, gifts, seasonal decor and electronics silently.
+   d. List rows carted (or needed) at TGT whose item is in the order → `bought`, note "Target order <date>".
+   e. Set Settings `tgt_orders_through` = today. Report line only when something was added: "🧾 Target Nov 5: 7 lines (6 matched)".
 
 **Rules:** never check out, enter payment or change account settings; never sign in; never touch a cart that holds an order the family is in the middle of placing (ask in the push instead). Reports go only to the owner by push; the family sees the status in the app.
 
@@ -266,9 +282,9 @@ Setup (once): install Claude Code on the PC and sign in with the family's Claude
 One shortcut per phone, in the Shortcuts app. Siri asks "What do we need?" and reads back what was added.
 1. Shortcuts → **+** → name it **Add to Poppy**.
 2. **Ask for Input** (Text), prompt "What do we need?".
-3. **Get Contents of URL**: the `API_URL` from `config.js`; Method **POST**; Request Body **JSON** with text fields `action` = `voiceAdd`, `pass` = the family passcode, `by` = that phone's person (exactly as in Settings), `text` = *Provided Input*.
+3. **URL Encode** the input, then **Get Contents of URL** with Method **GET**: `<API_URL>?action=voiceAdd&by=<person, exactly as in Settings>&pass=<family passcode>&text=<URL-encoded input>` (POST + JSON body failed from Shortcuts). First run: tap **Always Allow** for the Google addresses.
 4. **Get Dictionary Value**: key `say` from *Contents of URL*.
-5. **Speak Text** (or **Show Result**): *Dictionary Value*.
+5. **Speak Text**: *Dictionary Value*. (Unsure matches come back as "Which sugar? I put a question in your Inbox."; see `voiceAdd` in docs/system.md.)
 Say "Hey Siri, Add to Poppy", then "milk, eggs and two avocados". An error comes back as `{ok:false, error}` and Siri says nothing; run the shortcut by hand to see it.
 
 
