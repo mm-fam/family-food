@@ -985,3 +985,6 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .recipe-bar { position: sticky; top: -1px; z-index: 2; display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 0; background: var(--card); }
 .recipe-tip { margin: 0 0 10px; }
 .recipe-page { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line-soft); margin: 0 0 12px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+/* api 53: 🥤 Mini fridge tag on drinks for the mini fridges */
+.fridge-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 2px; color: #0b6e99; background: rgba(11, 110, 153, 0.12); white-space: nowrap; }
+h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }

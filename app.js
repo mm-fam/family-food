@@ -749,6 +749,10 @@
     return s === 'Either' ? '' : '<span class="store-dot ' + storeOf(s).cls + '" title="Usually from ' + esc(storeOf(s).name) + '"></span>';
   }
 
+  // api 53: drinks for the mini fridges (Items.mini_fridge = Y) wear a small tag wherever they show.
+  const isFridge = (id) => { const it = itemById(id); return !!(it && /^y/i.test(String(it.mini_fridge || ''))); };
+  const fridgeTag = (id) => (isFridge(id) ? ' <span class="fridge-tag">🥤 Mini fridge</span>' : '');
+
   // Claude put it in a store's online cart (status carted; List.cart = store code, api 11).
   const cartStore = (r) => (r && r.status === 'carted' ? String(r.cart || r.store || '') : '');
   /* Carts by line (api 25, Nov 2): each List row knows where it stands with the online carts.
@@ -878,7 +882,7 @@
     const only = onlyAt(r) ? storeMark(r) : '';
     const cart = cartTag(r);
     const price = r.status === 'needed' ? priceTag(r) : '';
-    return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + (only ? '' : storeMark(r)) + esc(r.name) + '</span>' +
+    return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + (only ? '' : storeMark(r)) + esc(r.name) + fridgeTag(r.item_id) + '</span>' +
       (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag || only || cart || price ? '<span class="tags">' + cart + only + tag + price + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
   }
 
@@ -892,7 +896,7 @@
     const btns = amParent()
       ? '<button class="btn btn-primary" data-act="approve" data-id="' + r.id + '">Approve</button><button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Skip</button>'
       : (iWant(r) ? '<button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Cancel</button>' : '');
-    return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + '</span>' +
+    return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + fridgeTag(r.item_id) + '</span>' +
       '<span class="row-meta">' + ['asked by ' + esc(wantedBy(r).join(' + '))].concat(rowMeta(r)).join(' · ') + '</span>' +
       (mealTag(r) ? '<span class="tags">' + mealTag(r) + '</span>' : '') + '</button>' + btns + '</div>';
   }
@@ -1143,7 +1147,7 @@
         if (r.status === 'carted') meta.unshift('in the ' + esc(storeOf(cartStore(r) || r.store).name) + ' online cart');
         return '<button class="row shop-row' + (x.done ? ' done' : '') + '" data-act="' + (x.done ? 'store-uncheck' : 'store-check') + '" data-id="' + r.id + '" aria-pressed="' + x.done + '">' +
           '<span class="check' + (x.done ? ' on' : '') + '" aria-hidden="true">' + (x.done ? '✓' : '') + '</span>' +
-          '<span class="row-main"><span class="row-name">' + esc(r.name) + '</span>' + (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') +
+          '<span class="row-main"><span class="row-name">' + esc(r.name) + fridgeTag(r.item_id) + '</span>' + (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') +
           (mealTag(r) && !x.done ? '<span class="tags">' + mealTag(r) + '</span>' : '') + '</span>' +
           (wantedBy(r).length > 1 && !x.done ? whoHtml(r) : '') + '</button>';
       }).join('') + '</section>';
@@ -1152,7 +1156,7 @@
       const c = isClosed('cart');
       html += '<section class="card in-cart"><button class="card-head acc-head" data-act="fold" data-key="cart" aria-expanded="' + !c + '"><span>🛒 IN THE CART · ' + cart.length + '</span>' + chev(c) + '</button>' +
         (c ? '<button class="peek" data-act="fold" data-key="cart">' + esc(cart.slice(-8).reverse().map((r) => r.name).join(', ')) + (cart.length > 8 ? '…' : '') + '</button>'
-          : cart.slice().reverse().map((r) => '<div class="row"><button class="row-main" data-act="open-item" data-id="' + esc(r.item_id) + '"><span class="row-name">' + esc(r.name) + '</span>' +
+          : cart.slice().reverse().map((r) => '<div class="row"><button class="row-main" data-act="open-item" data-id="' + esc(r.item_id) + '"><span class="row-name">' + esc(r.name) + fridgeTag(r.item_id) + '</span>' +
             (Number(r.qty) > 1 ? '<span class="row-meta">×' + esc(r.qty) + '</span>' : '') + '</button></div>').join('')) + '</section>';
     }
     html += '<p class="hint">Tap an item to put it in the cart; it comes off the List. Everyone shopping sees the same cart. Put something in by mistake? Add it back from Shop. Tap Done when you check out.</p>';
@@ -1287,7 +1291,7 @@
       if (pkS) meta.push(packHtml(pkS));
       const stk = (D().stock || {})[i.id];
       if (stk) meta.push('at home: ' + esc(levelText(stk.level)) + ' (' + esc(daysAgo(stk.at)) + ')');
-      return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + i.id + '"><span class="row-name">' + esc(i.name) + '</span><span class="row-meta">' + meta.join(' · ') + '</span></button>' +
+      return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + i.id + '"><span class="row-name">' + esc(i.name) + fridgeTag(i.id) + '</span><span class="row-meta">' + meta.join(' · ') + '</span></button>' +
         (isDelivery(i.store) ? '<button class="add-btn dlv" data-act="open-item" data-id="' + i.id + '" aria-label="' + esc(i.name) + ' comes from ' + esc(storeOf(i.store).name) + '">🧊</button>'
           : on ? '<button class="add-btn on" data-act="open-item" data-id="' + i.id + '" aria-label="' + esc(i.name) + ' is on the list">✓</button>'
           : '<button class="add-btn" data-act="add-item" data-id="' + i.id + '" aria-label="Add ' + esc(i.name) + '">+</button>') + '</div>';
@@ -1330,12 +1334,13 @@
   const canInfo = () => Number(D().api || 0) >= 5;
   // api 9: store_only, kids' meal requests, app feedback, "How was it?" / "Still eating?" cards.
   const canV9 = () => Number(D().api || 0) >= 9;
+  const canFridge = () => Number(D().api || 0) >= 53;
 
   function openItemSheet(itemId, rowId, name) {
     const it = itemById(itemId);
     S.sheet = {
       type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
-      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}, canV45() ? { sold_by: it.sold_by === 'lb' ? 'lb' : '', spoken: String(it.aliases || '').split(';').map((x) => x.trim()).filter((x) => /[a-z]/.test(x)).join(', ') } : {}) : null,
+      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}, canFridge() ? { mini_fridge: isFridge(it.id) ? 'Y' : '' } : {}, canV45() ? { sold_by: it.sold_by === 'lb' ? 'lb' : '', spoken: String(it.aliases || '').split(';').map((x) => x.trim()).filter((x) => /[a-z]/.test(x)).join(', ') } : {}) : null,
     };
     render();
     if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
@@ -1361,7 +1366,7 @@
     // Store · aisle under the name (Nov 4, owner: "I went to the item to change it and couldn't"): for parents it's a
     // button that opens Details and scrolls to it, where store and aisle are edited. Kids see plain text.
     const subTxt = '<span class="store-dot ' + storeOf(storeCode).cls + '"></span>' + esc(storeOf(storeCode).name) + (it && it.group ? ' · ' + esc(it.group) : '');
-    let h = '<div class="is-head"><div><h2>' + esc(sh.name) + '</h2>' +
+    let h = '<div class="is-head"><div><h2>' + esc(sh.name) + (sh.item_id ? fridgeTag(sh.item_id) : '') + '</h2>' +
       (it && sh.d && !kid ? '<button type="button" class="is-sub is-sub-edit" data-act="is-edit" aria-label="Change store or aisle">' + subTxt + ' <span class="is-sub-pen">✎ change</span></button>' : '<div class="is-sub">' + subTxt + '</div>') + '</div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
       viewItemProduct(sh.item_id, storeCode, it); // not in the sticky head: it scrolls away
 
@@ -1527,6 +1532,7 @@
         return '<div class="is-details">' + (sh.fresh && !kid ? '<p class="note fresh-note">✨ New to Poppy. Fill in the brand and size, the aisle, where we get it and how it’s sold, so search, Siri and the carts get it right.</p>' : '') +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
+          (canFridge() ? '<div><label>Goes in the mini fridge?</label>' + seg('mini_fridge', [['', 'No'], ['Y', '🥤 Yes']]) + '</div>' : '') +
           (canV46() ? '<div><label>If the store is out of it</label>' + seg('ok_swap', [['Y', 'Let the store pick'], ['N', 'Don’t substitute'], ['', 'Ask me']]) + '<p class="note">Claude sets this on each line of the online cart. A backup we picked (shown under What we buy) comes first. Ask me = the store’s default, and you get a ⚖ Decisions card if it swaps something.</p></div>'
             : '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>') +
           (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +

@@ -257,3 +257,14 @@ test('vote from the meal card: latest vote wins, open card closes, no points (ap
   assert.ok(b.call({ action: 'mealVote', pass: PASS, by: 'Kim', meal_id: 'm99', vote: '😍' }).error);
   assert.ok(b.call({ action: 'mealVote', pass: PASS, by: 'Nobody', meal_id: 'm01', vote: '😍' }).error);
 });
+
+test('mini fridge tag: parents set Items mini_fridge, kids can’t (api 53)', () => {
+  const b = loadBackend(tabs(), { FAMILY_PASSCODE: PASS });
+  let r = b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i002', fields: { mini_fridge: 'yes' } });
+  assert.strictEqual(r.ok, true, r.error);
+  const it = r.state.items.find((x) => x.id === 'i002');
+  assert.strictEqual(it.mini_fridge, 'Y');
+  r = b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i002', fields: { mini_fridge: '' } });
+  assert.strictEqual(r.state.items.find((x) => x.id === 'i002').mini_fridge, '');
+  assert.ok(!b.call({ action: 'itemSave', pass: PASS, by: 'Kim', id: 'i002', fields: { mini_fridge: 'Y' } }).ok);
+});

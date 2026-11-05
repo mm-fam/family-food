@@ -273,7 +273,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      one… right there in that list"): mealVote {meal_id, vote: 😍/🙂/😐/👎} appends a closed Review `vote` row
 //      answered "<emoji> <label> (<name>)" with the meal id, so mealStats' latest-answer-per-person picks it up. No
 //      points (it isn't a card). Any open vote / rate card for that person and meal closes (outcome "voted on the meal card").
-const API_VERSION = 52;
+// 53 = mini fridge tag (Nov 4, owner: "all of these items get like a little mini fridge tag… when they're on our list or
+//      we're shopping for them"): Items `mini_fridge` (Y / blank, added at the end on first use); itemSave accepts it
+//      (parents only). The app shows 🥤 Mini fridge on List, request, In store, in-the-cart, Shop rows and the item screen.
+const API_VERSION = 53;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote'];
@@ -1148,7 +1151,7 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by', 'mini_fridge'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
   // api 45: sold by the pound (List qty in lb, ½ lb steps) or each (blank).
@@ -1160,6 +1163,8 @@ function saveItem(req) {
     f.aliases = codes.concat(said.filter((x, i) => said.indexOf(x) === i)).join(';');
   }
   if (f.best_price !== undefined) { f.best_price = /^y/i.test(String(f.best_price)) ? 'Y' : ''; ensureColumn(TABS.items, 'best_price'); }
+  // api 53: goes in the mini fridges (Y / blank). The app shows a 🥤 Mini fridge tag on the item everywhere.
+  if (f.mini_fridge !== undefined) { f.mini_fridge = /^y/i.test(String(f.mini_fridge)) ? 'Y' : ''; ensureColumn(TABS.items, 'mini_fridge'); }
   if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
   if (f.open_to_try !== undefined) { f.open_to_try = /^y/i.test(String(f.open_to_try)) ? 'Y' : ''; ensureColumn(TABS.items, 'open_to_try'); }
   if (f.shelf_days !== undefined) {

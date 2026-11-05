@@ -113,5 +113,7 @@ Seeded from 3 orders (1 GE, 2 WF): 91 items, 107 receipt lines. Open GE codes as
 - **Oct 31 2026:** MVP live and verified end to end in Chrome (wrong-passcode test only; no data written). owner is testing privately. **No emails or outreach to the family yet.**
 - Not yet done: Mom's UI feedback, Gmail auto-forward from Mom, daily receipt task, cart building.
 
+**Mini fridge tag (api 53):** Items `mini_fridge` (Y / blank; the backend adds the column the first time it's set). Drinks we stock in the two under-shelf mini fridges. Parents set it on the item screen → Details → "Goes in the mini fridge?"; the app shows a small 🥤 Mini fridge tag next to the name on List rows, kids' requests, In store, In the cart, Shop and the item screen. Beer is parents-only: never offered to the kids in cards.
+
 **Open to trying something else (api 29):** Items `open_to_try` (Y / blank; the backend adds the column the first time it's set). Parents set it on the item screen → Details → "Open to trying something else?". The cart runner's daily price pass then looks up 2–3 alternatives (other brands, then a store brand) at our stores as Products rows `alt` / source `try <date>` / notes `try option`; the morning check offers them to the parents as ⚖ Decisions cards (type `try`: Try it next order / Not this one / Stop suggesting). "Try it next order" puts a `Try: <product>` note on the List row, and the next cart build buys that product once. Nothing changes without a parent's yes; `declined` alternatives are never offered again (runbooks §2, §11 B1/B4, §13 step 9).
 
