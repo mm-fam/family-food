@@ -1,0 +1,116 @@
+{
+ "id": "m06",
+ "name": "🍕 Pepperoni Pizza Pasta Bake",
+ "kind": "dinner",
+ "tagline": "Everything good about pizza, baked into a bubbly pan of Rao's fusilli.",
+ "serves": "4, plus a lunch",
+ "prep": 15,
+ "cook": 30,
+ "level": "Easy weeknight",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1 lb",
+     "name": "Rao's fusilli",
+     "item": "i034"
+    },
+    {
+     "qty": "1 jar (24 oz)",
+     "name": "Rao's marinara",
+     "item": "i168"
+    },
+    {
+     "qty": "2½ cups",
+     "name": "Tillamook mozzarella, shredded",
+     "item": "i083"
+    },
+    {
+     "qty": "1 tray",
+     "name": "Creminelli pepperoni",
+     "item": "i015"
+    },
+    {
+     "qty": "½ cup",
+     "name": "Grated parmesan",
+     "item": "i100"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 tsp",
+     "name": "Dried oregano"
+    },
+    {
+     "qty": "½ tsp",
+     "name": "Garlic powder"
+    },
+    {
+     "qty": "",
+     "name": "Salt for the pasta water, olive oil"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Oven to 400°F. Boil a big pot of well-salted water."
+  },
+  {
+   "text": "Cook the fusilli 2 minutes less than the box says (it finishes in the oven). Save ½ cup pasta water, then drain.",
+   "time": "9 min"
+  },
+  {
+   "text": "Back in the pot, stir the pasta with the marinara, the pasta water, oregano, garlic powder, half the parmesan and 1 cup mozzarella.",
+   "kid": true
+  },
+  {
+   "text": "Pour into a 9×13 dish. Top with the rest of the mozzarella.",
+   "kid": true
+  },
+  {
+   "text": "Lay the pepperoni over the top and finish with parmesan.",
+   "kid": true
+  },
+  {
+   "text": "Bake until bubbling and the pepperoni curls and crisps.",
+   "time": "18–20 min"
+  },
+  {
+   "text": "Rest 5 minutes before scooping."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Stir the sauce and cheese into the pasta"
+  },
+  {
+   "job": "Spread the cheese over the top"
+  },
+  {
+   "job": "Make a pepperoni pattern on top"
+  },
+  {
+   "job": "Set a timer for the pasta and the bake"
+  }
+ ],
+ "chef_tip": "Underboil the pasta by 2 minutes and add a splash of pasta water. The noodles soak up sauce in the oven instead of turning mushy and dry.",
+ "make_ahead": "Assemble up to a day ahead, cover and refrigerate. Bake 30 minutes covered, 10 uncovered.",
+ "leftovers": "Reheats beautifully: microwave with a splash of water, or 15 minutes at 350°F.",
+ "swaps": [
+  "Any short pasta (i190)",
+  "Add sliced mini sweet peppers or mushrooms"
+ ],
+ "serve_with": "Garlic toast and a spring-mix salad",
+ "gear": [
+  "Big pot",
+  "Colander",
+  "9×13 baking dish"
+ ],
+ "heads_up": "Water on to boil and oven to 400°F.",
+ "draft": true
+}

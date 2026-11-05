@@ -1,0 +1,94 @@
+{
+ "id": "m32",
+ "name": "🥜 PB & Banana Toast",
+ "kind": "snack",
+ "tagline": "Toasty bread, peanut butter, banana coins and a honey-cinnamon finish.",
+ "serves": "4",
+ "prep": 5,
+ "cook": 3,
+ "level": "5-minute snack",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "4 slices",
+     "name": "Sandwich bread",
+     "item": "i161"
+    },
+    {
+     "qty": "¼ cup",
+     "name": "Peanut butter",
+     "item": "i326"
+    },
+    {
+     "qty": "2",
+     "name": "Bananas",
+     "item": "i001"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "drizzle",
+     "name": "Honey",
+     "item": "i126"
+    },
+    {
+     "qty": "pinch",
+     "name": "Cinnamon"
+    },
+    {
+     "qty": "",
+     "name": "Flaky salt (optional)"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Toast the bread.",
+   "kid": true
+  },
+  {
+   "text": "Spread peanut butter on while the toast is hot so it melts a little.",
+   "kid": true
+  },
+  {
+   "text": "Slice bananas into coins and line them up on top.",
+   "kid": true
+  },
+  {
+   "text": "Drizzle with honey and a pinch of cinnamon.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Run the toaster"
+  },
+  {
+   "job": "Spread the peanut butter"
+  },
+  {
+   "job": "Make a banana-coin pattern"
+  }
+ ],
+ "chef_tip": "Spread the peanut butter on hot toast and finish with a few flakes of salt. Sweet-salty is what makes it crave-worthy.",
+ "make_ahead": "",
+ "leftovers": "",
+ "swaps": [
+  "Brioche loaf (i162) for a treat",
+  "One Trick Pony peanut butter",
+  "Strawberries instead of banana"
+ ],
+ "serve_with": "A glass of milk",
+ "gear": [
+  "Toaster",
+  "Butter knife"
+ ],
+ "heads_up": "",
+ "draft": true
+}

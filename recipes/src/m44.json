@@ -1,0 +1,132 @@
+{
+ "id": "m44",
+ "name": "🥐 Cheeseburger Puff Pastry Pockets",
+ "kind": "dinner",
+ "tagline": "All the cheeseburger flavor sealed in golden, flaky puff pastry. Kids go nuts for these.",
+ "serves": "4 (8 pockets)",
+ "prep": 20,
+ "cook": 25,
+ "level": "Fun weeknight",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1 lb",
+     "name": "Ground beef",
+     "item": "i091"
+    },
+    {
+     "qty": "2 sheets",
+     "name": "Puff pastry, thawed",
+     "item": "i184"
+    },
+    {
+     "qty": "1½ cups",
+     "name": "Shredded cheddar",
+     "item": "i188"
+    },
+    {
+     "qty": "1 small",
+     "name": "Onion, finely diced",
+     "item": "i155"
+    },
+    {
+     "qty": "1",
+     "name": "Egg, for brushing",
+     "item": "i093"
+    },
+    {
+     "qty": "2 Tbsp",
+     "name": "Ketchup, plus more to dip",
+     "item": "i118"
+    },
+    {
+     "qty": "1 Tbsp",
+     "name": "Yellow mustard",
+     "item": "i117"
+    },
+    {
+     "qty": "4",
+     "name": "Dill pickle spears, chopped",
+     "item": "i289"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "",
+     "name": "Salt and pepper"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Garlic powder"
+    },
+    {
+     "qty": "",
+     "name": "Sesame seeds (optional)"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Heat the oven to 400°F. Line a sheet pan with parchment."
+  },
+  {
+   "text": "Brown the beef and onion over medium-high, breaking it up, 7 minutes. Drain the fat. Season with salt, pepper and garlic powder.",
+   "time": "8 min"
+  },
+  {
+   "text": "Off the heat, stir in ketchup, mustard and pickles. Cool 10 minutes, then stir in the cheese.",
+   "kid": true
+  },
+  {
+   "text": "Cut each pastry sheet into 4 squares. Spoon filling onto each, brush the edges with egg, fold into a triangle.",
+   "kid": true
+  },
+  {
+   "text": "Seal with a fork, cut a little slit on top, brush with egg and sprinkle sesame seeds.",
+   "kid": true
+  },
+  {
+   "text": "Bake 20–22 minutes until deep golden.",
+   "time": "22 min"
+  },
+  {
+   "text": "Cool 5 minutes (the filling is hot). Serve with ketchup and mustard for dipping."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Chop the pickles (with a grown-up)"
+  },
+  {
+   "job": "Fill and fold the pockets"
+  },
+  {
+   "job": "Fork-crimp the edges"
+  },
+  {
+   "job": "Brush on the egg and sesame seeds"
+  }
+ ],
+ "chef_tip": "Let the filling cool before it goes in the pastry and add the cheese last. Hot filling melts the pastry and the pockets leak.",
+ "make_ahead": "Assemble and freeze unbaked on a tray; bake from frozen at 400°F for 30 minutes.",
+ "leftovers": "Reheat at 375°F 10 minutes to keep them flaky; good cold in a lunch box too.",
+ "swaps": [
+  "Ground turkey",
+  "American cheese torn up instead of cheddar",
+  "Add crumbled bacon"
+ ],
+ "serve_with": "Sweet potato fries or a big salad",
+ "gear": [
+  "Sheet pan + parchment",
+  "Skillet",
+  "Pastry brush"
+ ],
+ "heads_up": "Thaw the puff pastry in the fridge the night before.",
+ "draft": true
+}

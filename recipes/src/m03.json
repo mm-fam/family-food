@@ -1,0 +1,135 @@
+{
+ "id": "m03",
+ "name": "🌶️ Cozy Cabin Chili",
+ "kind": "dinner",
+ "tagline": "A thick, beefy one-pot chili that tastes like it simmered all day in about 45 minutes.",
+ "serves": "4, plus a lunch",
+ "prep": 15,
+ "cook": 35,
+ "level": "Easy one-pot",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1½ lb",
+     "name": "Ground beef",
+     "item": "i091"
+    },
+    {
+     "qty": "2 cans",
+     "name": "Bush's chili beans (don't drain)",
+     "item": "i060"
+    },
+    {
+     "qty": "1 can (28 oz)",
+     "name": "Contadina diced tomatoes",
+     "item": "i176"
+    },
+    {
+     "qty": "1",
+     "name": "Onion, diced",
+     "item": "i155"
+    },
+    {
+     "qty": "3 cloves",
+     "name": "Garlic, minced",
+     "item": "i153"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Tillamook cheddar, grated",
+     "item": "i072"
+    },
+    {
+     "qty": "to serve",
+     "name": "Sour cream",
+     "item": "i159"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "2 Tbsp",
+     "name": "Chili powder"
+    },
+    {
+     "qty": "2 tsp",
+     "name": "Cumin"
+    },
+    {
+     "qty": "1 Tbsp",
+     "name": "Tomato paste or ketchup"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Brown sugar"
+    },
+    {
+     "qty": "",
+     "name": "Salt, pepper, oil"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Brown the beef in a big pot over medium-high, pressed flat, without stirring for 4 minutes. Then crumble and cook through.",
+   "time": "8 min"
+  },
+  {
+   "text": "Push the beef aside, add a splash of oil, the onion and a pinch of salt. Cook until soft.",
+   "time": "5 min"
+  },
+  {
+   "text": "Stir in garlic, chili powder, cumin and tomato paste. Cook 1 minute until it smells toasty."
+  },
+  {
+   "text": "Add the tomatoes, chili beans with their sauce, brown sugar and ½ cup water.",
+   "kid": true
+  },
+  {
+   "text": "Simmer uncovered, stirring now and then, until thick.",
+   "time": "25 min"
+  },
+  {
+   "text": "Taste: more salt, a pinch more sugar if it's sharp. Meanwhile grate the cheese and set out toppings.",
+   "kid": true
+  },
+  {
+   "text": "Ladle into bowls; top with cheddar and sour cream.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Open the cans and pour them in (grown-up does the can opener)"
+  },
+  {
+   "job": "Grate the cheddar"
+  },
+  {
+   "job": "Set up toppings: cheese, sour cream, chips"
+  },
+  {
+   "job": "Stir the pot with a long spoon (stand on a stool)"
+  }
+ ],
+ "chef_tip": "Toast the spices in the fat for a minute before the liquid goes in. It's the difference between dusty chili and deep, rich chili.",
+ "make_ahead": "Even better on day two. Cool, refrigerate up to 3 days or freeze up to 3 months.",
+ "leftovers": "Chili over a baked potato, or chili cheese nachos with tortilla chips.",
+ "swaps": [
+  "Ground turkey 94% for a lighter pot",
+  "Add a can of black beans to stretch it"
+ ],
+ "serve_with": "Tortilla chips, or cornbread from the Bisquick box",
+ "gear": [
+  "Big pot (Dutch oven)",
+  "Long wooden spoon",
+  "Grater"
+ ],
+ "heads_up": "Dice the onion first so it's ready when the beef is browned.",
+ "draft": true
+}

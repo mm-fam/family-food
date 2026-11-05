@@ -1,0 +1,113 @@
+{
+ "id": "m05",
+ "name": "🥩 Steakhouse Steak & Fries",
+ "kind": "dinner",
+ "tagline": "A hard-seared flat iron with garlic butter and crispy parmesan fries: steakhouse at home.",
+ "serves": "4",
+ "prep": 10,
+ "cook": 25,
+ "level": "Easy, big flavor",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "about 2 lb",
+     "name": "Flat iron steak",
+     "item": "i022"
+    },
+    {
+     "qty": "1 bag",
+     "name": "Alexia garlic parmesan crinkle fries",
+     "item": "i025"
+    },
+    {
+     "qty": "3 cloves",
+     "name": "Garlic, smashed",
+     "item": "i153"
+    },
+    {
+     "qty": "3 Tbsp",
+     "name": "Salted butter",
+     "item": "i082"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 Tbsp",
+     "name": "Vegetable or olive oil"
+    },
+    {
+     "qty": "",
+     "name": "Kosher salt and coarse black pepper"
+    },
+    {
+     "qty": "few sprigs",
+     "name": "Thyme or rosemary, if we have it"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Take the steak out 30 minutes early. Pat it very dry and salt it well on both sides.",
+   "time": "30 min"
+  },
+  {
+   "text": "Oven to the fries' temperature. Spread the fries in one layer on a sheet pan so they crisp.",
+   "kid": true
+  },
+  {
+   "text": "Bake the fries, flipping once.",
+   "time": "20 min"
+  },
+  {
+   "text": "With 12 minutes left on the fries, heat a cast-iron skillet over high until smoking. Add oil, then the steak. Don't move it for 4 minutes.",
+   "time": "4 min"
+  },
+  {
+   "text": "Flip, add butter, garlic and herbs. Tilt the pan and spoon the foaming butter over the steak until 130°F inside for medium-rare.",
+   "time": "3–5 min"
+  },
+  {
+   "text": "Rest the steak on a board 8 minutes. Pour the garlic butter over the top."
+  },
+  {
+   "text": "Slice thin against the grain. Season with pepper and serve with the fries.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Spread the fries out so no two touch"
+  },
+  {
+   "job": "Pat the steak dry with paper towels"
+  },
+  {
+   "job": "Read the meat thermometer and call the number"
+  },
+  {
+   "job": "Set the table and pour the drinks"
+  }
+ ],
+ "chef_tip": "Dry steak + a smoking-hot pan + don't touch it. Then let it rest 8 minutes. Skip the rest and the juice ends up on the board instead of in the steak.",
+ "make_ahead": "Salt the steak in the morning and leave it uncovered in the fridge: it seasons deeper and sears better.",
+ "leftovers": "Steak salad on spring mix, or steak and cheese on a demi baguette.",
+ "swaps": [
+  "Sirloin (i286) or ribeye (i430)",
+  "Potato puffs or sweet potato fries"
+ ],
+ "serve_with": "A Caesar salad kit or green beans",
+ "gear": [
+  "Cast-iron skillet",
+  "Sheet pan",
+  "Meat thermometer",
+  "Cutting board"
+ ],
+ "heads_up": "Steak out of the fridge 30 min before; turn the fan on, it'll smoke.",
+ "draft": true
+}

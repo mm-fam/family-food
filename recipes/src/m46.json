@@ -1,0 +1,130 @@
+{
+ "id": "m46",
+ "name": "🥞 Pancake PB&J Stack",
+ "kind": "breakfast",
+ "tagline": "Make a weekend batch of fluffy pancakes, then it's a 2-minute PB&J breakfast all week.",
+ "serves": "16 pancakes (4 breakfasts)",
+ "prep": 10,
+ "cook": 20,
+ "level": "Make ahead on the weekend",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1½ cups",
+     "name": "Fairlife whole milk",
+     "item": "i067"
+    },
+    {
+     "qty": "2",
+     "name": "Eggs",
+     "item": "i093"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Vanilla bean paste",
+     "item": "i271"
+    },
+    {
+     "qty": "to spread",
+     "name": "Peanut butter (One Trick Pony)"
+    },
+    {
+     "qty": "to spread",
+     "name": "Smucker's squeeze grape spread",
+     "item": "i260"
+    },
+    {
+     "qty": "1 (optional)",
+     "name": "Banana, sliced",
+     "item": "i001"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "2 cups",
+     "name": "Flour"
+    },
+    {
+     "qty": "2 Tbsp",
+     "name": "Sugar"
+    },
+    {
+     "qty": "1 Tbsp",
+     "name": "Baking powder"
+    },
+    {
+     "qty": "½ tsp",
+     "name": "Salt"
+    },
+    {
+     "qty": "4 Tbsp",
+     "name": "Butter, melted, plus more for the pan"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Whisk flour, sugar, baking powder and salt in a big bowl.",
+   "kid": true
+  },
+  {
+   "text": "In another bowl whisk milk, eggs, melted butter and vanilla.",
+   "kid": true
+  },
+  {
+   "text": "Pour wet into dry and stir just until combined. Lumps are good. Rest 5 minutes."
+  },
+  {
+   "text": "Heat a griddle or skillet over medium with a little butter. Pour ¼ cup per pancake.",
+   "time": "5 min"
+  },
+  {
+   "text": "Flip when bubbles pop and the edges look dry, about 2 minutes; cook 1 minute more.",
+   "time": "15 min"
+  },
+  {
+   "text": "Cool on a rack, then freeze in a bag with parchment between them."
+  },
+  {
+   "text": "Weekday: toast or microwave 2 pancakes 45 seconds. Spread PB on one, grape on the other, stack, add banana.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Measure and whisk the dry ingredients"
+  },
+  {
+   "job": "Crack and whisk the eggs"
+  },
+  {
+   "job": "Bag the cooled pancakes for the freezer"
+  },
+  {
+   "job": "Build your own PB&J stack on school mornings"
+  }
+ ],
+ "chef_tip": "Stop stirring while the batter is still lumpy. Over-mixing makes pancakes tough; lumps make them fluffy.",
+ "make_ahead": "That's the whole point: pancakes freeze up to 2 months. Reheat in the toaster.",
+ "leftovers": "Frozen pancakes are lunch-box friendly too.",
+ "swaps": [
+  "Bisquick (i185) for the dry mix",
+  "Bonne Maman preserves or strawberry jam",
+  "Jif crunchy if we're out"
+ ],
+ "serve_with": "Fruit and a glass of milk",
+ "gear": [
+  "Griddle or big skillet",
+  "2 bowls",
+  "Whisk",
+  "Cooling rack"
+ ],
+ "heads_up": "Melt the butter first so it can cool a bit.",
+ "draft": true
+}

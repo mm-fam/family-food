@@ -1,0 +1,104 @@
+{
+ "id": "m15",
+ "name": "🍲 Soup & Sammie Night",
+ "kind": "dinner",
+ "tagline": "Crispy, gooey turkey and cheddar melts dunked in hot soup: the coziest 20-minute dinner.",
+ "serves": "4",
+ "prep": 5,
+ "cook": 15,
+ "level": "20-minute dinner",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "2 cans",
+     "name": "Soup (tomato or chicken noodle)",
+     "item": "i169"
+    },
+    {
+     "qty": "8 slices",
+     "name": "Sandwich bread",
+     "item": "i161"
+    },
+    {
+     "qty": "½ lb",
+     "name": "Peppered turkey, sliced",
+     "item": "i045"
+    },
+    {
+     "qty": "8 slices",
+     "name": "Extra sharp cheddar, sliced",
+     "item": "i080"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "3 Tbsp",
+     "name": "Soft butter (or mayo for extra crisp)"
+    },
+    {
+     "qty": "",
+     "name": "Pepper, a pinch of parmesan for the soup"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Warm the soup in a pot over medium-low, stirring now and then.",
+   "time": "10 min"
+  },
+  {
+   "text": "Butter one side of every bread slice.",
+   "kid": true
+  },
+  {
+   "text": "Build: buttered side out, a slice of cheese, turkey, another slice of cheese.",
+   "kid": true
+  },
+  {
+   "text": "Cook in a skillet over medium-low with a lid on, until golden and the cheese melts.",
+   "time": "3–4 min/side"
+  },
+  {
+   "text": "Cut into triangles or strips for dunking.",
+   "kid": true
+  },
+  {
+   "text": "Ladle the soup and serve right away."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Butter the bread to the edges"
+  },
+  {
+   "job": "Build the sandwiches"
+  },
+  {
+   "job": "Stir the soup"
+  },
+  {
+   "job": "Cut dunkers with a butter knife"
+  }
+ ],
+ "chef_tip": "Medium-low heat and a lid. High heat burns the bread before the cheese melts; low and covered gets it golden and gooey.",
+ "make_ahead": "Nothing to make ahead: this is the night you didn't plan.",
+ "leftovers": "Soup keeps 3 days; sandwiches are best made fresh.",
+ "swaps": [
+  "Whole Foods refrigerated soup (i394) for a step up",
+  "Deli ham or oven roasted turkey"
+ ],
+ "serve_with": "Pickles and apple slices",
+ "gear": [
+  "Pot",
+  "Big skillet with a lid",
+  "Spatula"
+ ],
+ "heads_up": "Soup on low first.",
+ "draft": true
+}

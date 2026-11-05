@@ -1,0 +1,114 @@
+{
+ "id": "m21",
+ "name": "🥚 Veggie & Cheese Omelets",
+ "kind": "breakfast",
+ "tagline": "One big skillet omelet you slice into wedges: no flipping four separate omelets.",
+ "serves": "4",
+ "prep": 8,
+ "cook": 12,
+ "level": "Easy weekend breakfast",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "10",
+     "name": "Eggs, pasture-raised",
+     "item": "i093"
+    },
+    {
+     "qty": "1",
+     "name": "Bell pepper, diced",
+     "item": "i150"
+    },
+    {
+     "qty": "2 handfuls",
+     "name": "Baby spinach",
+     "item": "i054"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Shredded cheddar",
+     "item": "i188"
+    },
+    {
+     "qty": "¼ cup",
+     "name": "Fairlife milk",
+     "item": "i068"
+    },
+    {
+     "qty": "4",
+     "name": "English muffins, toasted",
+     "item": "i272"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 Tbsp",
+     "name": "Butter or olive oil"
+    },
+    {
+     "qty": "",
+     "name": "Salt and pepper"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Oven on to broil. Whisk the eggs, milk, salt and pepper.",
+   "kid": true
+  },
+  {
+   "text": "Melt butter in a 10–12 inch oven-safe nonstick skillet over medium. Cook the pepper until soft.",
+   "time": "4 min"
+  },
+  {
+   "text": "Add spinach and stir until it wilts."
+  },
+  {
+   "text": "Pour in the eggs. Cook without stirring, lifting the edges so raw egg runs under.",
+   "time": "5 min"
+  },
+  {
+   "text": "When the top is almost set, scatter the cheese and slide under the broiler until puffed and golden.",
+   "time": "2 min"
+  },
+  {
+   "text": "Slide out, cut into wedges and serve with English muffins.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Wash and tear the spinach"
+  },
+  {
+   "job": "Whisk the eggs"
+  },
+  {
+   "job": "Sprinkle the cheese"
+  },
+  {
+   "job": "Toast the English muffins"
+  }
+ ],
+ "chef_tip": "Finish under the broiler: the top sets fluffy and the cheese bubbles without anyone flipping anything.",
+ "make_ahead": "Dice peppers the night before.",
+ "leftovers": "Wedges keep 3 days; reheat 30 seconds or eat cold on an English muffin.",
+ "swaps": [
+  "Mushrooms or zucchini",
+  "Jack or mozzarella instead of cheddar",
+  "Diced ham"
+ ],
+ "serve_with": "Fruit and OJ",
+ "gear": [
+  "Oven-safe nonstick skillet",
+  "Whisk"
+ ],
+ "heads_up": "Broiler on first.",
+ "draft": true
+}

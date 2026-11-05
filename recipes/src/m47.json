@@ -1,0 +1,138 @@
+{
+ "id": "m47",
+ "name": "🌯 Dad's Crunchy Burrito Roll-Ups",
+ "kind": "dinner",
+ "tagline": "Dad's signature: little chicken burritos with a crunchy chip surprise inside, pan-fried golden.",
+ "serves": "4, plus a lunch",
+ "prep": 25,
+ "cook": 30,
+ "level": "Weekend project, kid favorite",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1½ lb",
+     "name": "Chicken breasts (the big whole ones)",
+     "item": "i156"
+    },
+    {
+     "qty": "1 can",
+     "name": "Bush's black beans, drained and rinsed",
+     "item": "i061"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Frozen corn",
+     "item": "i223"
+    },
+    {
+     "qty": "1 cup (dry)",
+     "name": "Minute rice",
+     "item": "i058"
+    },
+    {
+     "qty": "2 cups",
+     "name": "Mexican blend shredded cheese",
+     "item": "i039"
+    },
+    {
+     "qty": "2 big handfuls",
+     "name": "Tortilla chips, lightly crushed (the chips are a must)",
+     "item": "i163"
+    },
+    {
+     "qty": "8–10",
+     "name": "Flour tortillas",
+     "item": "i074"
+    },
+    {
+     "qty": "to serve",
+     "name": "Sour cream",
+     "item": "i159"
+    },
+    {
+     "qty": "2",
+     "name": "Avocados",
+     "item": "i042"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 Tbsp",
+     "name": "Taco seasoning (or cumin, chili powder, garlic powder, salt)"
+    },
+    {
+     "qty": "2 Tbsp",
+     "name": "Olive oil, plus more for frying"
+    },
+    {
+     "qty": "",
+     "name": "Salsa for dipping"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Make the rice by the box. Thaw the corn in a strainer under warm water.",
+   "time": "5 min",
+   "kid": true
+  },
+  {
+   "text": "Pat the chicken dry and rub with the seasoning and a little oil. Cook in a skillet over medium-high, 6–7 minutes a side, until 165°F inside. Rest 5 minutes, then shred with two forks.",
+   "time": "20 min"
+  },
+  {
+   "text": "In a big bowl mix the chicken, rice, beans, corn and half the cheese. Taste for salt.",
+   "kid": true
+  },
+  {
+   "text": "Warm the tortillas 20 seconds in the microwave so they don't crack. Down the middle of each: a line of cheese, a scoop of filling, then a handful of crushed chips right before rolling.",
+   "kid": true
+  },
+  {
+   "text": "Fold in the sides and roll up tight. Set seam side down.",
+   "kid": true
+  },
+  {
+   "text": "Fry seam side down in a thin layer of oil over medium until golden, 2–3 minutes a side. Keep them warm on a sheet pan in a 250°F oven while you finish.",
+   "time": "12 min"
+  },
+  {
+   "text": "Cut each in half on an angle. Serve with sour cream, mashed avocado and salsa."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Crush the chips in a zip bag (best job in the house)"
+  },
+  {
+   "job": "Mix the filling in the big bowl"
+  },
+  {
+   "job": "Assembly line: cheese, filling, chips, roll"
+  },
+  {
+   "job": "Mash the avocado with a fork and a squeeze of lime"
+  }
+ ],
+ "chef_tip": "Add the chips at the last second before rolling so they stay crunchy, and start frying seam side down: it seals the roll so nothing falls out.",
+ "make_ahead": "Cook and shred the chicken and make the rice the day before. Roll right before frying.",
+ "leftovers": "Re-crisp in a 400°F oven or the air fryer for 8 minutes; microwaving makes them soft.",
+ "swaps": [
+  "Rotisserie chicken in a pinch (Dad prefers the whole breasts)",
+  "Pepper jack for a little heat"
+ ],
+ "serve_with": "Alexia street corn or a simple salad",
+ "gear": [
+  "Big skillet",
+  "Sheet pan",
+  "Big mixing bowl",
+  "Zip bag"
+ ],
+ "heads_up": "Rice on first, and oven to 250°F to keep the roll-ups warm."
+}

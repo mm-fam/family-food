@@ -1,0 +1,118 @@
+{
+ "id": "m02",
+ "name": "🍕 Pizza Party",
+ "kind": "dinner",
+ "tagline": "Fresh Whole Foods dough, Rao's, crisp pepperoni and everybody makes their own pie.",
+ "serves": "4, plus a lunch",
+ "prep": 20,
+ "cook": 15,
+ "level": "Fun Friday night",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1 bag (22 oz)",
+     "name": "Whole Foods fresh pizza dough",
+     "item": "i013"
+    },
+    {
+     "qty": "¾ cup",
+     "name": "Rao's marinara",
+     "item": "i168"
+    },
+    {
+     "qty": "2 cups",
+     "name": "Tillamook mozzarella, shredded",
+     "item": "i083"
+    },
+    {
+     "qty": "1 tray",
+     "name": "Creminelli pepperoni (or deli pepperoni)",
+     "item": "i015"
+    },
+    {
+     "qty": "¼ cup",
+     "name": "Grated parmesan",
+     "item": "i100"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "2 Tbsp",
+     "name": "Olive oil"
+    },
+    {
+     "qty": "",
+     "name": "Flour or cornmeal for the pan"
+    },
+    {
+     "qty": "pinch",
+     "name": "Dried oregano, garlic powder"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Take the dough out of the fridge 30–60 minutes before so it stretches easily. Oven to 475°F with a sheet pan inside.",
+   "time": "30 min"
+  },
+  {
+   "text": "Cut the dough into 4 balls, one per person.",
+   "kid": true
+  },
+  {
+   "text": "On a floured counter, press and stretch each ball into a thin 8-inch round. Let it rest 5 minutes if it springs back.",
+   "kid": true
+  },
+  {
+   "text": "Brush the rims with olive oil. Spread 2–3 Tbsp sauce on each, leaving a border.",
+   "kid": true
+  },
+  {
+   "text": "Top with mozzarella, then pepperoni, then a sprinkle of parmesan and oregano.",
+   "kid": true
+  },
+  {
+   "text": "Slide onto the hot pan (on parchment is easiest) and bake until the crust is deep golden and the cheese bubbles.",
+   "time": "10–12 min"
+  },
+  {
+   "text": "Rest 2 minutes, then cut with a pizza wheel."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Shape your own pizza (it doesn't have to be round)"
+  },
+  {
+   "job": "Spread the sauce with the back of a spoon"
+  },
+  {
+   "job": "Lay out the pepperoni: make a face or your initial"
+  },
+  {
+   "job": "Sprinkle the cheese and parmesan"
+  }
+ ],
+ "chef_tip": "Preheat the pan in the oven. Dough that hits a screaming-hot surface gets a crisp, pizzeria bottom instead of a soft, pale one.",
+ "make_ahead": "Dough keeps 2 days in the fridge, or freeze it and thaw overnight in the fridge.",
+ "leftovers": "Reheat slices in a dry skillet with a lid, 3–4 minutes: crisp bottom, melty top. Great cold in a lunchbox too.",
+ "swaps": [
+  "Pizza crust (i276) or naan for a 10-minute version",
+  "Hot honey drizzle on the pepperoni for the grown-ups"
+ ],
+ "serve_with": "A spring-mix salad with Italian dressing",
+ "gear": [
+  "Sheet pan",
+  "Parchment",
+  "Pizza wheel",
+  "Pastry brush"
+ ],
+ "heads_up": "Dough out of the fridge and oven to 475°F 30 min before.",
+ "draft": true
+}

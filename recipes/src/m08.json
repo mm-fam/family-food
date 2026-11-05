@@ -1,0 +1,122 @@
+{
+ "id": "m08",
+ "name": "🥟 Pierogi Party + Salad",
+ "kind": "dinner",
+ "tagline": "Pierogies pan-fried golden with sweet buttery onions, plus a crisp salad on the side.",
+ "serves": "4",
+ "prep": 10,
+ "cook": 20,
+ "level": "20-minute dinner",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "2 boxes",
+     "name": "Mrs. T's pierogies (frozen)",
+     "item": "i258"
+    },
+    {
+     "qty": "2",
+     "name": "Onions, sliced thin",
+     "item": "i155"
+    },
+    {
+     "qty": "to serve",
+     "name": "Sour cream",
+     "item": "i159"
+    },
+    {
+     "qty": "1 bag",
+     "name": "Spring mix",
+     "item": "i097"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Cherry tomatoes, halved",
+     "item": "i274"
+    },
+    {
+     "qty": "1",
+     "name": "Cucumber, sliced",
+     "item": "i183"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "4 Tbsp",
+     "name": "Butter"
+    },
+    {
+     "qty": "3 Tbsp",
+     "name": "Olive oil + 1 Tbsp vinegar (dressing)"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Dijon or honey for the dressing"
+    },
+    {
+     "qty": "",
+     "name": "Salt, pepper"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Melt 2 Tbsp butter in a big nonstick skillet over medium. Add the onions and a pinch of salt; cook, stirring now and then, until soft and golden.",
+   "time": "12 min"
+  },
+  {
+   "text": "Meanwhile, boil the pierogies 4 minutes (or follow the box), then drain well.",
+   "time": "4 min"
+  },
+  {
+   "text": "Push the onions to the side, add 2 Tbsp butter and the pierogies in one layer. Fry until golden on both sides.",
+   "time": "6 min"
+  },
+  {
+   "text": "Shake the dressing in a jar: oil, vinegar, Dijon or honey, salt, pepper.",
+   "kid": true
+  },
+  {
+   "text": "Toss the spring mix, tomatoes and cucumber with dressing right before eating.",
+   "kid": true
+  },
+  {
+   "text": "Pile the onions on the pierogies; serve with sour cream."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Shake the dressing in a jar (lid on tight!)"
+  },
+  {
+   "job": "Halve the cherry tomatoes with a kid knife"
+  },
+  {
+   "job": "Toss the salad"
+  },
+  {
+   "job": "Spoon out sour cream for everyone"
+  }
+ ],
+ "chef_tip": "Take your time on the onions. Low and slow until they're golden and sweet turns a box of frozen pierogies into a real dinner.",
+ "make_ahead": "Caramelize a big batch of onions ahead; they keep 4 days and are great on burgers too.",
+ "leftovers": "Re-fry in a skillet; the microwave makes them gummy.",
+ "swaps": [
+  "Add sliced kielbasa or bacon to the onions",
+  "Air fryer: 400°F 10–12 minutes after boiling"
+ ],
+ "serve_with": "The salad (above), applesauce for the girls",
+ "gear": [
+  "Big nonstick skillet",
+  "Pot",
+  "Jar with a lid"
+ ],
+ "heads_up": "Onions go in first; they take the longest.",
+ "draft": true
+}

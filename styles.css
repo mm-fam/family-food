@@ -451,6 +451,18 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .vote-list .vote-who { font-weight: 600; }
 .vote-list .vote-emoji { font-size: 18px; vertical-align: -2px; }
 .vote-list li.none .vote-what { color: var(--muted); font-size: 14px; }
+.vote-list li.vote-me { flex-wrap: wrap; }
+.vote-list .vote-who small { color: var(--muted); font-weight: 500; }
+.vote-mine { border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--ink, inherit); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 15px; cursor: pointer; }
+.vote-mine .vote-change { color: var(--accent); font-weight: 600; font-size: 13px; margin-left: 4px; }
+.vote-mine .vote-add { color: var(--accent); font-weight: 600; }
+.vote-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; margin-top: 6px; }
+.vote-pick button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; border: 1.5px solid var(--line-soft); border-radius: 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.vote-pick button.on { border-color: var(--accent); background: var(--accent-soft); }
+.vote-pick .vote-emoji { font-size: 24px; }
+.vote-pick small { font-size: 11px; color: var(--muted); }
+.recipe-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; text-decoration: none; margin: 4px 0 12px; font-weight: 700; }
+.recipe-btn small { font-weight: 500; font-size: 12px; opacity: .75; }
 .is-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 0 2px; border: 0; border-top: 1px solid var(--line-soft);
   background: transparent; font-size: 14px; font-weight: 600; color: var(--ink); text-align: left; }
 .is-details { display: flex; flex-direction: column; gap: 12px; }

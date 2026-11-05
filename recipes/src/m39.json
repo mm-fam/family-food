@@ -1,0 +1,132 @@
+{
+ "id": "m39",
+ "name": "🫘 Black Bean & Sweet Potato Quesadillas",
+ "kind": "dinner",
+ "tagline": "Smashed sweet potato and black beans with melty cheese, crisped golden in the pan.",
+ "serves": "4",
+ "prep": 15,
+ "cook": 20,
+ "level": "Easy, meat-free",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "2 medium",
+     "name": "Sweet potatoes",
+     "item": "i180"
+    },
+    {
+     "qty": "1 can",
+     "name": "Bush's black beans, drained and rinsed",
+     "item": "i061"
+    },
+    {
+     "qty": "10",
+     "name": "Mission soft taco tortillas",
+     "item": "i075"
+    },
+    {
+     "qty": "2 cups",
+     "name": "Mexican blend shredded cheese",
+     "item": "i039"
+    },
+    {
+     "qty": "1",
+     "name": "Lime",
+     "item": "i019"
+    },
+    {
+     "qty": "to serve",
+     "name": "Sour cream",
+     "item": "i159"
+    },
+    {
+     "qty": "to serve",
+     "name": "Chunky salsa, mild",
+     "item": "i113"
+    },
+    {
+     "qty": "1",
+     "name": "Avocado (optional)",
+     "item": "i042"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 tsp",
+     "name": "Cumin"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Chili powder"
+    },
+    {
+     "qty": "",
+     "name": "Salt"
+    },
+    {
+     "qty": "",
+     "name": "Butter or oil for the pan"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Poke the sweet potatoes with a fork and microwave 8–10 minutes until soft, turning once.",
+   "time": "10 min"
+  },
+  {
+   "text": "Scoop out the insides into a bowl. Mash with cumin, chili powder, salt and a squeeze of lime.",
+   "kid": true
+  },
+  {
+   "text": "Stir in the black beans, lightly smashing some.",
+   "kid": true
+  },
+  {
+   "text": "Spread the filling on half of each tortilla, add cheese, fold over.",
+   "kid": true
+  },
+  {
+   "text": "Cook in a buttered skillet over medium, 2–3 minutes a side, pressing down, until golden and melty.",
+   "time": "12 min"
+  },
+  {
+   "text": "Keep finished ones warm on a sheet pan in a 250°F oven. Cut in wedges; serve with sour cream, salsa and avocado."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Scoop and mash the sweet potato"
+  },
+  {
+   "job": "Fill and fold the quesadillas"
+  },
+  {
+   "job": "Make a quick guac: mash avocado with lime and salt"
+  },
+  {
+   "job": "Cut wedges with a pizza cutter (cooled a bit)"
+  }
+ ],
+ "chef_tip": "Microwave the sweet potatoes instead of roasting: soft in 10 minutes, and the filling is creamy enough to glue everything together.",
+ "make_ahead": "Make the filling up to 3 days ahead.",
+ "leftovers": "Re-crisp in a dry skillet or air fryer; the filling also makes a great lunch bowl with rice.",
+ "swaps": [
+  "Add shredded chicken for meat eaters",
+  "Pepper jack for heat"
+ ],
+ "serve_with": "Salsa, sour cream and a simple salad or street corn",
+ "gear": [
+  "Big skillet",
+  "Sheet pan",
+  "Potato masher"
+ ],
+ "heads_up": "Sweet potatoes in the microwave first.",
+ "draft": true
+}

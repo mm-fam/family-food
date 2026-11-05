@@ -1,0 +1,127 @@
+{
+ "id": "m26",
+ "name": "🍚 Kitchen-Sink Grain Bowls",
+ "kind": "lunch",
+ "tagline": "A use-it-up bowl: a grain, a protein, two veggies, something crunchy and a great sauce.",
+ "serves": "4",
+ "prep": 10,
+ "cook": 15,
+ "level": "Fridge clean-out lunch",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1 cup dry",
+     "name": "Quinoa (or frozen brown rice)",
+     "item": "i317"
+    },
+    {
+     "qty": "2 cups",
+     "name": "Leftover chicken or steak, sliced",
+     "item": "i156"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Cherry tomatoes, halved",
+     "item": "i274"
+    },
+    {
+     "qty": "1",
+     "name": "Cucumber, diced",
+     "item": "i183"
+    },
+    {
+     "qty": "1 can",
+     "name": "Cannellini beans or black beans",
+     "item": "i230"
+    },
+    {
+     "qty": "½ cup",
+     "name": "Cheese (feta, mozzarella, whatever's open)",
+     "item": "i214"
+    },
+    {
+     "qty": "¼ cup",
+     "name": "Pumpkin seeds or sliced almonds",
+     "item": "i134"
+    }
+   ]
+  },
+  {
+   "group": "House dressing (pantry)",
+   "items": [
+    {
+     "qty": "¼ cup",
+     "name": "Olive oil"
+    },
+    {
+     "qty": "2 Tbsp",
+     "name": "Red wine vinegar",
+     "item": "i235"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Dijon mustard",
+     "item": "i268"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Honey",
+     "item": "i126"
+    },
+    {
+     "qty": "",
+     "name": "Salt and pepper"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Rinse the quinoa, then simmer in 2 cups salted water, covered, 15 minutes. Fluff with a fork. (Or microwave the frozen brown rice.)",
+   "time": "15 min"
+  },
+  {
+   "text": "Shake the dressing in a jar until creamy.",
+   "kid": true
+  },
+  {
+   "text": "Prep the toppings into little piles: tomatoes, cucumber, beans, cheese, protein.",
+   "kid": true
+  },
+  {
+   "text": "Bowl it: grain on the bottom, toppings in sections on top.",
+   "kid": true
+  },
+  {
+   "text": "Dress right before eating and finish with the crunchy seeds."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Shake the dressing jar"
+  },
+  {
+   "job": "Halve the cherry tomatoes"
+  },
+  {
+   "job": "Design your own bowl"
+  }
+ ],
+ "chef_tip": "Formula, not recipe: grain + protein + 2 veggies + crunch + sauce. Whatever's in the fridge, it works.",
+ "make_ahead": "Cook the quinoa on Sunday; it keeps 5 days. Dressing keeps a week.",
+ "leftovers": "Pack dressing separately in a small cup for lunches.",
+ "swaps": [
+  "Frozen brown rice (i410)",
+  "Spring mix base instead of grain",
+  "Ranch instead of the vinaigrette"
+ ],
+ "serve_with": "Naan dippers",
+ "gear": [
+  "Small pot",
+  "Jar with lid"
+ ],
+ "heads_up": "Check the fridge for leftovers to use.",
+ "draft": true
+}

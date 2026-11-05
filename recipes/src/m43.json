@@ -1,0 +1,144 @@
+{
+ "id": "m43",
+ "name": "🐷 Pork Carnitas Tacos",
+ "kind": "dinner",
+ "tagline": "Slow cooker does the work all day; a quick broil at the end makes the edges crispy.",
+ "serves": "4, plus 2 lunches",
+ "prep": 20,
+ "cook": 490,
+ "level": "Set it in the morning",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "3–4 lb",
+     "name": "Boneless pork shoulder",
+     "item": "i434"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Orange juice",
+     "item": "i012"
+    },
+    {
+     "qty": "3",
+     "name": "Limes",
+     "item": "i019"
+    },
+    {
+     "qty": "1",
+     "name": "Onion, quartered",
+     "item": "i155"
+    },
+    {
+     "qty": "6 cloves",
+     "name": "Garlic",
+     "item": "i153"
+    },
+    {
+     "qty": "12",
+     "name": "Mission soft taco tortillas",
+     "item": "i075"
+    },
+    {
+     "qty": "1 bunch",
+     "name": "Cilantro",
+     "item": "i329"
+    },
+    {
+     "qty": "1 jar",
+     "name": "Herdez salsa verde",
+     "item": "i112"
+    },
+    {
+     "qty": "2",
+     "name": "Avocados",
+     "item": "i042"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 Tbsp",
+     "name": "Salt"
+    },
+    {
+     "qty": "2 tsp",
+     "name": "Cumin"
+    },
+    {
+     "qty": "2 tsp",
+     "name": "Dried oregano"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Chili powder"
+    },
+    {
+     "qty": "2",
+     "name": "Bay leaves"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Morning: cut the pork into 4 big chunks. Rub with salt, cumin, oregano and chili powder.",
+   "time": "10 min"
+  },
+  {
+   "text": "Put the onion and garlic in the slow cooker, pork on top. Pour in the orange juice and the juice of 2 limes; add bay leaves.",
+   "kid": true
+  },
+  {
+   "text": "Cook on LOW 8 hours (or HIGH 5) until it falls apart.",
+   "time": "8 hr"
+  },
+  {
+   "text": "Dinner: shred the pork with two forks right in the pot; toss with the juices."
+  },
+  {
+   "text": "Spread on a sheet pan, spoon over ½ cup of the juices, and broil 5–7 minutes until the edges crisp. Watch it.",
+   "time": "7 min"
+  },
+  {
+   "text": "Warm the tortillas. Set out cilantro, chopped onion, lime wedges, salsa verde and avocado.",
+   "kid": true
+  },
+  {
+   "text": "Build tacos. Save leftovers in some of the juice so they stay moist."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Squeeze the limes and pour in the juice"
+  },
+  {
+   "job": "Pick cilantro leaves"
+  },
+  {
+   "job": "Slice avocado (butter knife works)"
+  },
+  {
+   "job": "Set up the taco bar"
+  }
+ ],
+ "chef_tip": "The broil at the end is everything: crispy edges plus juicy middle is what makes it carnitas and not just pulled pork.",
+ "make_ahead": "Cook the pork up to 3 days ahead; broil right before dinner.",
+ "leftovers": "Freezes great in its juices. Carnitas bowls, quesadillas or nachos later in the week.",
+ "swaps": [
+  "Instant Pot: 60 minutes on high, natural release",
+  "Corn tortillas, charred over the flame"
+ ],
+ "serve_with": "Black beans, Minute rice with lime, or street corn",
+ "gear": [
+  "Slow cooker",
+  "Sheet pan",
+  "Two forks"
+ ],
+ "heads_up": "Start the slow cooker in the morning (8 hours on low).",
+ "draft": true
+}

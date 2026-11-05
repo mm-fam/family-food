@@ -1,0 +1,93 @@
+{
+ "id": "m27",
+ "name": "🍎 Eggs & Apple Slices",
+ "kind": "snack",
+ "tagline": "The perfect after-school snack: jammy hard-boiled eggs and crisp apple slices.",
+ "serves": "4",
+ "prep": 5,
+ "cook": 10,
+ "level": "After-school snack",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "4–8",
+     "name": "Eggs, pasture-raised",
+     "item": "i093"
+    },
+    {
+     "qty": "2",
+     "name": "Pink Lady apples",
+     "item": "i090"
+    },
+    {
+     "qty": "optional",
+     "name": "Peanut butter or cheddar for dipping",
+     "item": "i326"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "",
+     "name": "Salt and pepper (or everything seasoning)"
+    },
+    {
+     "qty": "½",
+     "name": "Lemon, to keep apples white",
+     "item": "i096"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Lower cold eggs into boiling water. Cook 9 minutes for firm-but-creamy yolks.",
+   "time": "9 min"
+  },
+  {
+   "text": "Move straight to a bowl of ice water for 5 minutes.",
+   "time": "5 min"
+  },
+  {
+   "text": "Peel under running water.",
+   "kid": true
+  },
+  {
+   "text": "Slice the apples and toss with a squeeze of lemon so they don't brown.",
+   "kid": true
+  },
+  {
+   "text": "Halve the eggs, sprinkle with salt and pepper, and plate with apples."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Peel the eggs"
+  },
+  {
+   "job": "Run the apple slicer"
+  },
+  {
+   "job": "Squeeze the lemon over the apples"
+  }
+ ],
+ "chef_tip": "Start eggs in boiling water, not cold: they peel cleanly every time.",
+ "make_ahead": "Boil a dozen on Sunday; unpeeled eggs keep a week in the fridge.",
+ "leftovers": "Extra eggs go into the Southwest Black Bean & Egg Salad.",
+ "swaps": [
+  "Green apples (i151) or Honeycrisp (i344)",
+  "Cheese cubes instead of eggs"
+ ],
+ "serve_with": "A handful of almonds",
+ "gear": [
+  "Pot",
+  "Bowl of ice water",
+  "Apple slicer"
+ ],
+ "heads_up": "Pre-boiled eggs make this 2 minutes.",
+ "draft": true
+}

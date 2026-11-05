@@ -234,3 +234,26 @@ test('store options: option rows never become what we buy; which cards and picks
   assert.strictEqual(r.ok, true, r.error);
   assert.match(r.state.products.i007.TGT.name, /up&up/);
 });
+
+test('vote from the meal card: latest vote wins, open card closes, no points (api 52)', () => {
+  const t = tabs();
+  t.Review.push(['r901', '2026-11-01', 'vote', 'Dinner vote: how do you feel about Pancakes? (m01) Options: 😍; 🙂; 😐; 👎', 'answered', '🙂 (Kim)', 'Kim', '', '', '', '', '', '2026-11-01', '', '', '', ''],
+    ['r902', '2026-11-01', 'vote', 'Dinner vote: how do you feel about Pancakes? (m01) Options: 😍; 🙂; 😐; 👎', 'open', '', 'Pat', '', '', '', '', '', '', '', '', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  let r = b.call({ action: 'mealVote', pass: PASS, by: 'Kim', meal_id: 'm01', vote: '😍' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.state.mealStats.m01.voters.Kim, '😍');
+  r = b.call({ action: 'mealVote', pass: PASS, by: 'pat', meal_id: 'm01', vote: '👎' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(r.state.mealStats.m01.voters, { Kim: '😍', Pat: '👎' });
+  const rv = rows(b, 'Review');
+  const h = rv[0];
+  const open = rv.find((x) => x[0] === 'r902');
+  assert.strictEqual(open[h.indexOf('status')], 'closed');
+  const mine = rv[rv.length - 1];
+  assert.strictEqual(mine[h.indexOf('status')], 'closed');
+  assert.strictEqual(Number(mine[h.indexOf('points')]) || 0, 0);
+  assert.ok(b.call({ action: 'mealVote', pass: PASS, by: 'Kim', meal_id: 'm01', vote: 'yay' }).error);
+  assert.ok(b.call({ action: 'mealVote', pass: PASS, by: 'Kim', meal_id: 'm99', vote: '😍' }).error);
+  assert.ok(b.call({ action: 'mealVote', pass: PASS, by: 'Nobody', meal_id: 'm01', vote: '😍' }).error);
+});

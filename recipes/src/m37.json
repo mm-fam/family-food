@@ -1,0 +1,141 @@
+{
+ "id": "m37",
+ "name": "🥢 Egg Roll in a Bowl",
+ "kind": "dinner",
+ "tagline": "Everything good about an egg roll, none of the frying: 20 minutes in one skillet.",
+ "serves": "4, plus a lunch",
+ "prep": 10,
+ "cook": 15,
+ "level": "Fast weeknight",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1½ lb",
+     "name": "Ground chicken",
+     "item": "i431"
+    },
+    {
+     "qty": "1 bag",
+     "name": "Rainbow slaw",
+     "item": "i179"
+    },
+    {
+     "qty": "4 cloves",
+     "name": "Garlic, minced",
+     "item": "i153"
+    },
+    {
+     "qty": "1 Tbsp",
+     "name": "Fresh ginger, grated",
+     "item": "i154"
+    },
+    {
+     "qty": "4",
+     "name": "Green onions, sliced",
+     "item": "i348"
+    },
+    {
+     "qty": "¼ cup",
+     "name": "Soy sauce",
+     "item": "i170"
+    },
+    {
+     "qty": "2 tsp",
+     "name": "Sesame oil",
+     "item": "i171"
+    },
+    {
+     "qty": "1½ cups",
+     "name": "Jasmine rice (dry)",
+     "item": "i166"
+    },
+    {
+     "qty": "3 Tbsp",
+     "name": "Mayo, for the spicy mayo",
+     "item": "i331"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 Tbsp",
+     "name": "Vegetable oil"
+    },
+    {
+     "qty": "1 Tbsp",
+     "name": "Rice vinegar"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Brown sugar"
+    },
+    {
+     "qty": "",
+     "name": "Sriracha (for the spicy mayo)"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Start the rice.",
+   "time": "15 min"
+  },
+  {
+   "text": "Heat the oil in your biggest skillet over high. Add the chicken, press flat and leave it 4 minutes to brown hard, then crumble.",
+   "time": "7 min"
+  },
+  {
+   "text": "Push the meat aside. Add garlic, ginger and the white parts of the green onions; stir 30 seconds."
+  },
+  {
+   "text": "Stir together soy sauce, rice vinegar, brown sugar and sesame oil.",
+   "kid": true
+  },
+  {
+   "text": "Add the slaw and the sauce. Toss 2–3 minutes, just until wilted but still crunchy.",
+   "time": "3 min"
+  },
+  {
+   "text": "Mix the mayo with sriracha to taste (keep a plain bowl for milder eaters).",
+   "kid": true
+  },
+  {
+   "text": "Serve over rice with green onion tops and a drizzle of spicy mayo.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Whisk the sauce"
+  },
+  {
+   "job": "Stir up the spicy mayo (taste-test it!)"
+  },
+  {
+   "job": "Slice green onions with kid scissors"
+  },
+  {
+   "job": "Rinse the rice before it cooks"
+  }
+ ],
+ "chef_tip": "High heat and a short cook on the slaw: it should still crunch. Overcooked cabbage goes limp and watery.",
+ "make_ahead": "Cook the rice ahead; this one is fast enough to make fresh.",
+ "leftovers": "Holds well for lunch; or roll it in a tortilla with spicy mayo.",
+ "swaps": [
+  "Ground turkey or pork",
+  "Cauliflower rice for a lighter bowl"
+ ],
+ "serve_with": "Over jasmine rice, or with crispy wonton strips on top",
+ "gear": [
+  "Biggest skillet",
+  "Rice pot",
+  "Small bowls"
+ ],
+ "heads_up": "Get the rice going first.",
+ "draft": true
+}

@@ -1,0 +1,115 @@
+{
+ "id": "m19",
+ "name": "🥣 Overnight Oats",
+ "kind": "breakfast",
+ "tagline": "Stir together at night, grab from the fridge at 7 am. Protein-packed and endlessly flavorable.",
+ "serves": "4",
+ "prep": 10,
+ "cook": 0,
+ "level": "Night-before, zero morning work",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "2 cups",
+     "name": "Old fashioned oats",
+     "item": "i128"
+    },
+    {
+     "qty": "2 cups",
+     "name": "Fairlife 2% milk",
+     "item": "i068"
+    },
+    {
+     "qty": "1½ cups",
+     "name": "Nounos Greek yogurt, vanilla",
+     "item": "i005"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Frozen berries or fresh strawberries",
+     "item": "i264"
+    },
+    {
+     "qty": "2",
+     "name": "Bananas",
+     "item": "i001"
+    },
+    {
+     "qty": "¼ cup",
+     "name": "Sliced almonds",
+     "item": "i285"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "2 Tbsp",
+     "name": "Honey",
+     "item": "i126"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Cinnamon"
+    },
+    {
+     "qty": "pinch",
+     "name": "Salt"
+    },
+    {
+     "qty": "2 Tbsp",
+     "name": "Chia seeds (optional)"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "In a big bowl stir the oats, milk, yogurt, honey, cinnamon, salt and chia.",
+   "kid": true
+  },
+  {
+   "text": "Divide into 4 jars.",
+   "kid": true
+  },
+  {
+   "text": "Top each with berries (frozen ones thaw overnight and make a jammy layer).",
+   "kid": true
+  },
+  {
+   "text": "Lid on and into the fridge overnight, at least 6 hours.",
+   "time": "overnight"
+  },
+  {
+   "text": "Morning: stir, add sliced banana and almonds, and go."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Measure the oats and milk"
+  },
+  {
+   "job": "Stir and fill the jars"
+  },
+  {
+   "job": "Pick your own topping and label your jar"
+  }
+ ],
+ "chef_tip": "Add a pinch of salt. It's the difference between 'health food' and something that tastes like dessert.",
+ "make_ahead": "Jars keep 4 days, so make Sunday night for Mon–Thu.",
+ "leftovers": "Stir a spoon of peanut butter into day-3 jars to freshen them up.",
+ "swaps": [
+  "Peanut butter + banana flavor",
+  "Plain Nounos with more honey"
+ ],
+ "serve_with": "Hard-boiled egg for extra protein",
+ "gear": [
+  "4 jars with lids",
+  "Big bowl"
+ ],
+ "heads_up": "Make it the night before.",
+ "draft": true
+}

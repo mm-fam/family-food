@@ -1,0 +1,151 @@
+{
+ "id": "m40",
+ "name": "🍛 One-Pot Chicken & Chickpea Curry",
+ "kind": "dinner",
+ "tagline": "A mild, creamy coconut curry that's family-friendly and on the table in 35 minutes.",
+ "serves": "4, plus a lunch",
+ "prep": 10,
+ "cook": 25,
+ "level": "Weeknight, one pot",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1½ lb",
+     "name": "Chicken breasts, bite-size pieces",
+     "item": "i156"
+    },
+    {
+     "qty": "1 can",
+     "name": "Chickpeas, drained",
+     "item": "i432"
+    },
+    {
+     "qty": "1 can",
+     "name": "Coconut milk (full fat)",
+     "item": "i433"
+    },
+    {
+     "qty": "3 Tbsp",
+     "name": "Mild curry paste (yellow or red)",
+     "item": "i435"
+    },
+    {
+     "qty": "1 can (28 oz)",
+     "name": "Contadina diced tomatoes (use half)",
+     "item": "i176"
+    },
+    {
+     "qty": "1",
+     "name": "Onion, diced",
+     "item": "i155"
+    },
+    {
+     "qty": "4 cloves",
+     "name": "Garlic, minced",
+     "item": "i153"
+    },
+    {
+     "qty": "1 Tbsp",
+     "name": "Fresh ginger, grated",
+     "item": "i154"
+    },
+    {
+     "qty": "3 big handfuls",
+     "name": "Baby spinach",
+     "item": "i054"
+    },
+    {
+     "qty": "1½ cups",
+     "name": "Jasmine rice (dry)",
+     "item": "i166"
+    },
+    {
+     "qty": "1 pack",
+     "name": "Naan",
+     "item": "i211"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 tsp",
+     "name": "Garam masala (optional)"
+    },
+    {
+     "qty": "2 Tbsp",
+     "name": "Olive oil"
+    },
+    {
+     "qty": "",
+     "name": "Salt"
+    },
+    {
+     "qty": "",
+     "name": "Plain yogurt or Nounos, to serve"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Start the rice.",
+   "time": "15 min"
+  },
+  {
+   "text": "Heat the oil in a big pot over medium-high. Cook the onion until soft and golden, 5 minutes.",
+   "time": "5 min"
+  },
+  {
+   "text": "Add the garlic, ginger, curry paste and garam masala; fry 1–2 minutes, stirring, until it smells amazing and darkens a shade."
+  },
+  {
+   "text": "Add the chicken and a big pinch of salt; stir until coated, 2 minutes."
+  },
+  {
+   "text": "Pour in half the tomatoes, the coconut milk and chickpeas. Simmer 12–15 minutes until the chicken is cooked through.",
+   "time": "15 min"
+  },
+  {
+   "text": "Stir in the spinach until wilted. Taste for salt.",
+   "kid": true
+  },
+  {
+   "text": "Warm the naan in the oven. Serve curry over rice with a spoon of yogurt.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Rinse and drain the chickpeas"
+  },
+  {
+   "job": "Measure the spices into a little bowl"
+  },
+  {
+   "job": "Stir in the spinach and watch it shrink"
+  },
+  {
+   "job": "Warm and cut the naan"
+  }
+ ],
+ "chef_tip": "Fry the curry paste in the oil for a full 1–2 minutes before anything wet goes in. That 'bloom' is what makes it taste like takeout.",
+ "make_ahead": "Curry tastes better the next day; make it up to 2 days ahead.",
+ "leftovers": "Freezes well for 3 months. Leftover tomatoes: freeze or use in chili.",
+ "swaps": [
+  "Chicken thighs (juicier)",
+  "Sweet potato cubes instead of chickpeas",
+  "A spoon of hot sauce for the spice lovers",
+  "No paste? 2 Tbsp mild curry powder, bloomed the same way"
+ ],
+ "serve_with": "Jasmine rice, warm naan, Nounos yogurt",
+ "gear": [
+  "Big pot or Dutch oven",
+  "Rice pot"
+ ],
+ "heads_up": "Rice on first.",
+ "draft": true
+}

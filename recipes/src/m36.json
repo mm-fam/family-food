@@ -1,0 +1,130 @@
+{
+ "id": "m36",
+ "name": "🍠 Sheet Pan Chicken, Sweet Potato & Broccoli",
+ "kind": "dinner",
+ "tagline": "One pan, high heat, crispy edges: the weeknight dinner that cleans up in five minutes.",
+ "serves": "4, plus a lunch",
+ "prep": 15,
+ "cook": 30,
+ "level": "Easy weeknight, one pan",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "2 lb",
+     "name": "Chicken breasts, cut in 1½-inch chunks",
+     "item": "i156"
+    },
+    {
+     "qty": "2 large",
+     "name": "Sweet potatoes, ¾-inch cubes",
+     "item": "i180"
+    },
+    {
+     "qty": "2 heads",
+     "name": "Broccoli crowns, cut in florets",
+     "item": "i335"
+    },
+    {
+     "qty": "3 cloves",
+     "name": "Garlic, grated",
+     "item": "i153"
+    },
+    {
+     "qty": "1",
+     "name": "Lemon",
+     "item": "i096"
+    },
+    {
+     "qty": "¼ cup",
+     "name": "Grated parmesan (optional)",
+     "item": "i100"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "4 Tbsp",
+     "name": "Olive oil"
+    },
+    {
+     "qty": "2 tsp",
+     "name": "Smoked paprika"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Garlic powder"
+    },
+    {
+     "qty": "",
+     "name": "Salt and pepper"
+    },
+    {
+     "qty": "",
+     "name": "Honey or hot honey, to drizzle"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Heat the oven to 425°F with two sheet pans inside (hot pans = crispy bottoms).",
+   "time": "10 min"
+  },
+  {
+   "text": "Toss the sweet potatoes with 2 Tbsp oil, salt and paprika. Roast on one pan for 10 minutes first.",
+   "time": "10 min"
+  },
+  {
+   "text": "Meanwhile toss the chicken with 1 Tbsp oil, garlic, garlic powder, paprika, salt and pepper.",
+   "kid": true
+  },
+  {
+   "text": "Toss the broccoli with the last oil and a pinch of salt.",
+   "kid": true
+  },
+  {
+   "text": "Stir the potatoes and push them to one side. Add the chicken to that pan and the broccoli to the second pan. Roast 15–18 minutes until the chicken is 165°F and the broccoli edges are dark.",
+   "time": "18 min"
+  },
+  {
+   "text": "Squeeze the lemon over everything, shower with parmesan, and drizzle a little honey on the sweet potatoes.",
+   "kid": true
+  },
+  {
+   "text": "Pack a lunch box before serving."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Toss the broccoli in oil and salt (clean hands work best)"
+  },
+  {
+   "job": "Zest and squeeze the lemon at the end"
+  },
+  {
+   "job": "Sprinkle the parmesan"
+  },
+  {
+   "job": "Pack tomorrow's lunch container"
+  }
+ ],
+ "chef_tip": "Don't crowd the pans. Give everything space and preheat the pans: that's the difference between steamed and roasted.",
+ "make_ahead": "Cut the sweet potatoes and broccoli the night before; keep in zip bags in the fridge.",
+ "leftovers": "Great cold or reheated for lunch; or wrap it in a tortilla with ranch.",
+ "swaps": [
+  "Chicken thighs (juicier, add 5 minutes)",
+  "Broccoli florets bag (i055) to skip chopping"
+ ],
+ "serve_with": "Nothing else needed; add naan if you want bread",
+ "gear": [
+  "2 sheet pans",
+  "Big bowl",
+  "Meat thermometer"
+ ],
+ "heads_up": "Oven to 425°F with the sheet pans inside.",
+ "draft": true
+}

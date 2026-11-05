@@ -1,0 +1,133 @@
+{
+ "id": "m34",
+ "name": "🔥 Buffalo Chicken Wraps",
+ "kind": "dinner",
+ "tagline": "Saucy buffalo chicken, cool ranch crunch, rolled tight and toasted so it holds.",
+ "serves": "4, plus a lunch",
+ "prep": 15,
+ "cook": 20,
+ "level": "Easy weeknight",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "2½ lb",
+     "name": "Chicken breasts (double batch: meat ×2)",
+     "item": "i156"
+    },
+    {
+     "qty": "⅓ cup",
+     "name": "Frank's RedHot, plus more to taste",
+     "item": "i116"
+    },
+    {
+     "qty": "8",
+     "name": "Flour tortillas (burrito size)",
+     "item": "i074"
+    },
+    {
+     "qty": "1½ cups",
+     "name": "Shredded cheddar",
+     "item": "i188"
+    },
+    {
+     "qty": "3 cups",
+     "name": "Lettuce, shredded",
+     "item": "i280"
+    },
+    {
+     "qty": "½ cup",
+     "name": "Ranch or blue cheese dressing",
+     "item": "i160"
+    },
+    {
+     "qty": "3 stalks",
+     "name": "Celery, thin sliced (optional crunch)",
+     "item": "i239"
+    },
+    {
+     "qty": "1 bag",
+     "name": "Baby carrots, for the side",
+     "item": "i003"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "3 Tbsp",
+     "name": "Butter, melted"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Garlic powder"
+    },
+    {
+     "qty": "",
+     "name": "Salt, pepper, olive oil"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Slice each chicken breast in half the long way so it cooks fast and even. Season with salt, pepper and garlic powder.",
+   "time": "5 min"
+  },
+  {
+   "text": "Sear in a little oil over medium-high, 5–6 minutes a side, until 165°F. Rest 5 minutes, then chop or shred.",
+   "time": "12 min"
+  },
+  {
+   "text": "Whisk the melted butter into the Frank's. Toss the chicken in it while it's hot.",
+   "kid": true
+  },
+  {
+   "text": "Set out lettuce, cheese, celery and ranch in bowls.",
+   "kid": true
+  },
+  {
+   "text": "Warm the tortillas 20 seconds in the microwave. Fill: lettuce, chicken, cheese, celery, a drizzle of ranch.",
+   "kid": true
+  },
+  {
+   "text": "Fold the sides in and roll tight. Toast seam side down in a dry skillet, 1–2 minutes a side, until golden.",
+   "time": "6 min"
+  },
+  {
+   "text": "Cut in half on an angle. Carrots and extra ranch on the side. Pack the extra chicken for lunch before rolling."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Whisk the buffalo sauce (butter + Frank's)"
+  },
+  {
+   "job": "Shred lettuce and fill the topping bowls"
+  },
+  {
+   "job": "Roll the wraps: sides in, then roll tight"
+  },
+  {
+   "job": "Plate the carrots and ranch for dipping"
+  }
+ ],
+ "chef_tip": "Toss the chicken in the buffalo butter while it's still hot so it soaks in, and toast the wrap seam side down first to seal it shut.",
+ "make_ahead": "Cook and sauce the chicken up to 2 days ahead; warm it before rolling.",
+ "leftovers": "The second batch of chicken makes lunch wraps or a buffalo salad with ranch.",
+ "swaps": [
+  "Whole wheat tortillas",
+  "Rotisserie chicken when time is tight",
+  "Go easy on the Frank's for milder eaters: sauce half the chicken"
+ ],
+ "serve_with": "Baby carrots, celery and ranch",
+ "gear": [
+  "Big skillet",
+  "Small bowls",
+  "Whisk"
+ ],
+ "heads_up": "Slice the chicken breasts in half the long way before anything else.",
+ "draft": true
+}

@@ -1,0 +1,108 @@
+{
+ "id": "m31",
+ "name": "🥕 Greek Yogurt Veggie Dip",
+ "kind": "snack",
+ "tagline": "Creamy tzatziki-style dip made with plain Greek yogurt, cucumber and garlic, with crunchy veggies.",
+ "serves": "4",
+ "prep": 10,
+ "cook": 0,
+ "level": "After-school snack",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1½ cups",
+     "name": "Nounos Greek yogurt, plain",
+     "item": "i004"
+    },
+    {
+     "qty": "½",
+     "name": "Mini cucumber, grated",
+     "item": "i183"
+    },
+    {
+     "qty": "1 small clove",
+     "name": "Garlic, grated",
+     "item": "i153"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Baby carrots",
+     "item": "i003"
+    },
+    {
+     "qty": "1",
+     "name": "Bell pepper, in strips",
+     "item": "i150"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Sugar snap peas",
+     "item": "i316"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 Tbsp",
+     "name": "Olive oil"
+    },
+    {
+     "qty": "1 tsp",
+     "name": "Lemon juice",
+     "item": "i096"
+    },
+    {
+     "qty": "",
+     "name": "Salt, and dill if we have it"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Grate the cucumber and squeeze it dry in a paper towel.",
+   "kid": true
+  },
+  {
+   "text": "Stir it into the yogurt with the garlic, lemon, olive oil and a big pinch of salt.",
+   "kid": true
+  },
+  {
+   "text": "Rest 5 minutes so the garlic mellows.",
+   "time": "5 min"
+  },
+  {
+   "text": "Cut the pepper into strips and arrange all the veggies around the dip.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Grate and squeeze the cucumber"
+  },
+  {
+   "job": "Stir the dip"
+  },
+  {
+   "job": "Build the veggie rainbow platter"
+  }
+ ],
+ "chef_tip": "Squeeze the cucumber dry. Skip that and the dip turns watery in 20 minutes.",
+ "make_ahead": "Dip keeps 3 days; veggies cut ahead keep in water in the fridge.",
+ "leftovers": "Perfect sauce for Greek Chicken Naan night.",
+ "swaps": [
+  "Ranch seasoning instead of garlic and dill",
+  "Pita chips or naan dippers"
+ ],
+ "serve_with": "Naan dippers (i086)",
+ "gear": [
+  "Box grater",
+  "Small bowl"
+ ],
+ "heads_up": "",
+ "draft": true
+}

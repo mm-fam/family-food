@@ -2246,7 +2246,9 @@
   // The meal card: plan it on a night, its ingredients, its stats, edit.
   // Who voted what (Nov 4, owner): one row per person on the meal card, latest vote from vote / rate cards.
   const VOTE_LABEL = { '😍': 'Love it', '🙂': 'Like it', '😐': "It's OK", '👎': 'Not for me' };
-  function mealVotesBlock(m) {
+  // Vote right on the card (Nov 4, owner, api 52): your own row is a button; tap it, pick an emoji, it saves.
+  const canMealVote = () => Number(D().api || 0) >= 52;
+  function mealVotesBlock(m, sh) {
     if (!canStats()) return '';
     const st = statOf(m.id) || { voters: {} };
     const voters = st.voters || {};
@@ -2255,13 +2257,38 @@
     const names = fam.concat(Object.keys(voters).filter((w) => fam.map(lower).indexOf(lower(w)) < 0 && w !== '?'));
     const voteOf = (n) => voters[Object.keys(voters).find((w) => lower(w) === lower(n))];
     const n = names.filter(voteOf).length;
+    const isMe = (p) => canMealVote() && lower(p) === lower(S.me);
     return '<div class="is-block"><div class="is-label">Family votes' + (n ? ' · ★ ' + Number(st.score).toFixed(1) : '') + '</div>' +
       '<ul class="vote-list">' + names.map((p) => {
         const v = voteOf(p);
+        if (isMe(p)) {
+          if (sh && sh.voting) return '<li class="vote-me picking"><span class="vote-who">' + esc(p) + ' <small>(you)</small></span><span class="vote-pick">' +
+            Object.keys(VOTE_LABEL).map((e) => '<button type="button" data-act="mc-vote" data-v="' + e + '" class="' + (v === e ? 'on' : '') + '" aria-label="' + esc(VOTE_LABEL[e]) + '"><span class="vote-emoji">' + e + '</span><small>' + esc(VOTE_LABEL[e]) + '</small></button>').join('') +
+            '</span></li>';
+          return '<li class="vote-me"><span class="vote-who">' + esc(p) + ' <small>(you)</small></span><button type="button" class="vote-mine" data-act="mc-vote-open">' +
+            (v ? '<span class="vote-emoji">' + v + '</span> ' + esc(VOTE_LABEL[v] || '') + ' <span class="vote-change">Change</span>' : '<span class="vote-add">＋ Add my vote</span>') + '</button></li>';
+        }
         return '<li class="' + (v ? '' : 'none') + '"><span class="vote-who">' + esc(p) + '</span><span class="vote-what">' + (v ? '<span class="vote-emoji">' + v + '</span> ' + esc(VOTE_LABEL[v] || '') : 'No vote yet') + '</span></li>';
       }).join('') + '</ul>' +
       (st.matchups ? '<p class="note">Won ' + (st.wins || 0) + ' of ' + st.matchups + ' head-to-heads.</p>' : '') +
-      (!n ? '<p class="note">Votes come from the Inbox dinner votes and How was it? cards.</p>' : '') + '</div>';
+      (!n && !canMealVote() ? '<p class="note">Votes come from the Inbox dinner votes and How was it? cards.</p>' : '') + '</div>';
+  }
+
+  // Printable recipe cards (Nov 4, owner): recipes/index.json lists every meal with a PDF in recipes/ (built by
+  // recipes/build.js from recipes/src/mNN.json). Loaded once, the first time a meal card opens.
+  function recipeOf(id) {
+    if (!S.recipes && !S.recipesLoading) {
+      S.recipesLoading = true;
+      fetch('recipes/index.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((j) => { S.recipes = j || { recipes: {} }; render(); })
+        .catch(() => { S.recipesLoading = false; });
+    }
+    return S.recipes && S.recipes.recipes && S.recipes.recipes[id];
+  }
+  function recipeButton(m) {
+    const r = recipeOf(m.id);
+    if (!r) return '';
+    return '<a class="btn btn-outline btn-block recipe-btn" href="' + esc(r.pdf) + '?v=' + esc(S.recipes.built || '') + '" target="_blank" rel="noopener">🖨 Recipe card<small>' +
+      esc([r.minutes ? r.minutes + ' min' : '', r.serves ? 'serves ' + r.serves : ''].filter(String).join(' · ')) + ' · open, then print</small></a>';
   }
 
   function viewMealCard(sh) {
@@ -2279,6 +2306,7 @@
     const wkLabel = (wk) => (wk === thisWk ? 'This week' : wk === addDays(thisWk, 7) ? 'Next week' : 'Week of ' + md(wk));
     let h = '<div class="is-head"><div>' + (featureOf(m) ? '<div class="hero-badge in-card">' + esc(featureOf(m).badge) + '</div>' : '') + '<h2>' + esc(m.name) + '</h2>' + (featureOf(m) && featureOf(m).line ? '<p class="hero-line in-card">' + esc(featureOf(m).line) + '</p>' : '') + (mealTags(m).length ? '<div class="tags">' + mealTags(m).join('') + '</div>' : '') + '</div>' +
       '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
+    h += recipeButton(m);
     const kidAsks = canV9() && isKid(S.me);
     if (kidAsks) {
       const pending = mealRequests().find((x) => x.meal.id === m.id && String(x.who).toLowerCase() === String(S.me).toLowerCase());
@@ -2303,7 +2331,7 @@
       }).join('') + '</div></div>').join('') +
       '<p class="note">Tap a ' + (slot === 'dinner' ? 'night' : 'day') + ' to plan it, tap again to take it off. One with something else on it gets swapped.</p></div>';
 
-    h += mealVotesBlock(m);
+    h += mealVotesBlock(m, sh);
 
     const ids = mealItems(m).filter((id) => itemById(id));
     const need = ids.filter((id) => !listRowFor(id));
@@ -3270,6 +3298,20 @@
       saveMealIngredients(m, before.filter((x) => x !== el.dataset.id), 'Took ' + (it ? it.name : 'it') + ' off', () => saveMealIngredients(m, before, 'Put back'));
     },
     'mc-ing-clear': () => { S.sheet.iq = ''; render(); },
+    'mc-vote-open': () => { if (S.sheet) { S.sheet.voting = true; render(); } },
+    'mc-vote': (el) => {
+      const sh = S.sheet; const m = sh && mealById(sh.id); const v = el.dataset.v; if (!m || !VOTE_LABEL[v]) return;
+      sh.voting = false;
+      act('mealVote', { meal_id: m.id, vote: v }, () => {
+        const ms = D().mealStats || (D().mealStats = {});
+        const st = ms[m.id] || (ms[m.id] = { voters: {}, votes: {}, score: 0 });
+        st.voters = st.voters || {};
+        Object.keys(st.voters).forEach((w) => { if (w.toLowerCase() === String(S.me).toLowerCase()) delete st.voters[w]; });
+        st.voters[S.me] = v;
+        const sc = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 }; const vs = Object.keys(st.voters).map((w) => sc[st.voters[w]] || 0).filter(Boolean);
+        st.score = vs.length ? Math.round(vs.reduce((a, b) => a + b, 0) / vs.length * 10) / 10 : 0;
+      }, 'Saved your vote: ' + v + ' ' + VOTE_LABEL[v]);
+    },
     'mc-ing-new': async () => {
       const sh = S.sheet; const name = String(sh.iq || '').trim(); const m = mealById(sh.id);
       if (!name || !m || sh.creating) return;

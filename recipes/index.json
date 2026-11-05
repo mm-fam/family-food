@@ -1,0 +1,320 @@
+{
+ "built": "2026-11-05",
+ "recipes": {
+  "m01": {
+   "name": "🌮 Taco Fiesta",
+   "pdf": "recipes/m01.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 25,
+   "draft": true
+  },
+  "m02": {
+   "name": "🍕 Pizza Party",
+   "pdf": "recipes/m02.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 35,
+   "draft": true
+  },
+  "m03": {
+   "name": "🌶️ Cozy Cabin Chili",
+   "pdf": "recipes/m03.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 50,
+   "draft": true
+  },
+  "m04": {
+   "name": "🍖 Mighty Meatloaf",
+   "pdf": "recipes/m04.pdf",
+   "serves": "4, plus lunches",
+   "minutes": 75,
+   "draft": true
+  },
+  "m05": {
+   "name": "🥩 Steakhouse Steak & Fries",
+   "pdf": "recipes/m05.pdf",
+   "serves": "4",
+   "minutes": 35,
+   "draft": true
+  },
+  "m06": {
+   "name": "🍕 Pepperoni Pizza Pasta Bake",
+   "pdf": "recipes/m06.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 45,
+   "draft": true
+  },
+  "m07": {
+   "name": "🫓 Greek Chicken Naan & Tzatziki",
+   "pdf": "recipes/m07.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 35,
+   "draft": true
+  },
+  "m08": {
+   "name": "🥟 Pierogi Party + Salad",
+   "pdf": "recipes/m08.pdf",
+   "serves": "4",
+   "minutes": 30,
+   "draft": true
+  },
+  "m09": {
+   "name": "🍆 Chicken & Eggplant Parm",
+   "pdf": "recipes/m09.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 55,
+   "draft": true
+  },
+  "m10": {
+   "name": "🥦 Beef & Broccoli Wok Night",
+   "pdf": "recipes/m10.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 32,
+   "draft": true
+  },
+  "m11": {
+   "name": "🫔 Cheesy Beef Enchiladas",
+   "pdf": "recipes/m11.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 45,
+   "draft": true
+  },
+  "m12": {
+   "name": "🧀 Loaded Nachos",
+   "pdf": "recipes/m12.pdf",
+   "serves": "4",
+   "minutes": 30,
+   "draft": true
+  },
+  "m13": {
+   "name": "🌭 Sausage, Peppers & Onions Sheet Pan",
+   "pdf": "recipes/m13.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 45,
+   "draft": true
+  },
+  "m14": {
+   "name": "🍔 Buffalo Chicken Sliders",
+   "pdf": "recipes/m14.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 40,
+   "draft": true
+  },
+  "m15": {
+   "name": "🍲 Soup & Sammie Night",
+   "pdf": "recipes/m15.pdf",
+   "serves": "4",
+   "minutes": 20,
+   "draft": true
+  },
+  "m16": {
+   "name": "💪 Iron & Protein Oatmeal Bowls",
+   "pdf": "recipes/m16.pdf",
+   "serves": "4",
+   "minutes": 15,
+   "draft": true
+  },
+  "m17": {
+   "name": "🍓 Greek Yogurt Parfaits",
+   "pdf": "recipes/m17.pdf",
+   "serves": "4",
+   "minutes": 5,
+   "draft": true
+  },
+  "m18": {
+   "name": "🍳 Cottage Cheese Scramble",
+   "pdf": "recipes/m18.pdf",
+   "serves": "4",
+   "minutes": 11,
+   "draft": true
+  },
+  "m19": {
+   "name": "🥣 Overnight Oats",
+   "pdf": "recipes/m19.pdf",
+   "serves": "4",
+   "minutes": 10,
+   "draft": true
+  },
+  "m20": {
+   "name": "🥤 Power Protein Smoothie",
+   "pdf": "recipes/m20.pdf",
+   "serves": "4",
+   "minutes": 5,
+   "draft": true
+  },
+  "m21": {
+   "name": "🥚 Veggie & Cheese Omelets",
+   "pdf": "recipes/m21.pdf",
+   "serves": "4",
+   "minutes": 20,
+   "draft": true
+  },
+  "m22": {
+   "name": "🍌 Banana Egg Pancakes",
+   "pdf": "recipes/m22.pdf",
+   "serves": "4",
+   "minutes": 20,
+   "draft": true
+  },
+  "m23": {
+   "name": "🌯 Chicken & Black Bean Power Wraps",
+   "pdf": "recipes/m23.pdf",
+   "serves": "4",
+   "minutes": 15,
+   "draft": true
+  },
+  "m24": {
+   "name": "🥗 Buffalo Chicken & White Bean Salad",
+   "pdf": "recipes/m24.pdf",
+   "serves": "4",
+   "minutes": 15,
+   "draft": true
+  },
+  "m25": {
+   "name": "🌵 Southwest Black Bean & Egg Salad",
+   "pdf": "recipes/m25.pdf",
+   "serves": "4",
+   "minutes": 27,
+   "draft": true
+  },
+  "m26": {
+   "name": "🍚 Kitchen-Sink Grain Bowls",
+   "pdf": "recipes/m26.pdf",
+   "serves": "4",
+   "minutes": 25,
+   "draft": true
+  },
+  "m27": {
+   "name": "🍎 Eggs & Apple Slices",
+   "pdf": "recipes/m27.pdf",
+   "serves": "4",
+   "minutes": 15,
+   "draft": true
+  },
+  "m28": {
+   "name": "🥒 Cottage Cheese & Cucumbers",
+   "pdf": "recipes/m28.pdf",
+   "serves": "4",
+   "minutes": 5,
+   "draft": true
+  },
+  "m29": {
+   "name": "🫑 Cottage Cheese Dip & Peppers",
+   "pdf": "recipes/m29.pdf",
+   "serves": "4",
+   "minutes": 8,
+   "draft": true
+  },
+  "m31": {
+   "name": "🥕 Greek Yogurt Veggie Dip",
+   "pdf": "recipes/m31.pdf",
+   "serves": "4",
+   "minutes": 10,
+   "draft": true
+  },
+  "m32": {
+   "name": "🥜 PB & Banana Toast",
+   "pdf": "recipes/m32.pdf",
+   "serves": "4",
+   "minutes": 8,
+   "draft": true
+  },
+  "m34": {
+   "name": "🔥 Buffalo Chicken Wraps",
+   "pdf": "recipes/m34.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 35,
+   "draft": true
+  },
+  "m35": {
+   "name": "🦃 Turkey & Black Bean Cottage Cheese Bake",
+   "pdf": "recipes/m35.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 50,
+   "draft": true
+  },
+  "m36": {
+   "name": "🍠 Sheet Pan Chicken, Sweet Potato & Broccoli",
+   "pdf": "recipes/m36.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 45,
+   "draft": true
+  },
+  "m37": {
+   "name": "🥢 Egg Roll in a Bowl",
+   "pdf": "recipes/m37.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 25,
+   "draft": true
+  },
+  "m38": {
+   "name": "🍝 Spinach & Cottage Cheese Baked Pasta",
+   "pdf": "recipes/m38.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 50,
+   "draft": true
+  },
+  "m39": {
+   "name": "🫘 Black Bean & Sweet Potato Quesadillas",
+   "pdf": "recipes/m39.pdf",
+   "serves": "4",
+   "minutes": 35,
+   "draft": true
+  },
+  "m40": {
+   "name": "🍛 One-Pot Chicken & Chickpea Curry",
+   "pdf": "recipes/m40.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 35,
+   "draft": true
+  },
+  "m41": {
+   "name": "🥖 Philly Cheesesteaks",
+   "pdf": "recipes/m41.pdf",
+   "serves": "4",
+   "minutes": 55,
+   "draft": true
+  },
+  "m42": {
+   "name": "🍏 Homemade Apple Pop-Tarts",
+   "pdf": "recipes/m42.pdf",
+   "serves": "8 tarts",
+   "minutes": 45,
+   "draft": true
+  },
+  "m43": {
+   "name": "🐷 Pork Carnitas Tacos",
+   "pdf": "recipes/m43.pdf",
+   "serves": "4, plus 2 lunches",
+   "minutes": 510,
+   "draft": true
+  },
+  "m44": {
+   "name": "🥐 Cheeseburger Puff Pastry Pockets",
+   "pdf": "recipes/m44.pdf",
+   "serves": "4 (8 pockets)",
+   "minutes": 45,
+   "draft": true
+  },
+  "m45": {
+   "name": "🥪 Open-Faced Pizza & Deli Melts",
+   "pdf": "recipes/m45.pdf",
+   "serves": "4",
+   "minutes": 20,
+   "draft": true
+  },
+  "m46": {
+   "name": "🥞 Pancake PB&J Stack",
+   "pdf": "recipes/m46.pdf",
+   "serves": "16 pancakes (4 breakfasts)",
+   "minutes": 30,
+   "draft": true
+  },
+  "m47": {
+   "name": "🌯 Dad's Crunchy Burrito Roll-Ups",
+   "pdf": "recipes/m47.pdf",
+   "serves": "4, plus a lunch",
+   "minutes": 55,
+   "draft": true
+  }
+ }
+}

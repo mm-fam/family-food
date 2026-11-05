@@ -1,0 +1,136 @@
+{
+ "id": "m01",
+ "name": "🌮 Taco Fiesta",
+ "kind": "dinner",
+ "tagline": "Weeknight turkey tacos with real flavor: a hard sear, a saucy finish, and a build-your-own bar.",
+ "serves": "4, plus a lunch",
+ "prep": 10,
+ "cook": 15,
+ "level": "Easy weeknight",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1¼ lb",
+     "name": "Ground turkey 94%",
+     "item": "i053"
+    },
+    {
+     "qty": "1 packet",
+     "name": "Taco seasoning",
+     "item": "i056"
+    },
+    {
+     "qty": "¼ cup",
+     "name": "Ortega taco sauce, plus more to serve",
+     "item": "i057"
+    },
+    {
+     "qty": "1 can",
+     "name": "Bush's black beans, drained and rinsed",
+     "item": "i061"
+    },
+    {
+     "qty": "10",
+     "name": "Mission soft taco tortillas",
+     "item": "i075"
+    },
+    {
+     "qty": "a few",
+     "name": "Flour tortillas, for anyone who wants a burrito",
+     "item": "i074"
+    },
+    {
+     "qty": "1½ cups",
+     "name": "Jack shreds",
+     "item": "i071"
+    },
+    {
+     "qty": "2",
+     "name": "Limes",
+     "item": "i019"
+    }
+   ]
+  },
+  {
+   "group": "Taco bar extras (whatever we have)",
+   "items": [
+    {
+     "qty": "",
+     "name": "Shredded lettuce, sour cream, salsa, avocado, cilantro"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 Tbsp",
+     "name": "Olive oil"
+    },
+    {
+     "qty": "⅔ cup",
+     "name": "Water"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Set out the taco bar: cheese, lettuce, sour cream, salsa, limes cut in wedges. Warm the oven to 200°F for the tortillas.",
+   "kid": true
+  },
+  {
+   "text": "Heat the oil in a big skillet over medium-high until it shimmers. Add the turkey, press it flat, and leave it alone for 3–4 minutes so the bottom browns.",
+   "time": "4 min"
+  },
+  {
+   "text": "Break it into small crumbles and cook until no pink is left, about 3 minutes more.",
+   "time": "3 min"
+  },
+  {
+   "text": "Stir in the taco seasoning, the water and ¼ cup taco sauce. Simmer until it's saucy and glossy, not soupy.",
+   "time": "4 min"
+  },
+  {
+   "text": "Stir the black beans into the meat (or warm them in a small pot for anyone who wants them on the side). Squeeze in half a lime and taste.",
+   "kid": true
+  },
+  {
+   "text": "Wrap the tortillas in a damp paper towel, then foil, and warm them in the oven 10 minutes (or char each one 15 seconds over a gas flame).",
+   "time": "10 min"
+  },
+  {
+   "text": "Everyone builds their own. Leftover meat goes in a container for tomorrow's lunch before seconds start."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Set up the taco bar in bowls and put a spoon in each one"
+  },
+  {
+   "job": "Drain and rinse the black beans in a strainer"
+  },
+  {
+   "job": "Cut the limes into wedges (with a grown-up)"
+  },
+  {
+   "job": "Count out tortillas and wrap them for the oven"
+  }
+ ],
+ "chef_tip": "Don't stir the turkey for the first 3–4 minutes. Lean turkey has little fat, so browning is where all the flavor comes from.",
+ "make_ahead": "Cook the meat up to 2 days ahead; reheat with a splash of water.",
+ "leftovers": "Taco bowls for lunch: meat + beans over Minute rice with cheese and salsa.",
+ "swaps": [
+  "Ground beef works the same way",
+  "Hard shells: bake 5 minutes at 375°F"
+ ],
+ "serve_with": "Tortilla chips and salsa, or Alexia street corn",
+ "gear": [
+  "Big skillet",
+  "Foil",
+  "Small bowls for the taco bar"
+ ],
+ "heads_up": "Oven on to 200°F for the tortillas."
+}

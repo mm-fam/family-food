@@ -269,10 +269,14 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      per item + store ("Which … at Target?", to the parent who added it, else the parents). The answer, or
 //      productPick {item_id, store, product} from the item screen, makes that product `exact` (other exact / likely
 //      rows there become `alt`). itemInfo returns `products`: every store product we know for the item.
-const API_VERSION = 51;
+// 52 = vote from the meal card (Nov 4, owner: "whoever the user is logged in… should be able to update my own or add
+//      one… right there in that list"): mealVote {meal_id, vote: 😍/🙂/😐/👎} appends a closed Review `vote` row
+//      answered "<emoji> <label> (<name>)" with the meal id, so mealStats' latest-answer-per-person picks it up. No
+//      points (it isn't a card). Any open vote / rate card for that person and meal closes (outcome "voted on the meal card").
+const API_VERSION = 52;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
-  'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick'];
+  'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote'];
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
@@ -347,6 +351,7 @@ function handle(req) {
     feedback: () => withLock(() => addFeedback(req)),
     voiceAdd: () => withLock(() => voiceAdd(req)),
     productPick: () => withLock(() => productPick(req)),
+    mealVote: () => withLock(() => mealVote(req)),
   };
   const fn = actions[req.action];
   if (!fn) return reply({ ok: false, error: 'unknown_action' });
@@ -1861,6 +1866,28 @@ function addMealIdea(req) {
   ideasSheet();
   const id = nextId(readTab(TABS.ideas), 'id', 'x', 3);
   appendObj(TABS.ideas, { id: id, at: nowStamp(), who: req.by || '', text: text, status: 'new', meal_id: '', notes: '' });
+  return { id: id };
+}
+
+// Vote from the meal card (api 52): anyone, kids too, for themselves only.
+const VOTE_WORDS = { '😍': 'Love it', '🙂': 'Like it', '😐': "It's OK", '👎': 'Not for me' };
+function mealVote(req) {
+  const who = people().find((p) => p.toLowerCase() === String(req.by || '').trim().toLowerCase());
+  if (!who) throw new Error('Pick who you are first');
+  const vote = String(req.vote || '').trim();
+  if (!VOTE_SCORE[vote]) throw new Error('Pick 😍, 🙂, 😐 or 👎');
+  const meal = readTab(TABS.meals).find((m) => String(m.id) === String(req.meal_id));
+  if (!meal) throw new Error('That meal is gone');
+  ['answered_at', 'points', 'points_to', 'outcome'].forEach((c) => ensureColumn(TABS.review, c));
+  const review = readTab(TABS.review);
+  review.filter((r) => (r.type === 'vote' || r.type === 'rate') && r.status === 'open' && String(r.audience).toLowerCase() === who.toLowerCase() &&
+    String(r.detail).indexOf('(' + meal.id + ')') >= 0).forEach((r) => setFields(TABS.review, r._row, { status: 'closed', outcome: 'voted on the meal card' }));
+  const id = 'r' + String(nextIdNum(review)).padStart(3, '0');
+  appendObj(TABS.review, {
+    id: id, created: nowStamp(), type: 'vote', status: 'closed', audience: who, asked_by: who, outcome: 'meal card vote',
+    detail: 'Meal card vote: how do you feel about ' + meal.name + '? (' + meal.id + ')',
+    answer: vote + ' ' + VOTE_WORDS[vote] + ' (' + who + ')', answered_at: nowStamp(), points: 0,
+  });
   return { id: id };
 }
 

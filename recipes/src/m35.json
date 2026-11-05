@@ -1,0 +1,137 @@
+{
+ "id": "m35",
+ "name": "🦃 Turkey & Black Bean Cottage Cheese Bake",
+ "kind": "dinner",
+ "tagline": "A layered Tex-Mex tortilla bake where cottage cheese melts in for protein and creaminess.",
+ "serves": "4, plus a lunch",
+ "prep": 15,
+ "cook": 35,
+ "level": "Weeknight, mostly hands-off",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1¼ lb",
+     "name": "Ground turkey 94%",
+     "item": "i053"
+    },
+    {
+     "qty": "1 can",
+     "name": "Bush's black beans, drained and rinsed",
+     "item": "i061"
+    },
+    {
+     "qty": "1½ cups",
+     "name": "Cottage cheese",
+     "item": "i225"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Chunky salsa, mild",
+     "item": "i113"
+    },
+    {
+     "qty": "1 packet",
+     "name": "Taco seasoning",
+     "item": "i056"
+    },
+    {
+     "qty": "1 cup",
+     "name": "Frozen corn",
+     "item": "i223"
+    },
+    {
+     "qty": "1",
+     "name": "Onion, diced",
+     "item": "i155"
+    },
+    {
+     "qty": "8",
+     "name": "Mission soft taco tortillas",
+     "item": "i075"
+    },
+    {
+     "qty": "2 cups",
+     "name": "Mexican blend shredded cheese",
+     "item": "i039"
+    },
+    {
+     "qty": "to serve",
+     "name": "Sour cream",
+     "item": "i159"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "1 Tbsp",
+     "name": "Olive oil"
+    },
+    {
+     "qty": "⅓ cup",
+     "name": "Water"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Heat the oven to 375°F. Grease a 9×13 dish."
+  },
+  {
+   "text": "Cook the onion in the oil over medium-high, 3 minutes. Add the turkey, press flat and let it brown before breaking it up.",
+   "time": "8 min"
+  },
+  {
+   "text": "Stir in the taco seasoning, water, beans, corn and half the salsa. Simmer 3 minutes.",
+   "time": "3 min"
+  },
+  {
+   "text": "In a bowl mix the cottage cheese, the rest of the salsa and 1 cup of the cheese.",
+   "kid": true
+  },
+  {
+   "text": "Layer: 4 tortillas (tear to fit), half the meat, all the cottage cheese mix, 4 more tortillas, the rest of the meat.",
+   "kid": true
+  },
+  {
+   "text": "Top with the last cup of cheese. Cover with foil and bake 20 minutes, then uncover 10 more until bubbly.",
+   "time": "30 min"
+  },
+  {
+   "text": "Rest 5 minutes before cutting so the squares hold. Sour cream on top."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Stir the cottage cheese, salsa and cheese together"
+  },
+  {
+   "job": "Tear tortillas and build the layers"
+  },
+  {
+   "job": "Sprinkle the cheese on top"
+  },
+  {
+   "job": "Set the table and put out sour cream and salsa"
+  }
+ ],
+ "chef_tip": "Season the cottage cheese layer with salsa and cheese: plain cottage cheese tastes flat, but mixed this way it bakes into a creamy, cheesy middle nobody picks out.",
+ "make_ahead": "Assemble up to a day ahead, cover and fridge; add 10 minutes covered.",
+ "leftovers": "Squares reheat great for lunch (microwave 90 seconds or 350°F for 15).",
+ "swaps": [
+  "Ground beef instead of turkey",
+  "Pepper jack on top for heat"
+ ],
+ "serve_with": "Shredded lettuce with lime, or Alexia street corn",
+ "gear": [
+  "9×13 baking dish",
+  "Big skillet",
+  "Foil"
+ ],
+ "heads_up": "Oven on to 375°F.",
+ "draft": true
+}

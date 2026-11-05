@@ -1,0 +1,122 @@
+{
+ "id": "m14",
+ "name": "🍔 Buffalo Chicken Sliders",
+ "kind": "dinner",
+ "tagline": "Saucy buffalo chicken on soft brioche rolls with melty cheese, baked as one pull-apart tray.",
+ "serves": "4, plus a lunch",
+ "prep": 15,
+ "cook": 25,
+ "level": "Easy, game-night vibes",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1½ lb",
+     "name": "Chicken breasts",
+     "item": "i156"
+    },
+    {
+     "qty": "½ cup",
+     "name": "Frank's RedHot",
+     "item": "i116"
+    },
+    {
+     "qty": "1 pack",
+     "name": "Brioche rolls (12)",
+     "item": "i040"
+    },
+    {
+     "qty": "1½ cups",
+     "name": "Tillamook mozzarella, shredded",
+     "item": "i083"
+    },
+    {
+     "qty": "to serve",
+     "name": "Ranch or blue cheese dressing",
+     "item": "i160"
+    },
+    {
+     "qty": "1 bunch",
+     "name": "Celery sticks",
+     "item": "i239"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "4 Tbsp",
+     "name": "Butter, melted (2 for sauce, 2 for tops)"
+    },
+    {
+     "qty": "½ tsp",
+     "name": "Garlic powder"
+    },
+    {
+     "qty": "",
+     "name": "Salt, pepper"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Oven to 375°F. Simmer the chicken in salted water until 165°F, about 15 minutes (or use a rotisserie chicken).",
+   "time": "15 min"
+  },
+  {
+   "text": "Shred the chicken with two forks.",
+   "kid": true
+  },
+  {
+   "text": "Stir the Frank's with 2 Tbsp melted butter; toss with the chicken. Taste and add more sauce for the grown-ups.",
+   "kid": true
+  },
+  {
+   "text": "Slice the whole sheet of rolls in half sideways without pulling them apart. Bottom half goes in a 9×13 dish.",
+   "kid": true
+  },
+  {
+   "text": "Layer chicken, then cheese, then the top half.",
+   "kid": true
+  },
+  {
+   "text": "Brush the tops with butter mixed with garlic powder. Bake covered 10 minutes, uncovered 5.",
+   "time": "15 min"
+  },
+  {
+   "text": "Pull apart and serve with ranch and celery."
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Shred the chicken with forks"
+  },
+  {
+   "job": "Build the slider tray"
+  },
+  {
+   "job": "Brush butter on the tops"
+  },
+  {
+   "job": "Make a mild version for anyone who doesn't like spicy"
+  }
+ ],
+ "chef_tip": "Toss half the chicken in sauce and keep a plain corner for anyone who wants mild. Mix the Frank's with butter so it clings instead of soaking the bun.",
+ "make_ahead": "Cook and shred the chicken up to 2 days ahead.",
+ "leftovers": "Buffalo chicken wraps or over a salad with ranch.",
+ "swaps": [
+  "Hawaiian rolls",
+  "Pepper jack or provolone instead of mozzarella"
+ ],
+ "serve_with": "Celery, carrots and ranch; tater tots",
+ "gear": [
+  "Pot",
+  "9×13 dish + foil",
+  "Pastry brush"
+ ],
+ "heads_up": "Chicken on to simmer first.",
+ "draft": true
+}

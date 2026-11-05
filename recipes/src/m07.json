@@ -1,0 +1,132 @@
+{
+ "id": "m07",
+ "name": "🫓 Greek Chicken Naan & Tzatziki",
+ "kind": "dinner",
+ "tagline": "Lemony, garlicky chicken on warm naan with a cool homemade cucumber tzatziki.",
+ "serves": "4, plus a lunch",
+ "prep": 20,
+ "cook": 15,
+ "level": "Easy, fresh",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    {
+     "qty": "1½ lb",
+     "name": "Chicken breasts or cutlets",
+     "item": "i156"
+    },
+    {
+     "qty": "4–6",
+     "name": "Naan",
+     "item": "i211"
+    },
+    {
+     "qty": "1 tub (16 oz)",
+     "name": "Nounos plain Greek yogurt (for tzatziki)",
+     "item": "i004"
+    },
+    {
+     "qty": "1 bag",
+     "name": "Mini seedless cucumbers",
+     "item": "i183"
+    },
+    {
+     "qty": "2",
+     "name": "Lemons",
+     "item": "i096"
+    },
+    {
+     "qty": "3 cloves",
+     "name": "Garlic",
+     "item": "i153"
+    },
+    {
+     "qty": "small bunch",
+     "name": "Fresh dill",
+     "item": "i405"
+    },
+    {
+     "qty": "to serve",
+     "name": "Cherry tomatoes, red onion",
+     "item": "i274"
+    }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    {
+     "qty": "3 Tbsp",
+     "name": "Olive oil"
+    },
+    {
+     "qty": "2 tsp",
+     "name": "Dried oregano"
+    },
+    {
+     "qty": "",
+     "name": "Salt, pepper"
+    }
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "Marinate: chicken with 2 Tbsp oil, juice of 1 lemon, 2 cloves grated garlic, oregano, 1 tsp salt and pepper. 15 minutes is plenty.",
+   "time": "15 min"
+  },
+  {
+   "text": "Tzatziki: grate 2 cucumbers, squeeze out the water in a towel, then stir into the yogurt with 1 grated garlic clove, chopped dill, a squeeze of lemon and salt.",
+   "kid": true
+  },
+  {
+   "text": "Slice the tomatoes and the rest of the cucumbers.",
+   "kid": true
+  },
+  {
+   "text": "Cook the chicken in a hot skillet or grill pan over medium-high until 165°F inside.",
+   "time": "5–6 min/side"
+  },
+  {
+   "text": "Rest 5 minutes, then slice."
+  },
+  {
+   "text": "Warm the naan in the oven or directly in the skillet.",
+   "time": "2 min"
+  },
+  {
+   "text": "Build: naan, a big spoon of tzatziki, chicken, tomatoes, cucumbers, lemon.",
+   "kid": true
+  }
+ ],
+ "kid_jobs": [
+  {
+   "job": "Grate the cucumbers and squeeze them dry"
+  },
+  {
+   "job": "Stir up the tzatziki and taste it"
+  },
+  {
+   "job": "Pick and chop the dill with kid scissors"
+  },
+  {
+   "job": "Warm and stack the naan"
+  }
+ ],
+ "chef_tip": "Squeeze the grated cucumber hard in a towel. Wet cucumber makes thin, watery tzatziki; dry cucumber makes it thick and restaurant-good.",
+ "make_ahead": "Tzatziki keeps 3 days and gets better. Marinate the chicken in the morning.",
+ "leftovers": "Chicken + tzatziki over rice or greens, or tucked in a wrap for lunch.",
+ "swaps": [
+  "Naan-sters dippers for the girls",
+  "Plain skyr instead of Nounos"
+ ],
+ "serve_with": "Castelvetrano or Kalamata olives, feta if we have it",
+ "gear": [
+  "Skillet or grill pan",
+  "Box grater",
+  "Clean dish towel"
+ ],
+ "heads_up": "Start the chicken marinating first.",
+ "draft": true
+}
