@@ -299,3 +299,31 @@ test('missionsAsk: a parent sends Missing for meals to the kids as missions (api
   assert.strictEqual(r.ok, true, r.error);
   assert.ok(r.state.list.some((x) => x.item_id === 'i002' && x.status === 'requested'));
 });
+
+test('mission fairness: 6 missions a day count; bulk missions alternate, whoever is behind first (api 57)', () => {
+  const b = fresh();
+  const today = b.isoDate(new Date());
+  const rv = rows(b, 'Review');
+  const H = rv[0];
+  const row = (o) => H.map((h) => (o[h] === undefined ? '' : o[h]));
+  // Kim answers 8 missions today (24 face value) and 9 quick cards; Lee answers 1 quick card.
+  for (let i = 0; i < 8; i++) rv.push(row({ id: 'r9' + i, created: today, type: 'check', detail: 'Go check (i001)', status: 'closed', answer: 'Out (Kim)', audience: 'Kim', answered_at: today + 'T10:0' + i + ':00', points: 3, points_to: 'Kim', points_why: 'check' }));
+  for (let i = 0; i < 9; i++) rv.push(row({ id: 'r8' + i, created: today, type: 'profile', detail: 'q', status: 'closed', answer: 'Yes (Kim)', audience: 'Kim', answered_at: today + 'T11:0' + i + ':00', points: 1, points_to: 'Kim', points_why: 'other' }));
+  rv.push(row({ id: 'r700', created: today, type: 'profile', detail: 'q', status: 'closed', answer: 'Yes (Lee)', audience: 'Lee', answered_at: today + 'T11:00:00', points: 1, points_to: 'Lee', points_why: 'other' }));
+  let r = b.call({ action: 'state', pass: PASS, by: 'Pat' });
+  assert.strictEqual(r.ok, true, r.error);
+  const P = r.state.points;
+  assert.strictEqual(P.today.Kim, 6 * 3 + 8, 'missions cap at 6, quick cards at 8');
+  assert.strictEqual(P.missionToday.Kim, 8);
+  assert.strictEqual(P.missionCap, 6);
+  assert.ok(P.rules.find((x) => x.key === 'check').cap === 6);
+  // Bulk missions: Lee is behind, so Lee gets the 1st, 3rd and 5th (3 of 5).
+  r = b.call({ action: 'missionsAsk', pass: PASS, by: 'Pat', items: ['i001', 'i002', 'i003', 'i004', 'i005'].map((id) => ({ id })) });
+  assert.strictEqual(r.ok, true, r.error);
+  const to = r.result.to.reduce((m, x) => ((m[x.kid] = x.n), m), {});
+  assert.ok(to.Lee >= to.Kim && to.Lee - to.Kim <= 1, JSON.stringify(to));
+  // mission_cap 0 turns the limit off.
+  b._ss.getSheetByName('Settings')._data.push(['mission_cap', '0']);
+  r = b.call({ action: 'state', pass: PASS, by: 'Pat' });
+  assert.strictEqual(r.state.points.today.Kim, 8 * 3 + 8);
+});

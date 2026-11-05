@@ -73,10 +73,18 @@ function quickCap() {
   const v = settingsMap().quick_cap;
   return v === '' || v === undefined || v === null || isNaN(Number(v)) ? QUICK_CAP : Math.max(0, Number(v));
 }
-// POINT_RULES as the app shows them, with the live quick-card limit on `other`.
+// Missions (rule `check`) count toward the leaderboard only up to this many a day per person (api 57, owner Nov 5:
+// ten missions in four minutes shouldn't decide the week). Settings mission_cap overrides; 0 = no limit. Counted
+// like the quick-card limit: when points are added up, so Review keeps face values.
+const MISSION_CAP = 6;
+function missionCap() {
+  const v = settingsMap().mission_cap;
+  return v === '' || v === undefined || v === null || isNaN(Number(v)) ? MISSION_CAP : Math.max(0, Number(v));
+}
+// POINT_RULES as the app shows them, with the live daily limits on `other` and `check`.
 function pointRulesOut() {
-  const cap = quickCap();
-  return POINT_RULES.map((x) => (x.key === 'other' && cap ? Object.assign({}, x, { cap: cap }) : x));
+  const caps = { other: quickCap(), check: missionCap() };
+  return POINT_RULES.map((x) => (caps[x.key] ? Object.assign({}, x, { cap: caps[x.key] }) : x));
 }
 // The scoring rules as the family reads them (Inbox → How points work). One line per way to score, in the
 // order shown; `key` is what Review points_why stores. Keep in step with POINTS and cardPoints().
@@ -283,11 +291,14 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      skip pantry items for meal checks.
 // 55 = Missing for meals → the girls' missions (Nov 5, owner: "these are great mission items for the girls to check"):
 //      missionsAsk {items: [{id, why}]} (parents only) makes one 🔎 mission card per item that isn't on the List and
-//      isn't already on an open mission, split between the kids (fewest open missions first). Same card and answer
+//      isn't already on an open mission, split between the kids (in turn, whoever is behind this week first since api 57). Same card and answer
 //      as the daily missions (Plenty / Some / A little / Out; low / out puts it on the List as a request).
 // 56 = Cart Jobs stamps keep their time: readTab reads a date-time cell on Cart Jobs as yyyy-MM-ddTHH:mm:ss, not just the day
 //      (Nov 5: the GE card said "today" instead of a time). The app shows every stamp as "Nov 5, 9:45 am".
-const API_VERSION = 56;
+// 57 = mission fairness (Nov 5, owner): missions (rule check) count only the first mission_cap (Settings; default 6,
+//      0 = off) per person per day, like the quick-card limit; state.points.missionCap / missionToday; pointsLog
+//      capped entries carry capWhy. missionsAsk deals cards out in turn, whoever is behind this week first.
+const API_VERSION = 57;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk'];
@@ -1729,17 +1740,18 @@ function scoredEvents() {
     if (pts && r.to && at) out.push({ src: 'ledger', r: r, at: at, to: String(r.to), pts: pts });
   });
   const kept = start ? out.filter((e) => e.at.slice(0, 10) >= start) : out;
-  // Quick-card limit (api 36): in time order, each person's quick cards past the cap that day count 0 (capped).
-  const cap = quickCap();
-  if (cap) {
-    const seen = {};
-    kept.slice().sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)).forEach((e) => {
-      if (e.src !== 'review' || quickWhy(e.r) !== 'other') return;
-      const k = e.to.trim().toLowerCase() + '|' + e.at.slice(0, 10);
-      seen[k] = (seen[k] || 0) + 1;
-      if (seen[k] > cap) { e.pts = 0; e.capped = true; }
-    });
-  }
+  // Daily limits (quick cards api 36, missions api 57): in time order, each person's cards of that rule past the
+  // cap that day count 0 (capped).
+  const caps = { other: quickCap(), check: missionCap() };
+  const seen = {};
+  kept.slice().sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)).forEach((e) => {
+    if (e.src !== 'review') return;
+    const why = quickWhy(e.r), cap = caps[why];
+    if (!cap) return;
+    const k = why + '|' + e.to.trim().toLowerCase() + '|' + e.at.slice(0, 10);
+    seen[k] = (seen[k] || 0) + 1;
+    if (seen[k] > cap) { e.pts = 0; e.capped = true; e.capWhy = why; }
+  });
   return kept;
 }
 // The rule a scored Review row came under (rows from before api 14 have no points_why: worked out from the card).
@@ -1747,10 +1759,10 @@ function quickWhy(r) {
   return String(r.points_why || '') || pointsWhy(Object.assign({}, r, { due_at: '' }), r.answer) || 'other';
 }
 // How many quick cards each person has had counted today, for the phone's "+1 / +0" preview.
-function quickToday(today) {
+function quickToday(today, why) {
   const n = {};
   scoredEvents().forEach((e) => {
-    if (e.src !== 'review' || e.at.slice(0, 10) !== today || quickWhy(e.r) !== 'other') return;
+    if (e.src !== 'review' || e.at.slice(0, 10) !== today || quickWhy(e.r) !== (why || 'other')) return;
     n[e.to] = (n[e.to] || 0) + 1;
   });
   return n;
@@ -1791,7 +1803,7 @@ function pointsLog(req) {
     const answer = String(r.answer || '');
     entries.push({
       id: r.id, at: at, to: to, by: (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || '', pts: pts,
-      why: why, label: ruleByKey(why).label, guessed: guessed, capped: !!e.capped,
+      why: why, label: ruleByKey(why).label, guessed: guessed, capped: !!e.capped, capWhy: e.capWhy || '',
       q: String(r.detail || '').replace(/\s*Options:[\s\S]*$/, '').replace(/\s*\((i|m|x|r|f|c)\d{2,}\)|\s*\(\d{4}-\d\d-\d\d\)/g, '').trim(),
       answer: answer.replace(/\s*\([^()]*\)\s*$/, '').trim(),
     });
@@ -1808,7 +1820,7 @@ function pointsLog(req) {
     });
     return { weekStart: mon, totals: totals, goalDays: goals, winners: best ? Object.keys(totals).filter((p) => totals[p] === best) : [] };
   });
-  return { goal: goal, rules: pointRulesOut(), quickCap: quickCap(), days: POINTS_LOG_DAYS, entries: entries.slice(0, 400), weeks: weekList };
+  return { goal: goal, rules: pointRulesOut(), quickCap: quickCap(), missionCap: missionCap(), days: POINTS_LOG_DAYS, entries: entries.slice(0, 400), weeks: weekList };
 }
 
 // The Inbox scoreboard: points today and this week (Mon–Sun) per person, streaks (days in a row at the
@@ -1829,7 +1841,7 @@ function pointsSummary(today) {
   const monday = addDays(today, -((dow + 6) % 7));
   const lastMonday = addDays(monday, -7);
   const sum = (m, a, b) => Object.keys(m).reduce((t, d) => t + (d >= a && d <= b ? m[d] : 0), 0);
-  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: pointRulesOut(), start: pointsStart(), quickCap: quickCap(), quickToday: {} };
+  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: pointRulesOut(), start: pointsStart(), quickCap: quickCap(), quickToday: {}, missionCap: missionCap(), missionToday: {} };
   let best = 0;
   everyone.forEach((p) => {
     const m = byDay[p];
@@ -1845,6 +1857,10 @@ function pointsSummary(today) {
   if (out.quickCap) {
     const q = quickToday(today);
     everyone.forEach((p) => { const k = Object.keys(q).find((x) => x.trim().toLowerCase() === p.toLowerCase()); out.quickToday[p] = k ? q[k] : 0; });
+  }
+  if (out.missionCap) {
+    const q = quickToday(today, 'check');
+    everyone.forEach((p) => { const k = Object.keys(q).find((x) => x.trim().toLowerCase() === p.toLowerCase()); out.missionToday[p] = k ? q[k] : 0; });
   }
   out.extra = { missions: KID_MISSIONS, settle: SETTLE_PER_KID, qa: '18–22' };
   return out;
@@ -1932,21 +1948,23 @@ function missionsAsk(req) {
   const byId = {}; readTab(TABS.items).forEach((i) => (byId[i.id] = i));
   const onList = {}; readTab(TABS.list).forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0) onList[r.item_id] = true; });
   const review = readTab(TABS.review);
-  const open = {}, load = {};
-  kids.forEach((k) => (load[k] = 0));
+  const open = {};
   review.forEach((r) => {
     if (r.type !== 'check' || r.status !== 'open') return;
     const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) open[m[1]] = true;
-    if (load[r.audience] !== undefined) load[r.audience]++;
   });
+  // api 57: deal the cards out in turn, whoever is behind this week first (so they get the odd one). Before, the kid
+  // with fewer open missions got more, so the kid who answered fastest kept getting the most (Nov 5: 24 vs 13).
+  const week = kidRace(isoDate(new Date()), kids).week;
+  const order = kids.slice().sort((a, b) => (week[a] || 0) - (week[b] || 0));
+  let turn = 0;
   let n = nextIdNum(review);
   const sent = [];
   (req.items || []).slice(0, MISSIONS_ASK_MAX).forEach((x) => {
     const id = String((x && x.id) || x || '');
     const it = byId[id];
     if (!it || it.status === 'Drop' || onList[id] || open[id] || sent.some((s) => s.id === id)) return;
-    const kid = kids.slice().sort((a, b) => load[a] - load[b])[0];
-    load[kid]++;
+    const kid = order[turn++ % order.length];
     const why = String((x && x.why) || '').replace(/[()]/g, '').slice(0, 80);
     appendObj(TABS.review, { id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), type: 'check', status: 'open', answer: '', audience: kid, asked_by: who,
       detail: '🍽 For the meal plan: go check the ' + it.name + ': how much do we have?' + (why ? ' It\'s for ' + why + '.' : '') + ' (' + id + ') Options: ' + MISSION_OPTIONS });

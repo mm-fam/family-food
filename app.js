@@ -2722,6 +2722,8 @@
   const rulePts = (k) => { const x = pointRules().find((y) => y.key === k); return x ? Number(x.pts) || 0 : 0; };
   // Quick cards (💬 questions, votes, decisions) count up to points.quickCap a day each (api 36).
   const quickCapped = () => { const P = D().points || {}; return !!P.quickCap && ((P.quickToday || {})[S.me] || 0) >= P.quickCap; };
+  // Missions count up to points.missionCap a day each (api 57).
+  const missionCapped = () => { const P = D().points || {}; return !!P.missionCap && ((P.missionToday || {})[S.me] || 0) >= P.missionCap; };
   const isQuick = (r) => { const t = String(r.type || '').toLowerCase(); return !['meal_request', 'have_check', 'helped', 'rate', 'still'].includes(t) && ['due', 'mission', 'settle'].indexOf(sectionOf(r)) < 0; };
   function cardPoints(r, answer) {
     const a = String(answer || '').trim().toLowerCase();
@@ -2732,7 +2734,7 @@
     if (t === 'helped') return answer === undefined ? rulePts('helped_cooked') : /^cooked/.test(a) ? rulePts('helped_cooked') : /^helped/.test(a) ? rulePts('helped_helped') : 0;
     const sec = sectionOf(r);
     if (sec === 'due') return rulePts(r.due_at && new Date() > new Date(String(r.due_at)) ? 'task_late' : 'task');
-    if (sec === 'mission') return rulePts('check');
+    if (sec === 'mission') return missionCapped() ? 0 : rulePts('check');
     if (sec === 'settle') return rulePts('settle') || 3;
     if (t === 'rate' || t === 'still') return rulePts(t);
     return quickCapped() ? 0 : rulePts('other');
@@ -2793,7 +2795,9 @@
       '<div class="pr-table">' + rules.filter((x) => ruleGroup(x) === 'kitchen').map(row).join('') + '<div class="pr-row"><span class="pr-what">🧑‍🍳 Kitchen help: Not this time</span><b class="pr-pts zero">0</b></div></div>' +
       '<h3 class="pr-h">What earns nothing</h3>' +
       '<ul class="pr-list"><li><b>Don’t care</b>, <b>Pass ↗</b> and <b>Later</b>: 0 (a Later card still pays when you answer it).</li>' +
-      (P.quickCap ? '<li>💬 Quick cards past the first ' + P.quickCap + ' in a day. Keep answering them (they still teach Poppy), they just don’t add to the leaderboard. Missions, Did we get it?, How was it?, Due soon, Kitchen help and helping plan and shop have no such limit.</li>' : '') +
+      (P.quickCap ? '<li>💬 Quick cards past the first ' + P.quickCap + ' in a day. Keep answering them (they still teach Poppy), they just don’t add to the leaderboard.</li>' : '') +
+      (P.missionCap ? '<li>🔎 Missions past the first ' + P.missionCap + ' in a day. Still worth doing (they keep the List honest), they just don’t add points. So take your time and really go look.</li>' : '') +
+      (P.quickCap ? '<li>Did we get it?, How was it?, Due soon, Kitchen help and helping plan and shop have no such limit.</li>' : '') +
       (family.length ? '<li>Adds past the daily limit, a kid’s request a parent skips, and adding a whole meal’s ingredients at once.</li><li>Cancelling your own meal request.</li>'
         : '<li>Asking for a meal, approving the kids’ requests, adding to the List (coming with the next server update).</li>') +
       '<li>Kitchen help cards nobody answers close after 3 days with no points.</li></ul>' +
@@ -2860,7 +2864,7 @@
       const t = e.at.slice(11, 16);
       const hh = Number(t.slice(0, 2)), time = t ? ((hh % 12) || 12) + ':' + t.slice(3) + (hh < 12 ? ' am' : ' pm') : '';
       const forOther = e.by && e.by !== e.to;
-      list += '<div class="ph-row"><b class="ph-pts' + (e.capped ? ' zero' : '') + '">+' + e.pts + '</b><div class="ph-body"><div><b>' + esc(e.to) + '</b> · ' + esc(e.label) + (e.capped ? ' <span class="note">· past the day’s ' + (L.quickCap || '') + ' quick cards</span>' : '') + '</div>' +
+      list += '<div class="ph-row"><b class="ph-pts' + (e.capped ? ' zero' : '') + '">+' + e.pts + '</b><div class="ph-body"><div><b>' + esc(e.to) + '</b> · ' + esc(e.label) + (e.capped ? ' <span class="note">· past the day’s ' + (e.capWhy === 'check' ? (L.missionCap || '') + ' missions' : (L.quickCap || '') + ' quick cards') + '</span>' : '') + '</div>' +
         '<div class="note">' + esc(e.q) + (e.answer ? ' → <i>' + esc(e.answer) + '</i>' : '') + '</div>' +
         '<div class="note ph-meta">' + time + (forOther ? ' · answered by ' + esc(e.by) : '') + '</div></div></div>';
     });
@@ -2887,6 +2891,12 @@
       const n = P.quickToday[S.me] || 0;
       P.quickToday[S.me] = n + 1;
       if (n >= P.quickCap) return '+0 · past today’s ' + P.quickCap + ' quick cards';
+    }
+    if (P.missionCap && sectionOf(r) === 'mission' && String(value || '').trim().toLowerCase() !== 'skip') {
+      P.missionToday = P.missionToday || {};
+      const n = P.missionToday[S.me] || 0;
+      P.missionToday[S.me] = n + 1;
+      if (n >= P.missionCap) return '+0 · past today’s ' + P.missionCap + ' missions';
     }
     const pts = cardPoints(r, value);
     if (!pts) return '';
@@ -2972,7 +2982,7 @@
     let html = top + viewSectionChips() + '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
-      '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() && !preStart() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : (isQuick(r) && quickCapped() ? '+0 today' : '+' + cardPoints(r))) + '</span>' : '') + '</div>' +
+      '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() && !preStart() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : ((isQuick(r) && quickCapped()) || (sectionOf(r) === 'mission' && missionCapped()) ? '+0 today' : '+' + cardPoints(r))) + '</span>' : '') + '</div>' +
       voteTagHtml(r) +
       '<div class="qcard-q">' + esc(voteQuestion(r, sp.q).replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|meal m\d+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +
