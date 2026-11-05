@@ -231,7 +231,7 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      what we buy now wins ties), adds it like the app's + (kids' adds are requests), and returns `say`, one
 //      sentence Siri reads back. No match → added as a new item, noted "by Siri" so a parent can tidy the name.
 // 42 = stores ready (Nov 4, Mike): cartJob {store: 'ALL', kind: 'signin'} asks the cart runner to confirm every store is
-//      signed in on the cart computer (it also does it on its first run each day from 7 am). The runner writes Settings
+//      signed in on the cart computer (it also does it on its first run each day from 6 am). The runner writes Settings
 //      `stores_ok` ("GE=ok;WF=ok;TGT=out;AMZ=ok") + `stores_checked`; state.settings.stores_ok / stores_checked carry them.
 const API_VERSION = 42;
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;

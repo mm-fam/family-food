@@ -50,9 +50,9 @@ $retryDue = $waiting.Count -gt 0 -and (-not (Test-Path $retry) -or ((Get-Date) -
 # Once a day (from 9 am) start Claude even with no jobs, for the daily price pass (runbook §13 step 9).
 $priceMark = Join-Path $here ('prices-' + $now.ToString('yyyy-MM-dd') + '.done')
 $priceDue = $now.Hour -ge 9 -and -not (Test-Path $priceMark)
-# Once a day (from 7 am, as soon as Chrome is open) start Claude for the store sign-in check (runner step 3b, api 42).
+# Once a day (from 6 am, as soon as Chrome is open) start Claude for the store sign-in check (runner step 3b, api 42).
 $signinMark = Join-Path $here ('signin-' + $now.ToString('yyyy-MM-dd') + '.done')
-$signinDue = $now.Hour -ge 7 -and -not (Test-Path $signinMark)
+$signinDue = $now.Hour -ge 6 -and -not (Test-Path $signinMark)
 if ($queued.Count -eq 0 -and -not $retryDue -and $stuck.Count -eq 0 -and -not $priceDue -and -not $signinDue) { exit 0 }
 
 # No Chrome open: don't spend a Claude run. Queued jobs wait (the app shows "waiting" after the next try).
