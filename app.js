@@ -2878,7 +2878,8 @@
   }
   function fmtWhen(iso) {
     const s = String(iso || '');
-    const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+    // "2026-11-02T08:37:00" and the older "2026-11-02 8:37:00" (space, one-digit hour) both read.
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})/);
     if (!m) return '';
     let h = Number(m[2]);
     const ap = h >= 12 ? 'pm' : 'am';
