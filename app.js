@@ -1611,7 +1611,11 @@
     return out;
   }
   const lastDone = (code) => jobs().find((j) => j.store === code && j.status === 'done');
-  const openJobs = (code) => jobs().filter((j) => j.store === code && JOB_OPEN.indexOf(j.status) >= 0);
+  const jstamp = (v) => String(v || '').replace(' ', 'T').replace(/T(\d):/, 'T0$1:');
+  // A queued re-read (check) that's older than the store's newest finished update is already covered by it (Nov 4:
+  // a 9:48 check sat "waiting" after a 10:05 build had re-read the cart). It isn't shown as waiting.
+  const coveredCheck = (j) => j.kind === 'check' && j.status === 'queued' && jobs().some((d) => d.store === j.store && d.status === 'done' && jstamp(d.finished_at) > jstamp(j.at));
+  const openJobs = (code) => jobs().filter((j) => j.store === code && JOB_OPEN.indexOf(j.status) >= 0 && !coveredCheck(j));
   // Cart totals (api 26): the store's own cart subtotal and line count from the latest finished job.
   const lastTotal = (code) => jobs().find((j) => j.store === code && j.status === 'done' && j.subtotal !== '' && j.subtotal != null);
   const fmtMoney = (v) => '$' + Number(v).toFixed(2);
@@ -1621,12 +1625,14 @@
   function helperState() {
     const st = D().settings || {};
     const w = String(st.watcher_seen || ''), r = String(st.runner_seen || '');
-    const seen = [w, r].filter(String).sort().pop() || '';
+    const lastJob = (D().cartJobs || []).map((j) => jstamp(j.finished_at || j.started_at)).filter(String).sort().pop() || '';
+    const seen = [w, r, lastJob].filter(String).sort().pop() || '';
     if ((D().cartJobs || []).some((j) => j.status === 'running')) return { ok: true, seen: seen, text: 'Cart helper is working on the home computer now.' };
     if (!seen) return { ok: false, never: true, text: 'The cart helper on the home computer hasn’t checked in yet.' };
     const mins = (Date.now() - new Date(seen.replace(' ', 'T')).getTime()) / 60000;
     if (w && mins < 5 && String(st.watcher_chrome) === '0') return { ok: false, chrome: true, seen: seen, text: 'Home computer is on, but Chrome is closed. Open Chrome there and cart changes start within a minute.' };
     if (w && mins < 5) return { ok: true, seen: seen, text: 'Cart helper is ready on the home computer. Changes start within a minute.' };
+    if (seen === lastJob && mins < 10) return { ok: true, seen: seen, text: 'Cart helper just finished an update on the home computer.' };
     return { ok: false, seen: seen, text: 'Cart helper last checked in ' + fmtWhen(seen) + '. The home computer may be asleep or off; changes wait until it’s back.' };
   }
   function cartStatus(code) {
@@ -1722,7 +1728,7 @@
     const kid = isKid(S.me);
     const ready = D().list.filter((x) => needsCart(x) && pickCart(x).store === code);
     const busyCheck = openJobs(code).some((j) => j.kind === 'check');
-    let html = '<button class="link-btn back-btn" data-act="cart-back">‹ All carts</button>';
+    let html = '<button class="back-bar" data-act="cart-back" aria-label="Back to all carts"><span class="bb-chev" aria-hidden="true">‹</span> All carts</button>';
     const t = totalLine(code);
     const s2 = cartStatus(code);
     const done = lastDone(code);
@@ -1732,7 +1738,7 @@
     if (!kid) {
       html += cheaperNote(code);
       html += '<div class="job-btns">' + (ready.length ? '<button class="btn btn-primary" data-act="push-store" data-store="' + code + '">Put ' + ready.length + ' from the List in…</button>' : '') +
-        '<button class="btn btn-outline" data-act="cart-job" data-kind="check" data-store="' + code + '"' + (busyCheck ? ' disabled' : '') + '>↻ Re-read cart & total</button></div>';
+        '</div>';
     }
     html += '</section>';
     const sect = (label, rows, empty) => rows.length ? '<section class="card"><div class="card-head">' + label + ' · ' + rows.length + '</div>' +
@@ -3657,6 +3663,15 @@
   document.addEventListener('scroll', (ev) => { if (ev.target && ev.target.classList && ev.target.classList.contains('week-strip')) stripTouched = Date.now(); }, true);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   window.addEventListener('online', () => refresh());
+  // Swipe right from the left edge = back to All carts (a store's cart screen), like an iPhone app.
+  let edgeX = -1, edgeY = 0;
+  document.addEventListener('touchstart', (ev) => { const t = ev.touches[0]; edgeX = S.cartOpen && t.clientX < 30 ? t.clientX : -1; edgeY = t.clientY; }, { passive: true });
+  document.addEventListener('touchend', (ev) => {
+    if (edgeX < 0 || !S.cartOpen) return;
+    const t = ev.changedTouches[0];
+    if (t.clientX - edgeX > 80 && Math.abs(t.clientY - edgeY) < 60) { S.cartOpen = ''; render(); window.scrollTo(0, 0); }
+    edgeX = -1;
+  }, { passive: true });
   setInterval(() => {
     // Don't redraw under someone mid-edit.
     if (document.hidden || S.sheet || S.query || S.mealQuery) return;

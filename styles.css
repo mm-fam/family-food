@@ -953,3 +953,8 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .cdot.cd-fail { background: var(--tgt-edge); }
 .carts-foot { text-align: center; margin-top: 4px; }
 .carts-btn-note { text-align: center; margin: 6px 0 0; }
+
+/* Store cart screen: a big back bar that stays on top (Nov 4) */
+.back-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 10px; padding: 12px 14px;
+  font: inherit; font-size: 17px; font-weight: 600; color: var(--accent-deep); background: var(--accent-soft); border: 0; border-radius: 12px; cursor: pointer; text-align: left; }
+.back-bar .bb-chev { font-size: 26px; line-height: 1; margin-top: -3px; }
