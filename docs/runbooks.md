@@ -270,3 +270,8 @@ One shortcut per phone, in the Shortcuts app. Siri asks "What do we need?" and r
 4. **Get Dictionary Value**: key `say` from *Contents of URL*.
 5. **Speak Text** (or **Show Result**): *Dictionary Value*.
 Say "Hey Siri, Add to Poppy", then "milk, eggs and two avocados". An error comes back as `{ok:false, error}` and Siri says nothing; run the shortcut by hand to see it.
+
+
+## Stores ready: sign-in check (api 42)
+- **Owner's morning routine:** wake the cart computer and open Chrome. Within a minute the watcher starts the day's sign-in check (from 7 am). In the app, Carts shows four dots; red = signed out. Sign in on that site in the computer's Chrome, then tap **Check sign-ins**.
+- Runner step 3b (`runner/cart-runner-prompt.md`): look-only visits to gianteagle.com, amazon.com (covers Whole Foods and Amazon) and target.com; never signs in. Writes Settings `stores_ok` + `stores_checked`; the job's result is "All 4 stores signed in" or "Signed out: …".

@@ -41,7 +41,7 @@ const JOB_STORES = ['GE', 'WF', 'TGT', 'AMZ'];
 const DELIVERY_SOURCES = { WG: 'Wildgrain', BB: 'Bleu Box' };
 const isDeliveryItem = (it) => !!(it && DELIVERY_SOURCES[String(it.store || '')]);
 const STORE_NAMES = { GE: 'Giant Eagle', WF: 'Whole Foods', TGT: 'Target', AMZ: 'Amazon' };
-const JOB_KINDS = ['build', 'check'];
+const JOB_KINDS = ['build', 'check', 'signin']; // signin = store 'ALL' (api 42)
 const JOB_OPEN = ['queued', 'running', 'waiting']; // waiting = runner tried, computer/Chrome/sign-in not ready; it retries
 const JOB_SHOW_DAYS = 14;
 
@@ -230,7 +230,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      ("milk, eggs and two avocados") into parts, matches each to the catalog (name, aliases, store product names;
 //      what we buy now wins ties), adds it like the app's + (kids' adds are requests), and returns `say`, one
 //      sentence Siri reads back. No match → added as a new item, noted "by Siri" so a parent can tidy the name.
-const API_VERSION = 41;
+// 42 = stores ready (Nov 4, Mike): cartJob {store: 'ALL', kind: 'signin'} asks the cart runner to confirm every store is
+//      signed in on the cart computer (it also does it on its first run each day from 7 am). The runner writes Settings
+//      `stores_ok` ("GE=ok;WF=ok;TGT=out;AMZ=ok") + `stores_checked`; state.settings.stores_ok / stores_checked carry them.
+const API_VERSION = 42;
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
@@ -565,6 +568,8 @@ function buildState() {
       order_requested: settings.order_requested || '',
       admins: String(settings.admins || '').split(',').map((s) => s.trim()).filter(String),
       runner_seen: settings.runner_seen instanceof Date ? Utilities.formatDate(settings.runner_seen, scriptTz(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.runner_seen || ''),
+      stores_ok: storesOk(settings.stores_ok),
+      stores_checked: settings.stores_checked instanceof Date ? Utilities.formatDate(settings.stores_checked, scriptTz(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.stores_checked || ''),
     },
   };
 }
@@ -2090,7 +2095,7 @@ function addCartJob(req) {
   if (!req._system && isKid(req.by)) throw new Error('Ask a parent to do this');
   const store = String(req.store || '').toUpperCase();
   const kind = String(req.kind || 'build').toLowerCase();
-  if (JOB_STORES.indexOf(store) < 0) throw new Error('Unknown store');
+  if (kind === 'signin' ? store !== 'ALL' : JOB_STORES.indexOf(store) < 0) throw new Error('Unknown store');
   if (JOB_KINDS.indexOf(kind) < 0) throw new Error('Unknown job');
   jobsSheet();
   const rows = readTab(TABS.jobs);
@@ -2266,6 +2271,16 @@ function cartRemove(req) {
 }
 
 // api 24: what the cart watcher asks every minute. Read-only and small; no full state.
+// Settings stores_ok "GE=ok;WF=out" → {GE: 'ok', WF: 'out'} (api 42).
+function storesOk(v) {
+  const out = {};
+  String(v || '').split(/[;,]/).forEach((p) => {
+    const m = p.trim().match(/^([A-Za-z]+)\s*=\s*([a-z]+)/);
+    if (m && JOB_STORES.indexOf(m[1].toUpperCase()) >= 0) out[m[1].toUpperCase()] = m[2] === 'ok' ? 'ok' : 'out';
+  });
+  return out;
+}
+
 function openCartJobs() {
   if (!tab(TABS.jobs)) return { jobs: [] };
   const jobs = readTab(TABS.jobs)

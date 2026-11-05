@@ -935,6 +935,7 @@
     let html = '';
 
     html += viewInstallTip();
+    html += viewSigninWarn();
     if (!canCarts()) html += viewJobBanner();
     html += viewUseSoon();
     if (requests.length) {
@@ -1601,6 +1602,7 @@
     const missing = CART_STORES.filter((k) => !lastTotal(k)).map((k) => storeOf(k).name);
     const hs = helperState();
     let html = Number(D().api || 0) >= 27 ? '<div class="helper-line ' + (hs.ok ? 'ok' : 'off') + '"><span class="dot"></span>' + esc(hs.text) + '</div>' : '';
+    html += viewSignins();
     html += '<section class="card carts-total"><div class="ct-label">All carts</div><div class="ct-money">' + (known.length ? fmtMoney(sum) : '—') + '</div>' +
       '<div class="cart-sub">' + items + ' item' + (items === 1 ? '' : 's') + (missing.length ? ' · not read yet: ' + esc(missing.join(', ')) : '') + '</div></section>';
     CART_STORES.forEach((code) => {
@@ -2755,7 +2757,38 @@
   /* ---------- cart jobs (api 12) ---------- */
   const canJobs = () => Number(D().api || 0) >= 12;
   const JOB_OPEN = ['queued', 'running', 'waiting'];
-  const jobs = () => D().cartJobs || [];
+  const jobs = () => (D().cartJobs || []).filter((j) => j.kind !== 'signin');
+  const signinJobs = () => (D().cartJobs || []).filter((j) => j.kind === 'signin');
+  // Stores ready (api 42): is each store signed in on the cart computer? From Settings via the cart runner.
+  function signinState() {
+    const st = D().settings || {};
+    const ok = st.stores_ok || {};
+    const checked = String(st.stores_checked || '');
+    const open = signinJobs().find((j) => JOB_OPEN.indexOf(j.status) >= 0);
+    const fresh = checked && (Date.now() - new Date(checked.replace(' ', 'T')).getTime()) < 2 * 86400000;
+    const out = CART_STORES.filter((k) => ok[k] === 'out');
+    return { ok: ok, checked: checked, open: open, fresh: fresh, out: fresh ? out : [] };
+  }
+  // On the List, for parents: a store is signed out on the cart computer (tap → Carts, where Check sign-ins is).
+  function viewSigninWarn() {
+    if (Number(D().api || 0) < 42 || !amParent() || !canCarts()) return '';
+    const si = signinState();
+    if (!si.out.length || si.open) return '';
+    return '<button class="job-banner warn" data-act="cart-open" data-store="">' + esc('⚠ ' + si.out.map((k) => storeOf(k).name).join(', ') + ' signed out on the home computer. Sign in there, then tap Check sign-ins.') + '</button>';
+  }
+  function viewSignins() {
+    if (Number(D().api || 0) < 42) return '';
+    const s = signinState();
+    const dots = CART_STORES.map((k) => '<span class="sdot ' + (s.fresh && s.ok[k] ? s.ok[k] : 'unk') + '">' + esc(storeOf(k).name) + '</span>').join('');
+    let text;
+    if (s.open && s.open.status === 'running') text = '🔄 Checking store sign-ins now…';
+    else if (s.open) text = '⏳ Sign-in check waiting for the home computer';
+    else if (!s.checked) text = 'Store sign-ins haven’t been checked yet';
+    else if (s.out.length) text = '⚠ Signed out: ' + s.out.map((k) => storeOf(k).name).join(', ') + '. Sign in on the home computer, then check again.';
+    else text = (s.fresh ? '✓ All signed in' : 'Last checked') + ' · ' + fmtWhen(s.checked);
+    return '<section class="card signins"><div class="signin-dots">' + dots + '</div><div class="signin-text">' + esc(text) + '</div>' +
+      (amParent() ? '<button class="btn btn-outline btn-sm" data-act="cart-job" data-kind="signin" data-store="ALL"' + (s.open ? ' disabled' : '') + '>Check sign-ins</button>' : '') + '</section>';
+  }
   function fmtWhen(iso) {
     const s = String(iso || '');
     const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
@@ -3122,7 +3155,7 @@
         if (!latestJob(code, kind) || JOB_OPEN.indexOf(latestJob(code, kind).status) < 0) {
           D().cartJobs = [{ id: tmpId(), at: new Date().toISOString().slice(0, 19), by: S.me, store: code, kind: kind, status: 'queued' }].concat(jobs());
         }
-      }, kind === 'check' ? 'Cart check queued' : 'Cart build queued');
+      }, kind === 'signin' ? 'Sign-in check queued' : kind === 'check' ? 'Cart check queued' : 'Cart build queued');
     },
     'open-me': () => { S.sheet = { type: 'me' }; render(); },
     'cart-open': (el) => { S.cartOpen = el.dataset.store || ''; S.tab = 'carts'; store.set('ff_tab', 'carts'); S.sheet = null; render(); window.scrollTo(0, 0); },
