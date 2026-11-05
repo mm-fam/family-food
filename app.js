@@ -1712,8 +1712,7 @@
     let html = '<section class="card carts-total"><div class="ct-label">All carts</div><div class="ct-money">' + (known.length ? fmtMoney(sum) : '—') + '</div>' +
       '<div class="cart-sub">' + items + ' item' + (items === 1 ? '' : 's') + '</div>' +
       '<div class="carts-summary cs-' + sum1.cls + '"><span class="cdot cd-' + ({ off: 'wait', run: 'wait' }[sum1.cls] || sum1.cls) + '" aria-hidden="true"></span>' + esc(sum1.text) + '</div>' +
-      (amParent() && Number(D().api || 0) >= 50 ? '<button class="btn btn-primary btn-block" data-act="cart-job" data-kind="all" data-store="ALL">Laptop’s on: update everything</button>' +
-        '<p class="note carts-btn-note">Carts, sign-ins, order history and prices · keep it awake ~30 min</p>' : '') +
+      (amParent() && Number(D().api || 0) >= 50 ? '<button class="btn btn-primary btn-block" data-act="cart-job" data-kind="all" data-store="ALL">Update carts</button>' : '') +
       '</section>';
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
@@ -2932,7 +2931,12 @@
     const s = String(iso || '');
     // "2026-11-02T08:37:00" and the older "2026-11-02 8:37:00" (space, one-digit hour) both read.
     const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})/);
-    if (!m) return '';
+    if (!m) {
+      // A date with no time (a Sheet date cell reads back as yyyy-mm-dd): show the day.
+      const d = s.match(/^(\d{4}-\d{2}-\d{2})$/);
+      if (!d) return '';
+      return d[1] === D().today ? 'today' : DAYS[new Date(d[1] + 'T12:00:00').getDay()] + ' ' + Number(d[1].slice(5, 7)) + '/' + Number(d[1].slice(8, 10));
+    }
     let h = Number(m[2]);
     const ap = h >= 12 ? 'pm' : 'am';
     h = h % 12 || 12;
