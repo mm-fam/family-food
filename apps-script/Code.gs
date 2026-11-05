@@ -233,7 +233,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 42 = stores ready (Nov 4, Mike): cartJob {store: 'ALL', kind: 'signin'} asks the cart runner to confirm every store is
 //      signed in on the cart computer (it also does it on its first run each day from 6 am). The runner writes Settings
 //      `stores_ok` ("GE=ok;WF=ok;TGT=out;AMZ=ok") + `stores_checked`; state.settings.stores_ok / stores_checked carry them.
-const API_VERSION = 42;
+// 43 = voice adds ask instead of guessing (Nov 4, Mike: "don't turn sugar into brown sugar"): voiceAdd only adds an
+//      exact name/alias match or the only item whose whole name was said; anything else is a `voice` card in the
+//      speaker's Inbox (up to 3 likely items, New item, Something else, Never mind). The answer adds it and teaches
+//      Poppy: the spoken words become an alias, so next time it's sure.
+const API_VERSION = 43;
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
@@ -724,13 +728,14 @@ function voicePart(raw) {
   return { qty: Math.max(1, Math.min(qty || 1, 24)), text: t, words: voiceWords(t).map(voiceStem) };
 }
 
-// Best catalog match for a part, or null. Exact name/alias first; then every spoken word must start a word of
-// the name, an alias or a store product name. Ties go to what we buy now (recent last_bought), then fewer extra words.
-function voiceMatch(items, productsByItem, part) {
-  if (!part.words.length) return null;
+// Catalog candidates for a spoken part, best first: [{item, total, score, own}]. score 100 = exact name, 95 = exact
+// alias, 75 = every spoken word is in the name, 70 = in an alias, 60 = in a store product name. own = every word
+// of the item's own name was said ("salted butter" for Salted butter). Ties go to what we bought lately.
+function voiceCandidates(items, productsByItem, part) {
+  if (!part.words.length) return [];
   const want = part.words.join(' ');
   const today = Date.now();
-  let best = null;
+  const out = [];
   items.forEach((it) => {
     if (!it.id || !String(it.name || '').trim()) return;
     const drop = /^drop/i.test(String(it.status || ''));
@@ -738,25 +743,35 @@ function voiceMatch(items, productsByItem, part) {
     const names = [String(it.name)].concat(String(it.aliases || '').split(/[;,]/).filter((a) => /[a-z]/.test(a))).map((s) => voiceWords(voiceDescribe(s)).map(voiceStem)).filter((w) => w.length);
     const prods = (productsByItem[it.id] || []).map((s) => voiceWords(voiceDescribe(s)).map(voiceStem));
     let score = 0, extra = 99;
-    names.forEach((w, i) => {
-      if (w.join(' ') === want) { score = Math.max(score, i === 0 ? 100 : 95); extra = 0; }
-    });
+    names.forEach((w, i) => { if (w.join(' ') === want) { score = Math.max(score, i === 0 ? 100 : 95); extra = 0; } });
     if (!score) {
       // Spoken words are whole words, so match whole (stemmed) words, not prefixes ("mac" isn't "machine").
       const covers = (w) => part.words.every((q) => w.indexOf(q) >= 0);
-      // The item's own name beats an alias, which beats a store product name.
       names.forEach((w, i) => { if (covers(w)) { score = Math.max(score, i === 0 ? 75 : 70); extra = Math.min(extra, w.length - part.words.length); } });
       if (!score) prods.forEach((w) => { if (covers(w)) { score = Math.max(score, 60); extra = Math.min(extra, w.length - part.words.length); } });
     }
     if (!score) return;
     if (drop) { if (score < 95) return; score -= 10; }
+    const own = names.length && names[0].every((x) => part.words.indexOf(x) >= 0);
     const lb = it.last_bought ? new Date(it.last_bought).getTime() : 0;
     const days = lb ? (today - lb) / 864e5 : 9999;
     const fresh = days <= 60 ? 4 : days <= 180 ? 2 : 0;
-    const total = score + fresh - Math.min(extra, 6);
-    if (!best || total > best.total) best = { item: it, total: total, score: score };
+    out.push({ item: it, total: score + fresh - Math.min(extra, 6), score: score, own: own });
   });
-  return best;
+  return out.sort((x, y) => y.total - x.total);
+}
+// Sure enough to add without asking (Mike, Nov 4: "don't turn sugar into brown sugar"): an exact name or alias,
+// or the only item whose whole name was said. Anything else is a question in the speaker's Inbox, and the answer
+// teaches Poppy (the spoken words become an alias).
+function voiceSure(cands) {
+  if (!cands.length) return null;
+  if (cands[0].score >= 95) return cands[0];
+  const own = cands.filter((c) => c.own);
+  return own.length === 1 ? own[0] : null;
+}
+function voiceMatch(items, productsByItem, part) {
+  const c = voiceCandidates(items, productsByItem, part);
+  return c.length ? c[0] : null;
 }
 
 function voiceJoin(list) {
@@ -773,42 +788,85 @@ function voiceAdd(req) {
   const text = String(req.text || '').trim();
   if (!text) return { say: 'I didn’t catch anything to add.', added: [] };
 
-  // Split on commas and the like first; split a chunk on "and" only when the whole chunk isn't one thing we buy
-  // ("mac and cheese", "salt and vinegar chips" stay one item).
   let items = readTab(TABS.items);
   const productsByItem = {};
   readTab(TABS.products).forEach((r) => { if (r.item_id) (productsByItem[r.item_id] = productsByItem[r.item_id] || []).push(r.product); });
+  // Split on commas and the like first; split a chunk on "and" only when the whole chunk isn't one thing we buy
+  // and every piece is ("mac and cheese", "salt and vinegar chips" stay one thing).
   const parts = [];
   text.split(/\s*(?:,|;|&|\bplus\b|\band then\b|\band also\b|\balso\b)\s*/i).forEach((chunk) => {
     const whole = voicePart(chunk);
     if (!whole.words.length) return;
-    const m = /\band\b/i.test(chunk) ? voiceMatch(items, productsByItem, whole) : null;
-    if (!/\band\b/i.test(chunk) || (m && m.score >= 95)) { parts.push({ p: whole, m: m }); return; }
-    // Split on "and" only if every piece is something we buy; otherwise it's one new thing ("mac and cheese").
-    const pieces = chunk.split(/\s*\band\b\s*/i).map(voicePart).filter((x) => x.words.length).map((x) => ({ p: x, m: voiceMatch(items, productsByItem, x) }));
-    if (m || pieces.some((x) => !x.m)) parts.push({ p: whole, m: m });
-    else pieces.forEach((x) => parts.push(x));
+    if (!/\band\b/i.test(chunk) || voiceSure(voiceCandidates(items, productsByItem, whole))) { parts.push(whole); return; }
+    const pieces = chunk.split(/\s*\band\b\s*/i).map(voicePart).filter((x) => x.words.length);
+    if (pieces.every((x) => voiceCandidates(items, productsByItem, x).length)) pieces.forEach((x) => parts.push(x));
+    else parts.push(whole);
   });
 
-  const added = [], already = [], fresh = [];
-  parts.forEach((x) => {
-    const p = x.p;
-    const hit = x.m !== undefined && x.m ? x.m : voiceMatch(items, productsByItem, p);
-    const it = hit ? hit.item : null;
-    const res = it
-      ? addToList({ by: who, item_id: it.id, qty: p.qty, note: 'by Siri' })
-      : addToList({ by: who, name: p.text.charAt(0).toUpperCase() + p.text.slice(1), qty: p.qty, note: 'by Siri (new item, check the name)' });
-    const label = (p.qty > 1 ? p.qty + ' ' : '') + (it ? String(it.name) : p.text);
-    if (!it) { fresh.push(p.text); items = readTab(TABS.items); } // the new item is found if it's said twice
-    if (res.merged) already.push(label); else added.push(label);
+  const added = [], already = [], asked = [], unknown = [];
+  const review = readTab(TABS.review);
+  let n = nextIdNum(review);
+  parts.forEach((p) => {
+    const cands = voiceCandidates(items, productsByItem, p);
+    const sure = voiceSure(cands);
+    if (sure) {
+      const res = addToList({ by: who, item_id: sure.item.id, qty: p.qty, note: 'by Siri' });
+      const label = (p.qty > 1 ? p.qty + ' ' : '') + String(sure.item.name);
+      if (res.merged) already.push(label); else added.push(label);
+      return;
+    }
+    // Not sure: one card to the speaker. Nothing goes on the List until they pick.
+    const top = cands.slice(0, 3);
+    const nice = p.text.charAt(0).toUpperCase() + p.text.slice(1);
+    const opts = top.map((c) => String(c.item.name).replace(/;/g, ',')).concat(['New item: ' + nice, 'Something else (type it)', 'Never mind']);
+    ensureColumn(TABS.review, 'asked_by');
+    appendObj(TABS.review, {
+      id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), type: 'voice', status: 'open', answer: '', audience: who, asked_by: who,
+      detail: '🎙 Siri heard “' + p.text + '”' + (p.qty > 1 ? ' (×' + p.qty + ')' : '') + '. ' +
+        (top.length ? 'Which is it?' : 'Poppy doesn’t know it yet. Add it as a new item?') + ' ' + top.map((c) => '(' + c.item.id + ')').join(' ') + ' Options: ' + opts.join('; '),
+    });
+    (top.length ? asked : unknown).push(p.text);
   });
 
   const kid = isKid(who);
   const bits = [];
   if (added.length) bits.push((kid ? 'Asked for ' : 'Added ') + voiceJoin(added) + (kid ? '. A parent will OK it.' : ' to the list.'));
   if (already.length) bits.push(voiceJoin(already) + (already.length > 1 ? ' were' : ' was') + ' already on the list.');
-  if (fresh.length) bits.push('New to Poppy: ' + voiceJoin(fresh) + '.');
-  return { say: bits.join(' ') || 'Nothing to add.', added: added, already: already, new_items: fresh };
+  if (asked.length) bits.push('Not sure which ' + voiceJoin(asked) + ' you mean, so it’s a question in your Inbox.');
+  return { say: bits.join(' ') || 'Nothing to add.', added: added, already: already, asked: asked, unknown: unknown };
+}
+
+// A `voice` card's answer (api 43): a listed item → on the List and the spoken words become one of its aliases,
+// so next time Siri adds it without asking; "New item: X" or a typed name → that item (new if Poppy doesn't know
+// it); Never mind / Don't care → nothing.
+function voiceAnswer(r, answer, who) {
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim();
+  const al = a.toLowerCase();
+  if (!a || al === 'skip' || /^never mind|^don.?t care/.test(al)) return null;
+  const d = String(r.detail || '');
+  const heard = (d.match(/“([^”]+)”/) || [])[1] || '';
+  const qty = Number((d.match(/\(×(\d+)\)/) || [])[1]) || 1;
+  const by = String(r.asked_by || who || '').trim() || who;
+  const ids = (d.split(/Options:/)[0].match(/\((i\d{3,})\)/g) || []).map((x) => x.slice(1, -1));
+  const items = readTab(TABS.items);
+  let it = null, name = a;
+  if (/^new item:/i.test(a)) name = a.replace(/^new item:\s*/i, '');
+  else it = items.find((x) => ids.indexOf(x.id) >= 0 && String(x.name).replace(/;/g, ',').toLowerCase() === al) || findItemByName(items, a);
+  if (!it && !/^new item:/i.test(a)) {
+    const c = voiceSure(voiceCandidates(items, {}, voicePart(a)));
+    if (c) it = c.item;
+  }
+  const res = it ? addToList({ by: by, item_id: it.id, qty: qty, note: 'by Siri' }) : addToList({ by: by, name: name, qty: qty, note: 'by Siri (new item)' });
+  // Teach: what was said becomes an alias of the item picked (or of the new item, if its name differs).
+  const itemId = it ? it.id : ((readTab(TABS.list).find((x) => x.id === res.id) || {}).item_id || '');
+  if (heard && itemId) {
+    const row = readTab(TABS.items).find((x) => x.id === itemId);
+    if (row && String(row.name).toLowerCase() !== heard.toLowerCase()) {
+      const al2 = String(row.aliases || '').split(';').map((x) => x.trim()).filter(String);
+      if (al2.map((x) => x.toLowerCase()).indexOf(heard.toLowerCase()) < 0) setFields(TABS.items, row._row, { aliases: al2.concat([heard]).join(';') });
+    }
+  }
+  return { list: res.id, item: itemId, alias: heard };
 }
 
 function findItemByName(items, name) {
@@ -1338,7 +1396,8 @@ function answerReview(req) {
   if (r.type === 'have_check') haveCheckAnswer(r, answer, who);
   const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : r.type === 'settle_meal' ? settleMealAnswer(r, answer, who) : null;
   const best = r.type === 'bestprice' ? bestPriceAnswer(r, answer, who) : null;
-  return { id: r.id, points: pts, why: why, mission: mission, settled: settled, best: best };
+  const voice = r.type === 'voice' ? voiceAnswer(r, answer, who) : null;
+  return { id: r.id, points: pts, why: why, mission: mission, settled: settled, best: best, voice: voice };
 }
 
 // Which rule (POINT_RULES key) a card scores under when answered, or '' for no points: "skip" (Don't care),
