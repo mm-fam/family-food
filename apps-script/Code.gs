@@ -285,6 +285,8 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      missionsAsk {items: [{id, why}]} (parents only) makes one 🔎 mission card per item that isn't on the List and
 //      isn't already on an open mission, split between the kids (fewest open missions first). Same card and answer
 //      as the daily missions (Plenty / Some / A little / Out; low / out puts it on the List as a request).
+// 56 = Cart Jobs stamps keep their time: readTab reads a date-time cell on Cart Jobs as yyyy-MM-ddTHH:mm:ss, not just the day
+//      (Nov 5: the GE card said "today" instead of a time). The app shows every stamp as "Nov 5, 9:45 am".
 const API_VERSION = 56;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
