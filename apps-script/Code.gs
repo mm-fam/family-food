@@ -255,7 +255,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 48 = cart helper heartbeat (Nov 4, owner): the cart watcher's every-minute cartJobsOpen call (with chrome=1/0)
 //      records Script Property watcher_seen / watcher_chrome; state.settings.watcher_seen / watcher_chrome let the
 //      Carts screen say truthfully whether the home computer is on and ready (runner_seen only moves when Claude runs).
-const API_VERSION = 48;
+// 49 = Check all stores (Nov 4, owner: "when I hit the check button… all the as-of stamps would be the same"): a
+//      parent's signin job also queues a cart `check` for each of the four stores (skipping any already open), so one
+//      tap re-reads every cart and its total; a signed-out store's check fails and shows red with the reason.
+const API_VERSION = 49;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd'];
@@ -2262,7 +2265,15 @@ function addCartJob(req) {
   if (open) return { id: open.id, already: true };
   const id = nextId(rows, 'id', 'c', 3);
   appendObj(TABS.jobs, { id: id, at: nowStamp(), by: req.by || '', store: store, kind: kind, status: 'queued' });
-  return { id: id };
+  // api 49: Check all stores = the sign-in check plus a fresh read of every cart.
+  const checks = [];
+  if (kind === 'signin' && !req._system) {
+    JOB_STORES.forEach((st) => {
+      const r = addCartJob({ by: req.by, store: st, kind: 'check', _system: true });
+      if (r && r.id) checks.push(r.id);
+    });
+  }
+  return checks.length ? { id: id, checks: checks } : { id: id };
 }
 
 function cancelCartJob(req) {

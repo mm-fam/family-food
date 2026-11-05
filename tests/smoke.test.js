@@ -172,3 +172,14 @@ test('cart helper heartbeat: the watcher check-in shows in state', () => {
   assert.ok(s.watcher_seen, 'watcher_seen set');
   assert.strictEqual(s.watcher_chrome, '0');
 });
+
+test('Check all stores queues a sign-in check plus a cart check per store', () => {
+  const b = fresh();
+  const r = b.call({ action: 'cartJob', pass: PASS, by: 'Pat', store: 'ALL', kind: 'signin' });
+  assert.strictEqual(r.ok, true, r.error);
+  const open = r.state.cartJobs.filter((j) => j.status === 'queued');
+  assert.deepStrictEqual(open.filter((j) => j.kind === 'check').map((j) => j.store).sort(), ['AMZ', 'GE', 'TGT', 'WF']);
+  assert.strictEqual(open.filter((j) => j.kind === 'signin').length, 1);
+  const again = b.call({ action: 'cartJob', pass: PASS, by: 'Pat', store: 'ALL', kind: 'signin' });
+  assert.strictEqual(again.result.already, true); // a second tap doesn't pile up jobs
+});

@@ -1673,7 +1673,7 @@
         '<div class="cart-sub">' + esc(t.sub) + '</div>' +
         '<div class="cart-status st-' + s2.cls + '">' + esc(s2.text) + '</div></button>';
     });
-    html += '<div class="how-it-works"><b>How carts work</b><ol><li>You tap Put in cart or Take it out. The item shows ⏳ right away: asked for, not done yet.</li><li>The cart helper on the home computer picks it up within a minute (whenever the computer is on with Chrome open), makes the change on the store’s site and reads the cart back.</li><li>The item flips to 🛒 In … cart and the totals update. Totals are the store’s own cart total after sale savings, before tax and fees.</li><li>Each morning it also checks that all four stores are signed in (the dots above). A red dot = sign in to that store in the home computer’s Chrome, then tap Check sign-ins.</li></ol>A person always places the order.</div>';
+    html += '<div class="how-it-works"><b>How carts work</b><ol><li>You tap Put in cart or Take it out. The item shows ⏳ right away: asked for, not done yet.</li><li>The cart helper on the home computer picks it up within a minute (whenever the computer is on with Chrome open), makes the change on the store’s site and reads the cart back.</li><li>The item flips to 🛒 In … cart and the totals update. Totals are the store’s own cart total after sale savings, before tax and fees.</li><li>Each morning it also checks that all four stores are signed in (the dots above). A red dot = sign in to that store in the home computer’s Chrome, then tap Check all stores (it also re-reads every cart).</li></ol>A person always places the order.</div>';
     return html;
   }
   function viewCartDetail(code) {
@@ -2861,20 +2861,20 @@
     if (Number(D().api || 0) < 42 || !amParent() || !canCarts()) return '';
     const si = signinState();
     if (!si.out.length || si.open) return '';
-    return '<button class="job-banner warn" data-act="cart-open" data-store="">' + esc('⚠ ' + si.out.map((k) => storeOf(k).name).join(', ') + ' signed out on the home computer. Sign in there, then tap Check sign-ins.') + '</button>';
+    return '<button class="job-banner warn" data-act="cart-open" data-store="">' + esc('⚠ ' + si.out.map((k) => storeOf(k).name).join(', ') + ' signed out on the home computer. Sign in there, then tap Check all stores.') + '</button>';
   }
   function viewSignins() {
     if (Number(D().api || 0) < 42) return '';
     const s = signinState();
     const dots = CART_STORES.map((k) => '<span class="sdot ' + (s.fresh && s.ok[k] ? s.ok[k] : 'unk') + '">' + esc(storeOf(k).name) + '</span>').join('');
     let text;
-    if (s.open && s.open.status === 'running') text = '🔄 Checking store sign-ins now…';
-    else if (s.open) text = '⏳ Sign-in check waiting for the home computer';
+    if (s.open && s.open.status === 'running') text = '🔄 Checking sign-ins now; the carts are next…';
+    else if (s.open) text = '⏳ Checking all stores: waiting for the home computer';
     else if (!s.checked) text = 'Store sign-ins haven’t been checked yet';
     else if (s.out.length) text = '⚠ Signed out: ' + s.out.map((k) => storeOf(k).name).join(', ') + '. Sign in on the home computer, then check again.';
     else text = (s.fresh ? '✓ All signed in' : 'Last checked') + ' · ' + fmtWhen(s.checked);
     return '<section class="card signins"><div class="signin-dots">' + dots + '</div><div class="signin-text">' + esc(text) + '</div>' +
-      (amParent() ? '<button class="btn btn-outline btn-sm" data-act="cart-job" data-kind="signin" data-store="ALL"' + (s.open ? ' disabled' : '') + '>Check sign-ins</button>' : '') + '</section>';
+      (amParent() ? '<button class="btn btn-outline btn-sm" data-act="cart-job" data-kind="signin" data-store="ALL"' + (s.open ? ' disabled' : '') + '>↻ Check all stores</button><p class="note">Checks each store’s sign-in and re-reads every cart and total, a few minutes apart.</p>' : '') + '</section>';
   }
   function fmtWhen(iso) {
     const s = String(iso || '');
@@ -3243,7 +3243,10 @@
         if (!latestJob(code, kind) || JOB_OPEN.indexOf(latestJob(code, kind).status) < 0) {
           D().cartJobs = [{ id: tmpId(), at: new Date().toISOString().slice(0, 19), by: S.me, store: code, kind: kind, status: 'queued' }].concat(jobs());
         }
-      }, kind === 'signin' ? 'Sign-in check queued' : kind === 'check' ? 'Cart check queued' : 'Cart build queued');
+        if (kind === 'signin' && Number(D().api || 0) >= 49) CART_STORES.forEach((k) => {
+          if (!openJobs(k).some((j) => j.kind === 'check')) D().cartJobs = [{ id: tmpId(), at: new Date().toISOString().slice(0, 19), by: S.me, store: k, kind: 'check', status: 'queued' }].concat(D().cartJobs || []);
+        });
+      }, kind === 'signin' ? 'Checking all 4 stores' : kind === 'check' ? 'Cart check queued' : 'Cart build queued');
     },
     'open-me': () => { S.sheet = { type: 'me' }; render(); },
     'cart-open': (el) => { S.cartOpen = el.dataset.store || ''; S.tab = 'carts'; store.set('ff_tab', 'carts'); S.sheet = null; render(); window.scrollTo(0, 0); },
