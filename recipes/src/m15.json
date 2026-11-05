@@ -100,5 +100,27 @@
   "Spatula"
  ],
  "heads_up": "Soup on low first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "20 min out",
+   "what": "Soup in the pot on medium-low."
+  },
+  {
+   "when": "15 min",
+   "what": "Kids butter the bread and build the sandwiches."
+  },
+  {
+   "when": "10 min",
+   "what": "Sandwiches into the skillet, lid on."
+  },
+  {
+   "when": "5 min",
+   "what": "Flip; stir the soup."
+  },
+  {
+   "when": "Dinner",
+   "what": "Cut for dunking, ladle soup, eat right away."
+  }
+ ]
 }

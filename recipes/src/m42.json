@@ -121,5 +121,35 @@
   "Pastry brush"
  ],
  "heads_up": "Thaw the puff pastry in the fridge the night before.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "45 min out",
+   "what": "Oven to 400°F. Line the sheet pan."
+  },
+  {
+   "when": "40 min",
+   "what": "Cook the apple filling; let it cool."
+  },
+  {
+   "when": "30 min",
+   "what": "Kids cut the pastry into 16 rectangles."
+  },
+  {
+   "when": "25 min",
+   "what": "Kids fill, seal with a fork, poke and brush with egg."
+  },
+  {
+   "when": "20 min",
+   "what": "Bake 18–20 min until deep golden."
+  },
+  {
+   "when": "5 min",
+   "what": "Cool, then kids drizzle the glaze."
+  },
+  {
+   "when": "Snack",
+   "what": "Serve warm; freeze extras for later."
+  }
+ ]
 }

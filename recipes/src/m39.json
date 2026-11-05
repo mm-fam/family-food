@@ -128,5 +128,31 @@
   "Potato masher"
  ],
  "heads_up": "Sweet potatoes in the microwave first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "35 min out",
+   "what": "Poke the sweet potatoes; microwave 8–10 min. Oven to 250°F."
+  },
+  {
+   "when": "25 min",
+   "what": "Kids scoop and mash the filling with spices and lime."
+  },
+  {
+   "when": "20 min",
+   "what": "Kids stir in beans, then fill and fold the tortillas."
+  },
+  {
+   "when": "17 min",
+   "what": "Cook quesadillas in batches; finished ones in the warm oven."
+  },
+  {
+   "when": "3 min",
+   "what": "Kids set out sour cream, salsa and avocado."
+  },
+  {
+   "when": "Dinner",
+   "what": "Cut in wedges and serve hot."
+  }
+ ]
 }

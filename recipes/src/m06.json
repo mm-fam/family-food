@@ -112,5 +112,31 @@
   "9×13 baking dish"
  ],
  "heads_up": "Water on to boil and oven to 400°F.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "45 min out",
+   "what": "Oven to 400°F. Big pot of salted water on."
+  },
+  {
+   "when": "35 min",
+   "what": "Fusilli in for 2 minutes less than the box."
+  },
+  {
+   "when": "25 min",
+   "what": "Drain; stir in sauce, cheese and pasta water."
+  },
+  {
+   "when": "22 min",
+   "what": "Kids layer mozzarella and pepperoni in the dish."
+  },
+  {
+   "when": "20 min",
+   "what": "Bake until bubbling and the pepperoni curls."
+  },
+  {
+   "when": "Dinner",
+   "what": "Rest 5 minutes, then scoop."
+  }
+ ]
 }

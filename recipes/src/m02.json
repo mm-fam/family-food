@@ -114,5 +114,31 @@
   "Pastry brush"
  ],
  "heads_up": "Dough out of the fridge and oven to 475°F 30 min before.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "1 hr out",
+   "what": "Dough out of the fridge to warm up."
+  },
+  {
+   "when": "35 min",
+   "what": "Oven to 475°F with the sheet pan inside."
+  },
+  {
+   "when": "25 min",
+   "what": "Cut 4 balls; everyone stretches their own crust."
+  },
+  {
+   "when": "15 min",
+   "what": "Kids sauce and top: mozzarella, pepperoni, parm."
+  },
+  {
+   "when": "12 min",
+   "what": "Pizzas onto the hot pan and in the oven."
+  },
+  {
+   "when": "Dinner",
+   "what": "Rest 2 minutes, cut, serve."
+  }
+ ]
 }

@@ -129,5 +129,35 @@
   "Whisk"
  ],
  "heads_up": "Slice the chicken breasts in half the long way before anything else.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "35 min out",
+   "what": "Halve the chicken the long way and season it."
+  },
+  {
+   "when": "30 min",
+   "what": "Chicken in the skillet, 5–6 min a side. Kids set out the fillings."
+  },
+  {
+   "when": "18 min",
+   "what": "Chicken rests. Kids whisk butter into the Frank's."
+  },
+  {
+   "when": "12 min",
+   "what": "Chop and toss the chicken in the sauce. Pack lunch chicken."
+  },
+  {
+   "when": "8 min",
+   "what": "Warm tortillas, fill and roll tight."
+  },
+  {
+   "when": "5 min",
+   "what": "Toast the wraps seam side down until golden."
+  },
+  {
+   "when": "Dinner",
+   "what": "Cut on an angle; carrots and ranch on the side."
+  }
+ ]
 }

@@ -113,5 +113,27 @@
   "Foil"
  ],
  "heads_up": "Use leftover chicken from a dinner if there is some.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Up to 3 days",
+   "what": "Mix chicken, beans, taco seasoning and lime; fridge."
+  },
+  {
+   "when": "15 min out",
+   "what": "Kids stir salsa into sour cream for the sauce."
+  },
+  {
+   "when": "10 min",
+   "what": "Warm tortillas 15 sec so they roll without cracking."
+  },
+  {
+   "when": "8 min",
+   "what": "Sauce, cheese, filling, lettuce. Roll tight, cut on an angle."
+  },
+  {
+   "when": "Lunchbox",
+   "what": "Wrap halves in foil; pack with an ice pack."
+  }
+ ]
 }

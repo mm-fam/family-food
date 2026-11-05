@@ -109,5 +109,31 @@
   "Cutting board"
  ],
  "heads_up": "Steak out of the fridge 30 min before; turn the fan on, it'll smoke.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "35 min out",
+   "what": "Steak out of the fridge, patted dry and salted."
+  },
+  {
+   "when": "30 min",
+   "what": "Oven on; kids spread the fries in one layer."
+  },
+  {
+   "when": "25 min",
+   "what": "Fries in. Flip halfway."
+  },
+  {
+   "when": "12 min",
+   "what": "Cast iron on high until smoking; steak in."
+  },
+  {
+   "when": "8 min",
+   "what": "Flip, butter, garlic, baste. Steak out to rest."
+  },
+  {
+   "when": "Dinner",
+   "what": "Fries out, steak sliced thin, garlic butter on top."
+  }
+ ]
 }

@@ -89,5 +89,27 @@
   "Apple slicer"
  ],
  "heads_up": "Pre-boiled eggs make this 2 minutes.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Sunday",
+   "what": "Boil a dozen; unpeeled eggs keep a week."
+  },
+  {
+   "when": "15 min out",
+   "what": "Eggs into boiling water, 9 minutes."
+  },
+  {
+   "when": "6 min",
+   "what": "Ice bath 5 min. Kids slice apples, toss with lemon."
+  },
+  {
+   "when": "1 min",
+   "what": "Peel under running water; halve, salt and pepper."
+  },
+  {
+   "when": "Snack",
+   "what": "Plate eggs with the apple slices."
+  }
+ ]
 }

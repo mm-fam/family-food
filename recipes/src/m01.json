@@ -132,5 +132,31 @@
   "Foil",
   "Small bowls for the taco bar"
  ],
- "heads_up": "Oven on to 200°F for the tortillas."
+ "heads_up": "Oven on to 200°F for the tortillas.",
+ "game_plan": [
+  {
+   "when": "25 min out",
+   "what": "Oven to 200°F. Kids set out the taco bar and cut limes."
+  },
+  {
+   "when": "20 min",
+   "what": "Turkey in the hot skillet; leave it alone to brown."
+  },
+  {
+   "when": "15 min",
+   "what": "Crumble it, then seasoning, water and taco sauce."
+  },
+  {
+   "when": "10 min",
+   "what": "Tortillas wrapped and into the oven. Kids rinse the beans."
+  },
+  {
+   "when": "5 min",
+   "what": "Beans into the meat, squeeze of lime, taste."
+  },
+  {
+   "when": "Dinner",
+   "what": "Tortillas out, everyone builds their own."
+  }
+ ]
 }

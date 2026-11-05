@@ -140,5 +140,31 @@
   "Two forks"
  ],
  "heads_up": "Start the slow cooker in the morning (8 hours on low).",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Morning",
+   "what": "Season the pork; kids load onion, garlic and juices in the cooker."
+  },
+  {
+   "when": "8 hr",
+   "what": "Slow cooker on LOW (or HIGH 5 hr) and leave it alone."
+  },
+  {
+   "when": "20 min out",
+   "what": "Shred the pork right in the pot with the juices."
+  },
+  {
+   "when": "15 min",
+   "what": "Spread on a sheet pan and broil until crisp. Watch it."
+  },
+  {
+   "when": "10 min",
+   "what": "Kids warm tortillas and set out the taco bar."
+  },
+  {
+   "when": "Dinner",
+   "what": "Build tacos; save leftovers in some juice."
+  }
+ ]
 }

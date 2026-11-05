@@ -133,5 +133,35 @@
   "Foil"
  ],
  "heads_up": "Oven on to 375°F.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "50 min out",
+   "what": "Oven to 375°F. Grease the 9×13."
+  },
+  {
+   "when": "45 min",
+   "what": "Onion, then turkey in the skillet to brown."
+  },
+  {
+   "when": "37 min",
+   "what": "Seasoning, beans, corn and salsa in; simmer. Kids mix the cottage cheese."
+  },
+  {
+   "when": "33 min",
+   "what": "Kids layer tortillas, meat and cheese mix in the dish."
+  },
+  {
+   "when": "30 min",
+   "what": "Foil on, into the oven: 20 min covered, 10 uncovered."
+  },
+  {
+   "when": "5 min",
+   "what": "Out of the oven to rest so the squares hold."
+  },
+  {
+   "when": "Dinner",
+   "what": "Cut and serve with sour cream."
+  }
+ ]
 }

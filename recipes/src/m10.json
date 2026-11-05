@@ -133,5 +133,35 @@
   "Sharp knife"
  ],
  "heads_up": "Rice first; steak into the freezer 15 min for easy slicing.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "35 min out",
+   "what": "Rice on. Steak into the freezer for 15 minutes."
+  },
+  {
+   "when": "20 min",
+   "what": "Slice the steak thin and toss with soy and cornstarch."
+  },
+  {
+   "when": "15 min",
+   "what": "Kids whisk the sauce in a cup."
+  },
+  {
+   "when": "10 min",
+   "what": "Steam-fry the broccoli; tip it out."
+  },
+  {
+   "when": "6 min",
+   "what": "Sear the beef in two batches."
+  },
+  {
+   "when": "2 min",
+   "what": "Garlic, ginger, sauce; toss it all back in."
+  },
+  {
+   "when": "Dinner",
+   "what": "Over rice, straight to the table."
+  }
+ ]
 }

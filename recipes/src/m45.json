@@ -118,5 +118,31 @@
   "Pastry brush"
  ],
  "heads_up": "Broiler on high.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "20 min out",
+   "what": "Broiler on high. Slice the bread thick."
+  },
+  {
+   "when": "15 min",
+   "what": "Oil, garlic powder, broil 2 min until crisp."
+  },
+  {
+   "when": "12 min",
+   "what": "Kids set out sauce, meats and cheese."
+  },
+  {
+   "when": "8 min",
+   "what": "Everyone builds their own melt."
+  },
+  {
+   "when": "5 min",
+   "what": "Broil 3–4 min. Don't walk away."
+  },
+  {
+   "when": "Dinner",
+   "what": "Serve hot with a salad."
+  }
+ ]
 }

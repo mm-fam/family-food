@@ -89,5 +89,23 @@
   "Blender or food processor"
  ],
  "heads_up": "",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Ahead",
+   "what": "Dip keeps 4 days; it thickens overnight."
+  },
+  {
+   "when": "8 min out",
+   "what": "Blend cottage cheese, ranch seasoning and lemon smooth."
+  },
+  {
+   "when": "5 min",
+   "what": "Kids halve the mini peppers and pull the seeds."
+  },
+  {
+   "when": "Snack",
+   "what": "Dip in a bowl, peppers and carrots around it."
+  }
+ ]
 }

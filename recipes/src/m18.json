@@ -99,5 +99,27 @@
   "Mixing bowl"
  ],
  "heads_up": "Low heat is the whole trick.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Night before",
+   "what": "Optional: whisk eggs + cottage cheese, cover, fridge."
+  },
+  {
+   "when": "11 min out",
+   "what": "Kids crack and whisk the eggs with the cottage cheese."
+  },
+  {
+   "when": "8 min",
+   "what": "Toast in. Butter melting in the skillet on medium-low."
+  },
+  {
+   "when": "6 min",
+   "what": "Spinach in 30 sec, then eggs; slow, big soft curds."
+  },
+  {
+   "when": "Breakfast",
+   "what": "Pull the pan while eggs look a bit wet. Pepper, toast."
+  }
+ ]
 }

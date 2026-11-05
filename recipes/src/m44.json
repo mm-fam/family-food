@@ -128,5 +128,31 @@
   "Pastry brush"
  ],
  "heads_up": "Thaw the puff pastry in the fridge the night before.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "45 min out",
+   "what": "Oven to 400°F. Line the sheet pan."
+  },
+  {
+   "when": "40 min",
+   "what": "Brown the beef and onion; drain and season."
+  },
+  {
+   "when": "32 min",
+   "what": "Kids stir in ketchup, mustard and pickles; cool, add cheese."
+  },
+  {
+   "when": "27 min",
+   "what": "Kids cut, fill, fold, seal and brush the pockets."
+  },
+  {
+   "when": "22 min",
+   "what": "Bake 20–22 min until deep golden."
+  },
+  {
+   "when": "Dinner",
+   "what": "Cool 5 min; ketchup and mustard for dipping."
+  }
+ ]
 }

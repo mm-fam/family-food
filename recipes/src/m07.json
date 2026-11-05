@@ -128,5 +128,31 @@
   "Clean dish towel"
  ],
  "heads_up": "Start the chicken marinating first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "35 min out",
+   "what": "Chicken into the lemon-garlic marinade."
+  },
+  {
+   "when": "30 min",
+   "what": "Kids grate cucumber for tzatziki; slice tomatoes."
+  },
+  {
+   "when": "20 min",
+   "what": "Chicken into the hot skillet."
+  },
+  {
+   "when": "8 min",
+   "what": "Chicken out to rest. Naan warming."
+  },
+  {
+   "when": "3 min",
+   "what": "Slice the chicken; set out tzatziki and veggies."
+  },
+  {
+   "when": "Dinner",
+   "what": "Everyone builds their own naan."
+  }
+ ]
 }

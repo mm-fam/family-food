@@ -118,5 +118,31 @@
   "Jar with a lid"
  ],
  "heads_up": "Onions go in first; they take the longest.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "30 min out",
+   "what": "Butter and onions in the skillet, low and slow."
+  },
+  {
+   "when": "20 min",
+   "what": "Water on for the pierogies."
+  },
+  {
+   "when": "15 min",
+   "what": "Pierogies boil 4 minutes, then drain well."
+  },
+  {
+   "when": "10 min",
+   "what": "Pierogies into the pan with the onions to brown."
+  },
+  {
+   "when": "5 min",
+   "what": "Kids shake the dressing and toss the salad."
+  },
+  {
+   "when": "Dinner",
+   "what": "Onions on top, sour cream on the side."
+  }
+ ]
 }

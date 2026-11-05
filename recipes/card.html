@@ -69,6 +69,16 @@
   .card h3 { margin: 0 0 4px; font-size: 8pt; letter-spacing: .12em; text-transform: uppercase; color: var(--acc); }
   .card p, .card ul { margin: 0; }
   .card ul { padding-left: 14px; }
+  .plan { margin-top: 0.2in; border: 2px solid var(--acc); border-radius: 14px; padding: 0.16in 0.2in; }
+  ol.tl { list-style: none; margin: 4px 0 0; padding: 0; position: relative; }
+  ol.tl::before { content: ''; position: absolute; left: 1.02in; top: 6px; bottom: 6px; width: 2px; background: var(--acc-soft); }
+  ol.tl li { display: grid; grid-template-columns: 0.95in 1fr; gap: 0.2in; padding: 5px 0; position: relative; align-items: baseline; }
+  ol.tl li::after { content: ''; position: absolute; left: calc(1.02in - 4px); top: 0.62em; width: 10px; height: 10px; border-radius: 50%; background: var(--acc); }
+  .tl .when { font-weight: 800; color: var(--acc); text-align: right; font-size: .9em; }
+  .rate { margin-top: auto; display: flex; gap: 0.18in; align-items: center; background: var(--acc-soft); border-radius: 14px; padding: 0.12in 0.18in; font-size: .9em; }
+  .rate b { display: block; font-family: Lora, Georgia, serif; font-size: 1.15em; color: var(--acc); margin-bottom: 2px; }
+  .qr { flex: none; width: 0.95in; height: 0.95in; background: #fff; border-radius: 8px; padding: 5px; }
+  .qr svg { width: 100%; height: 100%; display: block; }
   .howd { margin-top: 0.2in; border: 2px solid var(--acc); border-radius: 14px; padding: 0.16in 0.2in; flex: 1; display: flex; flex-direction: column; }
   .faces { display: flex; gap: 0.3in; margin: 6px 0 12px; font-size: 9pt; color: var(--soft); }
   .faces span { display: flex; align-items: center; gap: 6px; }

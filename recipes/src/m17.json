@@ -85,5 +85,23 @@
   "Paring knife"
  ],
  "heads_up": "Wash berries first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Night before",
+   "what": "Kids layer yogurt and berries in jars; lids on, into the fridge."
+  },
+  {
+   "when": "Morning",
+   "what": "Slice strawberries if not done; rinse blueberries."
+  },
+  {
+   "when": "1 min out",
+   "what": "Granola on top so it stays crunchy."
+  },
+  {
+   "when": "Breakfast",
+   "what": "Grab a jar and a spoon."
+  }
+ ]
 }

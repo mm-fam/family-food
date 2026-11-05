@@ -97,5 +97,27 @@
   "Blender"
  ],
  "heads_up": "Peel and freeze ripe bananas ahead.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Sunday",
+   "what": "Optional: freeze smoothie bags of berries, banana, spinach."
+  },
+  {
+   "when": "5 min out",
+   "what": "OJ into the blender first, then the yogurt."
+  },
+  {
+   "when": "4 min",
+   "what": "Kids add spinach, banana and frozen berries."
+  },
+  {
+   "when": "3 min",
+   "what": "Blend low, then high, until smooth. Taste; honey if needed."
+  },
+  {
+   "when": "Breakfast",
+   "what": "Pour into 4 glasses and drink right away."
+  }
+ ]
 }

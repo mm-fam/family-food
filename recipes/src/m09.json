@@ -127,5 +127,31 @@
   "Meat thermometer"
  ],
  "heads_up": "Oven to 425°F and salt the eggplant first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "55 min out",
+   "what": "Oven to 425°F. Salt the eggplant; split the chicken."
+  },
+  {
+   "when": "45 min",
+   "what": "Kids set up flour, egg and panko plates."
+  },
+  {
+   "when": "40 min",
+   "what": "Bread chicken and eggplant; onto the oiled pans."
+  },
+  {
+   "when": "35 min",
+   "what": "Into the oven; flip halfway."
+  },
+  {
+   "when": "12 min",
+   "what": "Sauce and cheese on top; back in to bubble."
+  },
+  {
+   "when": "Dinner",
+   "what": "Serve with the extra warm sauce."
+  }
+ ]
 }

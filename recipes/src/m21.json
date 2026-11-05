@@ -110,5 +110,31 @@
   "Whisk"
  ],
  "heads_up": "Broiler on first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Night before",
+   "what": "Dice the peppers; keep covered in the fridge."
+  },
+  {
+   "when": "20 min out",
+   "what": "Broiler on. Kids whisk eggs, milk, salt and pepper."
+  },
+  {
+   "when": "15 min",
+   "what": "Butter in the skillet; peppers until soft, then spinach."
+  },
+  {
+   "when": "10 min",
+   "what": "Eggs in; lift edges so raw egg runs under."
+  },
+  {
+   "when": "3 min",
+   "what": "Cheese on, under the broiler till puffed. Muffins in toaster."
+  },
+  {
+   "when": "Breakfast",
+   "what": "Slide out, cut wedges."
+  }
+ ]
 }

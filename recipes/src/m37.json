@@ -137,5 +137,31 @@
   "Small bowls"
  ],
  "heads_up": "Get the rice going first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "25 min out",
+   "what": "Start the rice."
+  },
+  {
+   "when": "20 min",
+   "what": "Chicken in a hot skillet; leave it 4 min to brown."
+  },
+  {
+   "when": "15 min",
+   "what": "Kids stir up the sauce and the spicy mayo."
+  },
+  {
+   "when": "12 min",
+   "what": "Crumble the chicken; garlic, ginger and green onions in."
+  },
+  {
+   "when": "8 min",
+   "what": "Slaw and sauce in; toss just until wilted."
+  },
+  {
+   "when": "Dinner",
+   "what": "Over rice with green onion tops and spicy mayo."
+  }
+ ]
 }

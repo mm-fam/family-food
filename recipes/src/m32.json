@@ -90,5 +90,23 @@
   "Butter knife"
  ],
  "heads_up": "",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "8 min out",
+   "what": "Kids slice the bananas into coins."
+  },
+  {
+   "when": "5 min",
+   "what": "Toast the bread."
+  },
+  {
+   "when": "2 min",
+   "what": "PB on the hot toast so it melts; line up the bananas."
+  },
+  {
+   "when": "Snack",
+   "what": "Drizzle of honey and a pinch of cinnamon."
+  }
+ ]
 }

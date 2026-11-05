@@ -131,5 +131,31 @@
   "Foil"
  ],
  "heads_up": "Oven to 375°F.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "45 min out",
+   "what": "Oven to 375°F. Brown the beef with the onion."
+  },
+  {
+   "when": "35 min",
+   "what": "Spices, beans and sauce into the beef."
+  },
+  {
+   "when": "30 min",
+   "what": "Kids fill and roll tortillas into the dish."
+  },
+  {
+   "when": "25 min",
+   "what": "Sauce over, cheese on, covered into the oven."
+  },
+  {
+   "when": "10 min",
+   "what": "Foil off to finish bubbling."
+  },
+  {
+   "when": "Dinner",
+   "what": "Sour cream, cilantro and avocado on top."
+  }
+ ]
 }

@@ -116,5 +116,27 @@
   "Wooden spoon"
  ],
  "heads_up": "Milk on the stove first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Sunday",
+   "what": "Optional: cook a double batch; it keeps 4 days."
+  },
+  {
+   "when": "15 min out",
+   "what": "Milk, salt and cinnamon on to a gentle simmer."
+  },
+  {
+   "when": "12 min",
+   "what": "Oats in; stir now and then. Kids slice bananas, rinse berries."
+  },
+  {
+   "when": "3 min",
+   "what": "Off the heat, stir in the peanut butter."
+  },
+  {
+   "when": "Breakfast",
+   "what": "Yogurt dollop, fruit, seeds, honey. Done."
+  }
+ ]
 }

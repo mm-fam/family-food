@@ -114,5 +114,35 @@
   "Sturdy spatula"
  ],
  "heads_up": "Ribeye into the freezer 30–40 minutes before slicing.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "55 min out",
+   "what": "Ribeye in the freezer to firm up."
+  },
+  {
+   "when": "25 min",
+   "what": "Slice it paper thin. Onions and peppers on to soften."
+  },
+  {
+   "when": "12 min",
+   "what": "Kids toast the rolls in the pan."
+  },
+  {
+   "when": "8 min",
+   "what": "Steak on high: sear, chop, toss."
+  },
+  {
+   "when": "4 min",
+   "what": "Onions back in, 4 piles, cheese on top to melt."
+  },
+  {
+   "when": "2 min",
+   "what": "Kids flip each pile into its roll."
+  },
+  {
+   "when": "Dinner",
+   "what": "Cut in half and eat right away."
+  }
+ ]
 }

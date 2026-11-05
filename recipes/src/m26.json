@@ -123,5 +123,23 @@
   "Jar with lid"
  ],
  "heads_up": "Check the fridge for leftovers to use.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Sunday",
+   "what": "Cook the quinoa (keeps 5 days); shake up the dressing."
+  },
+  {
+   "when": "10 min out",
+   "what": "Kids prep topping piles: tomatoes, cucumber, beans, cheese."
+  },
+  {
+   "when": "5 min",
+   "what": "Bowl it: quinoa on the bottom, toppings in sections."
+  },
+  {
+   "when": "Lunch",
+   "what": "Dress right before eating; crunchy seeds on top."
+  }
+ ]
 }

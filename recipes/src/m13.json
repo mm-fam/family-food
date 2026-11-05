@@ -120,5 +120,31 @@
   "Meat thermometer"
  ],
  "heads_up": "Oven to 425°F; potatoes go in first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "45 min out",
+   "what": "Oven to 425°F. Potatoes oiled and roasting."
+  },
+  {
+   "when": "40 min",
+   "what": "Kids toss the peppers and onions with seasoning."
+  },
+  {
+   "when": "35 min",
+   "what": "Sausages and veggies onto the pan with the potatoes."
+  },
+  {
+   "when": "20 min",
+   "what": "Flip the sausages."
+  },
+  {
+   "when": "3 min",
+   "what": "Rolls on the oven rack to warm."
+  },
+  {
+   "when": "Dinner",
+   "what": "Plates or sandwiches, your call."
+  }
+ ]
 }

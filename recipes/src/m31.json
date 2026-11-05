@@ -104,5 +104,27 @@
   "Small bowl"
  ],
  "heads_up": "",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Ahead",
+   "what": "Dip keeps 3 days; cut veggies keep in water in the fridge."
+  },
+  {
+   "when": "10 min out",
+   "what": "Grate the cucumber; kids squeeze it dry in a towel."
+  },
+  {
+   "when": "7 min",
+   "what": "Stir into yogurt with garlic, lemon, oil and salt; rest 5 min."
+  },
+  {
+   "when": "3 min",
+   "what": "Cut pepper strips; arrange the veggies around the dip."
+  },
+  {
+   "when": "Snack",
+   "what": "Dig in."
+  }
+ ]
 }

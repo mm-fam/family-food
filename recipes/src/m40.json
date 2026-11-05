@@ -147,5 +147,31 @@
   "Rice pot"
  ],
  "heads_up": "Rice on first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "35 min out",
+   "what": "Start the rice."
+  },
+  {
+   "when": "33 min",
+   "what": "Onion in the big pot until soft and golden."
+  },
+  {
+   "when": "27 min",
+   "what": "Fry the garlic, ginger and curry paste 1–2 min."
+  },
+  {
+   "when": "25 min",
+   "what": "Chicken in; then tomatoes, coconut milk, chickpeas. Simmer."
+  },
+  {
+   "when": "8 min",
+   "what": "Kids stir in the spinach. Naan into the oven."
+  },
+  {
+   "when": "Dinner",
+   "what": "Curry over rice with a spoon of yogurt."
+  }
+ ]
 }

@@ -124,5 +124,27 @@
   "Mixing bowl"
  ],
  "heads_up": "Boil the eggs first (or use pre-boiled).",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Sunday",
+   "what": "Boil a dozen eggs: for this, snacks and Eggs & Apple Slices."
+  },
+  {
+   "when": "15 min out",
+   "what": "Kids peel and chop the eggs."
+  },
+  {
+   "when": "10 min",
+   "what": "Stir yogurt, salsa, lime, cumin and salt into a dressing."
+  },
+  {
+   "when": "5 min",
+   "what": "Fold in eggs, beans and corn."
+  },
+  {
+   "when": "Lunch",
+   "what": "Avocado in last; scoop with chips or lettuce cups."
+  }
+ ]
 }

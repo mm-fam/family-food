@@ -83,6 +83,8 @@
   }
   function forgetSavedState() { clearTimeout(saveTimer); store.del(SAVED_KEY); }
   if (S.pass) { const saved = loadSavedState(); if (saved) { S.data = saved; S.stale = true; } }
+  // Deep link from a printed recipe card's QR code (Nov 4): ?meal=mNN opens that meal card once we know who you are.
+  try { const dm = new URLSearchParams(location.search).get('meal'); if (/^m\d+$/.test(dm || '')) S.deepMeal = dm; } catch (e) { /* no URL */ }
 
   let seq = 0;
   let applied = 0;
@@ -467,6 +469,11 @@
 
   /* ------------------------------------------------------------ views */
   function render() {
+    if (S.deepMeal && S.data && S.pass && S.me) {
+      const id = S.deepMeal; S.deepMeal = '';
+      try { history.replaceState(null, '', location.pathname); } catch (e) { /* fine */ }
+      if (mealById(id)) { S.tab = 'meals'; S.sheet = { type: 'mealcard', id: id }; }
+    }
     const root = document.getElementById('app');
     const focus = captureFocus();
     const scrolls = {};

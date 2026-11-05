@@ -113,5 +113,27 @@
   "Spatula"
  ],
  "heads_up": "Spotty, very ripe bananas work best.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Sunday",
+   "what": "Optional: cook a big batch, freeze flat for school mornings."
+  },
+  {
+   "when": "20 min out",
+   "what": "Kids blend bananas, eggs, oats, cinnamon; batter rests 5 min."
+  },
+  {
+   "when": "15 min",
+   "what": "Skillet on medium-low with a little butter."
+  },
+  {
+   "when": "12 min",
+   "what": "Small pancakes in batches; berries on, flip when set."
+  },
+  {
+   "when": "Breakfast",
+   "what": "Vanilla yogurt and a drizzle of syrup on top."
+  }
+ ]
 }

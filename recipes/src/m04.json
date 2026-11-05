@@ -128,5 +128,31 @@
   "Pastry brush"
  ],
  "heads_up": "Oven to 375°F first.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "75 min out",
+   "what": "Oven to 375°F. Panko soaking in milk."
+  },
+  {
+   "when": "70 min",
+   "what": "Kids mix the meatloaf gently and shape two loaves."
+  },
+  {
+   "when": "60 min",
+   "what": "First glaze on; loaves into the oven."
+  },
+  {
+   "when": "25 min",
+   "what": "Second glaze; broccoli onto the pan. Rice on."
+  },
+  {
+   "when": "10 min",
+   "what": "Meatloaf out to rest. Fluff the rice."
+  },
+  {
+   "when": "Dinner",
+   "what": "Slice and serve with broccoli and rice."
+  }
+ ]
 }

@@ -126,5 +126,31 @@
   "Cooling rack"
  ],
  "heads_up": "Melt the butter first so it can cool a bit.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Weekend",
+   "what": "Kids whisk the dry and the wet bowls."
+  },
+  {
+   "when": "25 min",
+   "what": "Combine and rest the batter 5 min. Heat the griddle."
+  },
+  {
+   "when": "20 min",
+   "what": "Cook pancakes in batches, about 3 min each."
+  },
+  {
+   "when": "5 min",
+   "what": "Cool on a rack, then freeze with parchment between."
+  },
+  {
+   "when": "Weekday",
+   "what": "Kids toast 2, spread PB and grape, stack, add banana."
+  },
+  {
+   "when": "Breakfast",
+   "what": "Ready in under 5 minutes."
+  }
+ ]
 }

@@ -123,5 +123,31 @@
   "Fork for mashing"
  ],
  "heads_up": "Oven to 400°F.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "30 min out",
+   "what": "Oven to 400°F; foil on the sheet pan."
+  },
+  {
+   "when": "25 min",
+   "what": "Brown the beef, then taco seasoning and water."
+  },
+  {
+   "when": "15 min",
+   "what": "Kids layer chips, cheese, beans and beef."
+  },
+  {
+   "when": "8 min",
+   "what": "Nachos into the oven."
+  },
+  {
+   "when": "5 min",
+   "what": "Kids mash the avocado with lime and salt."
+  },
+  {
+   "when": "Dinner",
+   "what": "Salsa, sour cream, avocado on top. Dig in."
+  }
+ ]
 }

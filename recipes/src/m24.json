@@ -107,5 +107,27 @@
   "2-part lunch containers"
  ],
  "heads_up": "Great use for leftover chicken.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Up to 3 days",
+   "what": "Make the chicken-bean mix; it's better on day 2."
+  },
+  {
+   "when": "15 min out",
+   "what": "Frank's into melted butter; toss with the chicken."
+  },
+  {
+   "when": "10 min",
+   "what": "Kids stir in beans, celery and carrots; fold in dressing."
+  },
+  {
+   "when": "5 min",
+   "what": "Chop the lettuce."
+  },
+  {
+   "when": "Lunchbox",
+   "what": "Mix in one container, lettuce in another; combine at lunch."
+  }
+ ]
 }

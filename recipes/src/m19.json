@@ -111,5 +111,23 @@
   "Big bowl"
  ],
  "heads_up": "Make it the night before.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "Sunday night",
+   "what": "Mix oats, milk, yogurt, honey, cinnamon, chia; fill 4 jars."
+  },
+  {
+   "when": "Sunday night",
+   "what": "Kids top each jar with berries; lids on, fridge 6+ hours."
+  },
+  {
+   "when": "Morning",
+   "what": "Stir; add sliced banana and almonds."
+  },
+  {
+   "when": "Breakfast",
+   "what": "Jars keep through Thursday."
+  }
+ ]
 }

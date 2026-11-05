@@ -15,6 +15,13 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': 
 // Wrap emoji in a span so they render with the color emoji font.
 const emo = (s) => esc(s).replace(/(\p{Extended_Pictographic}(️|‍\p{Extended_Pictographic})*)/gu, '<span class="emoji">$1</span>');
 const KIND = { breakfast: 'Breakfast', lunch: 'Lunch', snack: 'Snack', dinner: 'Dinner' };
+let QR = null;
+try { QR = require('qrcode'); } catch (e) { try { QR = require('/home/claude/qrtool/node_modules/qrcode'); } catch (e2) { QR = null; } }
+const APP_URL = 'https://mm-fam.github.io/family-food/';
+const QR_CACHE = {};
+// The QR on the back opens this meal's card in the app (?meal=mNN). Needs `npm i qrcode` (falls back to no code).
+function qrSvg(id) { return QR_CACHE[id] || ''; }
+async function makeQr(id) { if (QR) QR_CACHE[id] = await QR.toString(APP_URL + '?meal=' + id, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#1f2a24', light: '#0000' } }); }
 const logo = 'data:image/png;base64,' + fs.readFileSync(path.join(DIR, '..', 'icons', 'poppy-logo.png')).toString('base64');
 
 function splitName(name) {
@@ -62,10 +69,9 @@ function render(r) {
     card('<span class="emoji">🔁</span> Swap it', r.swaps && r.swaps.length ? '<ul>' + r.swaps.map((s) => '<li>' + emo(s) + '</li>').join('') + '</ul>' : '') +
     card('<span class="emoji">🍽️</span> Serve it with', r.serve_with ? '<p>' + emo(r.serve_with) + '</p>' : '') +
     '</div>' +
-    '<div class="howd"><h2><span class="emoji">📝</span> How\'d it go tonight?</h2>' +
-    '<div class="faces"><span><span class="emoji">😍</span>Love it</span><span><span class="emoji">🙂</span>Like it</span><span><span class="emoji">😐</span>It\'s OK</span><span><span class="emoji">👎</span>Not for me</span></div>' +
-    '<div class="fill"><span>Date</span><i></i><span>Cooked by</span><i></i><span>Helpers</span><i></i><span>Next time</span><i></i></div>' +
-    '<div class="lines-label">Notes and tweaks (snap a photo and send it to Poppy with 💡)</div><div class="lines"></div></div>' +
+    (r.game_plan && r.game_plan.length ? '<div class="plan"><h2><span class="emoji">⏱</span> Game plan: everything lands at once</h2><ol class="tl">' +
+      r.game_plan.map((g) => '<li><span class="when">' + emo(g.when) + '</span><span class="what">' + emo(g.what) + '</span></li>').join('') + '</ol></div>' : '') +
+    '<div class="rate"><div class="qr">' + qrSvg(r.id) + '</div><div><b>Done cooking? Tell Poppy how it went.</b>' + emo('Scan to open this meal in Poppy: vote 😍 🙂 😐 👎 and send tweaks with 💡. What you tell Poppy makes this card better next time.') + '</div></div>' +
     footer(r, 'back') + '</section>';
   return front + back;
 }
@@ -81,6 +87,7 @@ function render(r) {
     const r = JSON.parse(fs.readFileSync(path.join(SRC, f), 'utf8'));
     index[r.id] = { name: r.name, pdf: 'recipes/' + r.id + '.pdf', serves: r.serves || '', minutes: (Number(r.prep) || 0) + (Number(r.cook) || 0), draft: r.draft !== false };
     if (want.length && want.indexOf(r.id) < 0) continue;
+    await makeQr(r.id);
     const tmp = path.join(DIR, '.tmp-' + r.id + '.html');
     fs.writeFileSync(tmp, tpl.replace('__BODY__', render(r)));
     await page.goto('file://' + tmp);

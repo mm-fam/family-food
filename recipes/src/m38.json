@@ -126,5 +126,31 @@
   "Big bowl"
  ],
  "heads_up": "Oven to 400°F and the pasta water on.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "50 min out",
+   "what": "Oven to 400°F. Pasta water on to boil."
+  },
+  {
+   "when": "40 min",
+   "what": "Pasta in. Wilt the spinach with garlic. Kids mix the cheese filling."
+  },
+  {
+   "when": "32 min",
+   "what": "Drain. Kids fold it all together and fill the 9×13."
+  },
+  {
+   "when": "27 min",
+   "what": "Into the oven for 20 min, then 2 min under the broiler."
+  },
+  {
+   "when": "5 min",
+   "what": "Rest so it slices clean."
+  },
+  {
+   "when": "Dinner",
+   "what": "Serve with a salad or garlic toast."
+  }
+ ]
 }

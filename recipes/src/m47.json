@@ -134,5 +134,35 @@
   "Big mixing bowl",
   "Zip bag"
  ],
- "heads_up": "Rice on first, and oven to 250°F to keep the roll-ups warm."
+ "heads_up": "Rice on first, and oven to 250°F to keep the roll-ups warm.",
+ "game_plan": [
+  {
+   "when": "55 min out",
+   "what": "Rice on. Oven to 250°F. Corn thawing in the strainer."
+  },
+  {
+   "when": "50 min",
+   "what": "Season the chicken and get it in the skillet."
+  },
+  {
+   "when": "30 min",
+   "what": "Chicken resting, then shred. Kids crush the chips and mix the filling."
+  },
+  {
+   "when": "20 min",
+   "what": "Assembly line: warm tortillas, cheese, filling, chips, roll."
+  },
+  {
+   "when": "15 min",
+   "what": "Fry in batches; finished ones go in the warm oven."
+  },
+  {
+   "when": "5 min",
+   "what": "Mash the avocado, set out sour cream and salsa, cut the roll-ups."
+  },
+  {
+   "when": "Dinner",
+   "what": "Everything hits the table hot and crunchy."
+  }
+ ]
 }

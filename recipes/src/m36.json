@@ -126,5 +126,35 @@
   "Meat thermometer"
  ],
  "heads_up": "Oven to 425°F with the sheet pans inside.",
- "draft": true
+ "draft": true,
+ "game_plan": [
+  {
+   "when": "45 min out",
+   "what": "Oven to 425°F with both sheet pans inside."
+  },
+  {
+   "when": "35 min",
+   "what": "Sweet potatoes on the hot pan for 10 min. Kids season the chicken."
+  },
+  {
+   "when": "30 min",
+   "what": "Kids toss the broccoli with oil and salt."
+  },
+  {
+   "when": "25 min",
+   "what": "Chicken in with the potatoes, broccoli on pan two: 15–18 min."
+  },
+  {
+   "when": "5 min",
+   "what": "Kids add lemon, parmesan and a drizzle of honey."
+  },
+  {
+   "when": "2 min",
+   "what": "Pack tomorrow's lunch box."
+  },
+  {
+   "when": "Dinner",
+   "what": "Straight from the pans to the table."
+  }
+ ]
 }
