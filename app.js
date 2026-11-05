@@ -927,6 +927,14 @@
   const laterBack = (r) => { const u = String(r.hold_until || '').slice(0, 10); return !u || u >= '9000' ? '' : u; };
   const inCartNow = (r) => canCarts() && (r.status === 'carted' || r.status === 'needed') && ['in', 'going', 'moving', 'leaving'].indexOf(cartState(r).kind) >= 0;
 
+  // api 54: pantry staples (Items.pantry = Y: garlic, soy sauce, ketchup…) are assumed on hand. They only count as
+  // missing for a meal when the latest sighting in the last 14 days is low / out.
+  const isPantry = (id) => { const it = itemById(id); return !!(it && /^y/i.test(String(it.pantry || ''))); };
+  // Today's meals stop counting once their time has passed (owner, Nov 4: tonight's dinner was still "missing" at
+  // midnight). Breakfast after 10, lunch after 2, snack after 5, dinner (blank slot) after 8, phone time.
+  const SLOT_DONE_HOUR = { breakfast: 10, lunch: 14, snack: 17, dinner: 20 };
+  const slotOver = (p) => new Date().getHours() >= (SLOT_DONE_HOUR[String(p.slot || '').toLowerCase()] || 20);
+
   // Ingredients of meals planned in the next 7 days that nobody has dealt with yet. Many meals (from Hearth
   // screenshots) have few or no ingredients linked, so the card also says which meals it can't check.
   function missingForMeals() {
@@ -935,7 +943,8 @@
     D().list.concat(D().held || []).forEach((r) => r.item_id && (onList[r.item_id] = 1));
     (D().recent || []).forEach((r) => { if (r.item_id && (r.status === 'bought' || r.status === 'have') && addDays(String(r.updated_at || '').slice(0, 10) || '2000-01-01', 3) >= today) onList[r.item_id] = 1; });
     const stock = D().stock || {};
-    const seen = (id) => { const s = stock[id]; return s && s.level !== 'low' && s.level !== 'out' && s.level !== 'waste' && addDays(String(s.at).slice(0, 10), 7) >= today; };
+    const lowNow = (id) => { const s = stock[id]; return !!(s && (s.level === 'low' || s.level === 'out') && addDays(String(s.at).slice(0, 10), 14) >= today); };
+    const seen = (id) => { if (isPantry(id)) return !lowNow(id); const s = stock[id]; return s && s.level !== 'low' && s.level !== 'out' && s.level !== 'waste' && addDays(String(s.at).slice(0, 10), 7) >= today; };
     const byMeal = [];
     const taken = {};
     const blank = [];
@@ -943,6 +952,7 @@
     (D().plan || []).slice().sort((a, b) => (planDate(a) < planDate(b) ? -1 : 1)).forEach((p) => {
       const d = planDate(p);
       if (!d || d < today || d > last || isLeftover(p)) return;
+      if (d === today && slotOver(p)) return;
       const pi = planItem(p);
       if (pi) {
         if (pi.status !== 'Drop' && !isDelivery(pi.store) && !onList[pi.id] && !seen(pi.id) && !taken[pi.id]) { taken[pi.id] = 1; byMeal.push({ date: d, meal: { id: '', name: pi.name }, ids: [pi.id] }); }
@@ -976,7 +986,24 @@
         g.ids.map((id) => '<button class="link-btn" data-act="open-item" data-id="' + esc(id) + '">' + esc(itemById(id).name) + '</button>').join(', ') + '</div>' +
         '<div class="row-meta">' + esc(shortDay(g.date).split(' ')[0]) + ' · ' + esc(g.meal.name) + '</div></div>' +
       '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="miss-add" data-meal="' + esc(g.meal.id) + '" data-ids="' + esc(g.ids.join(',')) + '">' + (kid ? 'Ask' : 'Add') + '</button>' +
-        (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-ids="' + esc(g.ids.join(',')) + '">Have</button>') + '</div></div>').join('') + '</section>';
+        (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-meal="' + esc(g.meal.id) + '" data-name="' + esc(g.meal.name) + '" data-ids="' + esc(g.ids.join(',')) + '">Have</button>') + '</div></div>').join('') + '</section>';
+  }
+  // Have → one sheet per meal row: everything starts ticked "have"; untick what we still need. Parents can also
+  // mark a row as a pantry staple (api 54) so it stops coming up. Save = Stock "some" for the ticked ones,
+  // the unticked ones go on the List for that meal, pantry changes saved on the item.
+  function viewMissHave(sh) {
+    const have = sh.ids.filter((id) => sh.have[id]).length, need = sh.ids.length - have;
+    return '<div class="is-head"><div><h2>What do we have?</h2><div class="is-sub">' + esc(sh.name) + ' · tap what we still need</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      sh.ids.map((id) => {
+        const it = itemById(id); if (!it) return '';
+        const h = !!sh.have[id], p = !!sh.pantry[id];
+        return '<div class="row mh-row"><button class="row-main" data-act="mh-toggle" data-id="' + esc(id) + '" aria-pressed="' + h + '">' +
+          '<span class="row-name">' + (h ? '✅ ' : '🛒 ') + esc(it.name) + '</span><span class="row-meta">' + (h ? 'We have it' : 'Need it: goes on the List') + '</span></button>' +
+          (canPantry() ? '<button class="chip mh-pantry' + (p ? ' on' : '') + '" data-act="mh-pantry" data-id="' + esc(id) + '" aria-pressed="' + p + '">🫙 Always have</button>' : '') + '</div>';
+      }).join('') +
+      (canPantry() ? '<p class="note">🫙 Always have = a pantry staple. Poppy stops asking about it for meals unless someone marks it low or out.</p>' : '') +
+      '<div class="sheet-actions"><button class="btn btn-primary" data-act="mh-save">' +
+        (have && need ? 'Have ' + have + ' · add ' + need : need ? 'Add ' + need + ' to the List' : 'We have ' + (have > 1 ? 'all ' + have : 'it')) + '</button></div>';
   }
   function viewMealGaps() {
     const m = missingForMeals();
@@ -1335,12 +1362,13 @@
   // api 9: store_only, kids' meal requests, app feedback, "How was it?" / "Still eating?" cards.
   const canV9 = () => Number(D().api || 0) >= 9;
   const canFridge = () => Number(D().api || 0) >= 53;
+  const canPantry = () => Number(D().api || 0) >= 54;
 
   function openItemSheet(itemId, rowId, name) {
     const it = itemById(itemId);
     S.sheet = {
       type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
-      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}, canFridge() ? { mini_fridge: isFridge(it.id) ? 'Y' : '' } : {}, canV45() ? { sold_by: it.sold_by === 'lb' ? 'lb' : '', spoken: String(it.aliases || '').split(';').map((x) => x.trim()).filter((x) => /[a-z]/.test(x)).join(', ') } : {}) : null,
+      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}, canFridge() ? { mini_fridge: isFridge(it.id) ? 'Y' : '' } : {}, canPantry() ? { pantry: isPantry(it.id) ? 'Y' : '' } : {}, canV45() ? { sold_by: it.sold_by === 'lb' ? 'lb' : '', spoken: String(it.aliases || '').split(';').map((x) => x.trim()).filter((x) => /[a-z]/.test(x)).join(', ') } : {}) : null,
     };
     render();
     if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
@@ -1527,12 +1555,13 @@
     if (it && sh.d) {
       const swap = canV46() ? ({ Y: 'store may substitute', N: 'don’t substitute' }[sh.d.ok_swap] || 'ask about substitutes') : ({ Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping');
       const keep = { Always: 'always keep it', Sometimes: 'now and then', Drop: 'stopped buying' }[sh.d.status] || '';
-      more += acc('details', 'Details', esc([keep, swap, sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
+      more += acc('details', 'Details', esc([keep, swap, sh.d.pantry === 'Y' ? 'pantry staple' : '', sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg' + (opts.length > 4 ? ' seg-grid' : '') + '">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         return '<div class="is-details">' + (sh.fresh && !kid ? '<p class="note fresh-note">✨ New to Poppy. Fill in the brand and size, the aisle, where we get it and how it’s sold, so search, Siri and the carts get it right.</p>' : '') +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           (canFridge() ? '<div><label>Goes in the mini fridge?</label>' + seg('mini_fridge', [['', 'No'], ['Y', '🥤 Yes']]) + '</div>' : '') +
+          (canPantry() ? '<div><label>Pantry staple?</label>' + seg('pantry', [['', 'No'], ['Y', '🫙 We always have it']]) + '<p class="note">Yes = Missing for meals assumes we have it, unless someone marks it low or out.</p></div>' : '') +
           (canV46() ? '<div><label>If the store is out of it</label>' + seg('ok_swap', [['Y', 'Let the store pick'], ['N', 'Don’t substitute'], ['', 'Ask me']]) + '<p class="note">Claude sets this on each line of the online cart. A backup we picked (shown under What we buy) comes first. Ask me = the store’s default, and you get a ⚖ Decisions card if it swaps something.</p></div>'
             : '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>') +
           (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +
@@ -3142,6 +3171,7 @@
     if (sh.type === 'points') inner = viewPointsSheet(sh);
     if (sh.type === 'pushall') inner = viewPushSheet(sh);
     if (sh.type === 'mealgaps') inner = viewMealGaps();
+    if (sh.type === 'misshave') inner = viewMissHave(sh);
     if (sh.type === 'me') inner = viewMeSheet();
     if (sh.type === 'feedback') {
       inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
@@ -3511,9 +3541,39 @@
     },
     'miss-have': (el) => {
       const ids = String(el.dataset.ids || '').split(',').filter((id) => itemById(id));
-      ids.forEach((id, i) => act('stockLog', { item_id: id, level: 'some' }, () => {
+      if (!ids.length) return;
+      const have = {}, pantry = {};
+      ids.forEach((id) => { have[id] = true; pantry[id] = isPantry(id); });
+      S.sheet = { type: 'misshave', meal_id: el.dataset.meal || '', name: el.dataset.name || '', ids: ids, have: have, pantry: pantry };
+      render();
+    },
+    'mh-toggle': (el) => { const sh = S.sheet; if (sh && sh.type === 'misshave') { sh.have[el.dataset.id] = !sh.have[el.dataset.id]; render(); } },
+    'mh-pantry': (el) => { const sh = S.sheet; if (sh && sh.type === 'misshave') { sh.pantry[el.dataset.id] = !sh.pantry[el.dataset.id]; render(); } },
+    'mh-save': () => {
+      const sh = S.sheet;
+      if (!sh || sh.type !== 'misshave' || isKid(S.me)) return;
+      S.sheet = null;
+      const haveIds = sh.ids.filter((id) => sh.have[id]);
+      const needIds = sh.ids.filter((id) => !sh.have[id] && !listRowFor(id) && !isDelivery(itemById(id).store));
+      const meal = mealById(sh.meal_id);
+      const msg = [haveIds.length ? 'have ' + haveIds.length : '', needIds.length ? 'added ' + needIds.length : ''].filter(String).join(' · ');
+      const calls = [];
+      if (canPantry()) sh.ids.forEach((id) => {
+        const it = itemById(id), want = sh.pantry[id] ? 'Y' : '';
+        if (it && (isPantry(id) ? 'Y' : '') !== want) calls.push(() => act('itemSave', { id: id, fields: { pantry: want } }, () => { it.pantry = want; }, ''));
+      });
+      haveIds.forEach((id) => calls.push(() => act('stockLog', { item_id: id, level: 'some' }, () => {
         (D().stock = D().stock || {})[id] = { level: 'some', at: D().today, who: S.me };
-      }, i === ids.length - 1 ? 'Got it: we have ' + (ids.length > 1 ? 'them' : itemById(id).name) : ''));
+      }, '')));
+      if (needIds.length) {
+        if (meal) calls.push(() => act('addMeal', { meal_id: meal.id, item_ids: needIds }, () => {
+          needIds.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, wanted_by: S.me, status: 'needed', meal_id: meal.id }); });
+        }, ''));
+        else needIds.forEach((id) => calls.push(() => addItem(itemById(id))));
+      }
+      if (!calls.length) { render(); return; }
+      calls.forEach((c) => c());
+      showToast('Got it: ' + (msg || 'saved'));
     },
     'row-bought': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'bought', 'Bought ' + r.name); else render(); },
     'row-remove': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'skipped', 'Took ' + r.name + ' off'); else render(); },

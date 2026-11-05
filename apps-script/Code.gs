@@ -276,7 +276,12 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 53 = mini fridge tag (Nov 4, owner: "all of these items get like a little mini fridge tag… when they're on our list or
 //      we're shopping for them"): Items `mini_fridge` (Y / blank, added at the end on first use); itemSave accepts it
 //      (parents only). The app shows 🥤 Mini fridge on List, request, In store, in-the-cart, Shop rows and the item screen.
-const API_VERSION = 53;
+// 54 = pantry staples (Nov 4, owner: Missing for meals flagged garlic, soy sauce, ketchup… after recipes linked them):
+//      Items `pantry` (Y / blank, added at the end on first use); itemSave accepts it (parents only). The app's Missing
+//      for meals assumes a pantry item is on hand unless its latest sighting in 14 days is low / out, today's meals
+//      drop off once their slot has passed, and Have opens a sheet (have / need per item, 🫙 Always have). Missions
+//      skip pantry items for meal checks.
+const API_VERSION = 54;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote'];
@@ -1151,7 +1156,7 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by', 'mini_fridge'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by', 'mini_fridge', 'pantry'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
   // api 45: sold by the pound (List qty in lb, ½ lb steps) or each (blank).
@@ -1165,6 +1170,8 @@ function saveItem(req) {
   if (f.best_price !== undefined) { f.best_price = /^y/i.test(String(f.best_price)) ? 'Y' : ''; ensureColumn(TABS.items, 'best_price'); }
   // api 53: goes in the mini fridges (Y / blank). The app shows a 🥤 Mini fridge tag on the item everywhere.
   if (f.mini_fridge !== undefined) { f.mini_fridge = /^y/i.test(String(f.mini_fridge)) ? 'Y' : ''; ensureColumn(TABS.items, 'mini_fridge'); }
+  // api 54: pantry staple (Y / blank): assumed on hand for Missing for meals and meal missions.
+  if (f.pantry !== undefined) { f.pantry = /^y/i.test(String(f.pantry)) ? 'Y' : ''; ensureColumn(TABS.items, 'pantry'); }
   if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
   if (f.open_to_try !== undefined) { f.open_to_try = /^y/i.test(String(f.open_to_try)) ? 'Y' : ''; ensureColumn(TABS.items, 'open_to_try'); }
   if (f.shelf_days !== undefined) {
@@ -1216,7 +1223,9 @@ function makeMissions(today, kids, review, plan, mealOf) {
   plan.filter((p) => { const d = planDate(p); return d && d >= today && daysBetween(today, d) < MISSION_PLAN_DAYS && !isLeftover(p) && (mealOf[p.meal_id] || (p.item_id && byId[p.item_id])); })
     .sort((a, b) => (planDate(a) < planDate(b) ? -1 : 1))
     .forEach((p) => {
-      if (mealOf[p.meal_id]) String(mealOf[p.meal_id].item_ids || '').split(/[;,\s]+/).filter(String).forEach((id) => take(id, mealOf[p.meal_id].name));
+      if (mealOf[p.meal_id]) String(mealOf[p.meal_id].item_ids || '').split(/[;,\s]+/).filter(String)
+        .filter((id) => !(byId[id] && /^y/i.test(String(byId[id].pantry || '')))) // api 54: pantry staples aren't checked for meals
+        .forEach((id) => take(id, mealOf[p.meal_id].name));
       else take(p.item_id, byId[p.item_id].name); // a planned item (api 30)
     });
   items.filter((i) => i.avg_days && i.last_bought)

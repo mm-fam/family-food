@@ -988,3 +988,8 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 /* api 53: 🥤 Mini fridge tag on drinks for the mini fridges */
 .fridge-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 2px; color: #0b6e99; background: rgba(11, 110, 153, 0.12); white-space: nowrap; }
 h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
+
+/* Missing for meals → Have sheet (api 54): tap a row to flip have / need; 🫙 marks a pantry staple. */
+.mh-row { display: flex; align-items: center; gap: 8px; }
+.mh-row .row-main { flex: 1; min-width: 0; }
+.mh-pantry { flex: none; font-size: 13px; padding: 6px 10px; white-space: nowrap; }

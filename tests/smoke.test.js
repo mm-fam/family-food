@@ -268,3 +268,13 @@ test('mini fridge tag: parents set Items mini_fridge, kids can’t (api 53)', ()
   assert.strictEqual(r.state.items.find((x) => x.id === 'i002').mini_fridge, '');
   assert.ok(!b.call({ action: 'itemSave', pass: PASS, by: 'Kim', id: 'i002', fields: { mini_fridge: 'Y' } }).ok);
 });
+
+test('pantry staple: parents set Items pantry, kids can’t (api 54)', () => {
+  const b = loadBackend(tabs(), { FAMILY_PASSCODE: PASS });
+  let r = b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i002', fields: { pantry: 'yes' } });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.state.items.find((x) => x.id === 'i002').pantry, 'Y');
+  r = b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i002', fields: { pantry: '' } });
+  assert.strictEqual(r.state.items.find((x) => x.id === 'i002').pantry, '');
+  assert.ok(!b.call({ action: 'itemSave', pass: PASS, by: 'Kim', id: 'i002', fields: { pantry: 'Y' } }).ok);
+});
