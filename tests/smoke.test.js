@@ -1,5 +1,5 @@
 // Smoke tests for the backend (apps-script/Code.gs), run with `node --test tests/*.test.js`.
-// The Deploy backend workflow runs these first; a failure stops the deploy.
+// The Checks workflow runs these on every push; a failure stops the backend deploy.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');

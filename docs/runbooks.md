@@ -105,10 +105,11 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
 Deploys are automatic once the one-time setup below is done.
 
 1. Edit `apps-script/Code.gs`; bump `API_VERSION` if the app needs the new behavior; commit.
-2. Push to `main`. The **Deploy backend** GitHub Action (`.github/workflows/deploy-backend.yml`) pulls the live Apps Script project, replaces only `Code.gs` (manifest and other files untouched), pushes it, publishes a new version of the existing deployment (ID read from `config.js`, so the URL never changes), then checks `/exec?action=version` reports the new `API_VERSION`.
+2. Push to `main`. The **Checks** workflow (`.github/workflows/checks.yml`) runs the smoke tests, then its **deploy** job (only when Code.gs, `tests/` or the workflow changed) checks the Google sign-in, pulls the live Apps Script project, replaces only `Code.gs` (manifest and other files untouched), pushes it, publishes a new version of the existing deployment (ID read from `config.js`, so the URL never changes), then checks `/exec?action=version` reports the new `API_VERSION`.
 3. Push backend changes before (or with) app changes that depend on them; the app hides features the live `api` doesn't have.
 4. If triggers changed, run `setup()` once by hand in the Apps Script editor.
-5. If the Action fails: open Actions → Deploy backend → the failed run. "Missing secret" = setup not done; an auth error = the clasp login expired (redo setup step 3 and update `CLASPRC_JSON`); "no Code.gs" = the live project's file was renamed. Re-run with **Run workflow** once fixed.
+5. **After every push, watch the run yourself** (`gh run watch`, or `gh run list -L 3`) and fix a red run in the same session. The owner gets an email for each failed run, so the session should catch and fix it, not him.
+6. If the deploy job fails, its run summary names the cause: expired login (redo setup step 3 and update `CLASPRC_JSON`; needs the owner's computer), Apps Script API off, wrong `SCRIPT_ID`, or Google down. Google hiccups are already retried inside the run, so **don't press Re-run on the same failure** (each failed re-run is one more email): re-run only after something changed, at most once, with `gh workflow run Checks`. The app keeps working on the last good backend meanwhile.
 
 **Manual fallback** (Action broken): paste `Code.gs` into Extensions → Apps Script → Code.gs → Save, then **Deploy → Manage deployments → pencil → Version: New version → Deploy**. Never "New deployment" (it changes the URL).
 
@@ -117,7 +118,7 @@ Deploys are automatic once the one-time setup below is done.
 2. Apps Script editor → Project Settings → copy the **Script ID**.
 3. On a computer with Node: `npx @google/clasp@2.4.2 login`, approve in the browser, then copy the contents of `~/.clasprc.json`.
 4. GitHub repo → Settings → Secrets and variables → Actions → New repository secret: `CLASPRC_JSON` (step 3) and `SCRIPT_ID` (step 2).
-5. Actions → Deploy backend → Run workflow; it should end green with the live api version.
+5. Actions → Checks → Run workflow; it should end green with the live api version.
 
 The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it only in GitHub secrets, never in the repo or docs. Revoke it at https://myaccount.google.com/permissions ("clasp") if it ever leaks.
 
@@ -139,8 +140,8 @@ The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it on
 | "Probably due" empty or odd | Items J:M formulas missing on new rows, or Receipts item_id not filled. |
 | Items stats wrong | Someone typed over J:M. Re-copy formulas from a good row. |
 | List getting long | Nightly trigger not installed. Run `setup()`. |
-| Claude can't reach the backend | Expected from the workspace. Use Chrome, or the Deploy backend Action's version check. |
-| Backend change didn't show up | Check Actions → Deploy backend. Red = see section 4, step 5. |
+| Claude can't reach the backend | Expected from the workspace. Use Chrome, or the Checks workflow's deploy version check. |
+| Backend change didn't show up | Check Actions → Checks → deploy job. Red = see section 4, step 6. |
 | Claude can't push | Claude GitHub app needs access to the `mm-fam` org (github.com/settings/installations). |
 
 ## 7. Backups and safety
@@ -313,7 +314,7 @@ Say "Hey Siri, Add to Poppy", then "milk, eggs and two avocados". An error comes
 
 ## Builder guardrails (Nov 4)
 - One session changes code at a time: Settings `dev_lock` ("<session link> | <what> | <time>"); rules in `CLAUDE.md`.
-- `node --test tests/*.test.js` runs the backend smoke tests: the real `apps-script/Code.gs` on an in-memory Sheet (`tests/gas-shim.js`) with a made-up household (`tests/fixture.js`). Deploy backend runs them first and stops on a failure (the live backend keeps the last good version); the Checks workflow runs them on every push.
+- `node --test tests/*.test.js` runs the backend smoke tests: the real `apps-script/Code.gs` on an in-memory Sheet (`tests/gas-shim.js`) with a made-up household (`tests/fixture.js`). The Checks workflow runs them on every push and deploys the backend only if they pass (the live backend keeps the last good version).
 - Add a test for each new backend action. Keep fixture names made up (the repo is public).
 
 

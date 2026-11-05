@@ -1,10 +1,22 @@
-# Runs the smoke tests on every push and pull request, so an app-only change (which GitHub Pages
-# publishes straight away) still gets checked, and a broken change shows a red ✗ on the commit.
+# One workflow for every push, so a bad push sends at most ONE failure email (Nov 5; it used to be
+# two workflows, Checks + Deploy backend, and a broken commit emailed twice).
+#
+#   smoke   runs the backend smoke tests on every push and pull request.
+#   deploy  runs only after smoke passes, on main, when apps-script/Code.gs, tests/ or this file changed
+#           (or by hand: Actions → Checks → Run workflow, or `gh workflow run Checks`). It publishes Code.gs
+#           as a new version of the existing web app deployment (same /exec URL, config.js never changes).
+#
+# Deploy needs two repository secrets (Settings → Secrets and variables → Actions):
+#   CLASPRC_JSON  contents of ~/.clasprc.json after `npx @google/clasp@2.4.2 login`
+#   SCRIPT_ID     Apps Script → Project Settings → Script ID
+# Google hiccups are retried inside the run, so nobody needs to press Re-run (each re-run that fails is
+# another email). A failure names its cause in the run summary: login expired, API off, or Google down.
 name: Checks
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   smoke:
@@ -17,3 +29,115 @@ jobs:
           node-version: '20'
       - name: Smoke tests
         run: node --test tests/*.test.js
+
+  deploy:
+    needs: smoke
+    concurrency:
+      group: deploy-backend
+      cancel-in-progress: false
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Did the backend change?
+        id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then BEFORE="$GITHUB_SHA~1"; fi
+          files=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+          echo "$files"
+          if echo "$files" | grep -qE '^(apps-script/Code\.gs|tests/|\.github/workflows/checks\.yml)'; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No backend change; nothing to deploy." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.changed.outputs.go == 'true'
+        with:
+          node-version: '20'
+
+      - name: Check Google sign-in
+        if: steps.changed.outputs.go == 'true'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          fail() { echo "::error::$1"; echo "### Deploy failed: $1" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          [ -n "$CLASPRC_JSON" ] && [ -n "$SCRIPT_ID" ] || fail "Missing CLASPRC_JSON or SCRIPT_ID secret (runbook §4 one-time setup)."
+          read -r CID CSEC RTOK < <(node -e 'const j=JSON.parse(process.env.CLASPRC_JSON);const o=j.oauth2ClientSettings||{};const t=j.token||{};console.log(o.clientId||"-",o.clientSecret||"-",t.refresh_token||"-")') \
+            || fail "CLASPRC_JSON isn't valid JSON. Redo runbook §4 setup step 3."
+          [ "$RTOK" != "-" ] || fail "CLASPRC_JSON has no refresh token. Redo runbook §4 setup step 3."
+          for i in 1 2 3 4; do
+            resp=$(curl -s -m 30 https://oauth2.googleapis.com/token -d client_id="$CID" -d client_secret="$CSEC" -d refresh_token="$RTOK" -d grant_type=refresh_token || true)
+            tok=$(printf '%s' "$resp" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).access_token||"")}catch(e){console.log("")}})')
+            [ -n "$tok" ] && break
+            echo "$resp" | grep -q invalid_grant && fail "The Google login (clasp) has expired or was revoked. Redo runbook §4 setup step 3 and update the CLASPRC_JSON secret. The app keeps running on the last good backend."
+            echo "attempt $i: token refresh failed, retrying"; sleep 30
+          done
+          [ -n "$tok" ] || fail "Couldn't reach Google sign-in after 4 tries (Google outage?). Re-run later; the app keeps running on the last good backend."
+          echo "::add-mask::$tok"
+          for i in 1 2 3 4; do
+            code=$(curl -s -m 60 -o /tmp/proj.json -w '%{http_code}' -H "Authorization: Bearer $tok" "https://script.googleapis.com/v1/projects/$SCRIPT_ID" || echo 000)
+            echo "attempt $i: Apps Script API answered $code"
+            case "$code" in
+              200) echo "Signed in; the script is reachable." >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
+              401) fail "Google rejected the login (401). Redo runbook §4 setup step 3." ;;
+              403) grep -qi "has not been used\|disabled\|User has not enabled" /tmp/proj.json \
+                     && fail "The Apps Script API is turned off for this Google account. Turn it on at script.google.com/home/usersettings, then run the workflow again." \
+                     || fail "Google refused access to the script (403). Check the login is the account that owns the Sheet." ;;
+              404) fail "Google says no script has the SCRIPT_ID secret's id (404). Check Apps Script → Project Settings → Script ID." ;;
+            esac
+            sleep 30
+          done
+          fail "The Apps Script API kept failing (last answer $code, likely a Google outage). Re-run later; the app keeps running on the last good backend."
+
+      - name: Deploy Code.gs
+        if: steps.changed.outputs.go == 'true'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          fail() { echo "::error::$1"; echo "### Deploy failed: $1" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          # Retry Google hiccups here (each try capped at 2 minutes) instead of a human pressing Re-run.
+          retry() { for i in 1 2 3; do timeout 120 "$@" && return 0; echo "try $i of 3 failed: $*"; sleep 30; done; return 1; }
+          npm install -g @google/clasp@2.4.2 >/dev/null
+          umask 077; printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          DEPLOYMENT_ID=$(grep -o 'macros/s/[A-Za-z0-9_-]*/exec' config.js | sed 's#macros/s/##; s#/exec##')
+          [ -n "$DEPLOYMENT_ID" ] || fail "Couldn't read the deployment id from config.js."
+          echo "DEPLOYMENT_ID=$DEPLOYMENT_ID" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/gas" && cd "$RUNNER_TEMP/gas"
+          printf '{"scriptId":"%s","rootDir":".","fileExtension":"gs"}' "$SCRIPT_ID" > .clasp.json
+          # Pull the live project first so its manifest and other files stay as they are; only Code.gs is replaced.
+          retry clasp pull || fail "clasp pull kept failing (sign-in was fine a moment ago, so likely Google). Re-run later."
+          echo "Live project files:"; ls -1
+          [ -f Code.gs ] || fail "The live project has no Code.gs; not deploying (would create a second copy of the functions)."
+          cp "$GITHUB_WORKSPACE/apps-script/Code.gs" Code.gs
+          retry clasp push --force || fail "clasp push kept failing. Re-run later."
+          retry clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "${GITHUB_SHA::7} $(git -C "$GITHUB_WORKSPACE" log -1 --format=%s | cut -c1-80)" \
+            || fail "clasp deploy kept failing. Code.gs is pushed but not published; re-run later."
+
+      - name: Check the live backend version
+        if: steps.changed.outputs.go == 'true'
+        run: |
+          want=$(grep -o 'const API_VERSION = [0-9]*' apps-script/Code.gs | grep -o '[0-9]*$')
+          url="https://script.google.com/macros/s/$DEPLOYMENT_ID/exec?action=version"
+          for i in 1 2 3 4 5 6; do
+            got=$(curl -sL -m 30 "$url" | grep -o '"api":[0-9]*' | grep -o '[0-9]*$' || true)
+            echo "attempt $i: live api=$got, expected $want"
+            [ "$got" = "$want" ] && { echo "Live backend is api $got." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+            sleep 10
+          done
+          echo "::error::Live backend reports api=$got, expected $want"
+          exit 1
+
+      - name: Sign out
+        if: always()
+        run: rm -f ~/.clasprc.json
