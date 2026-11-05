@@ -252,7 +252,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 47 = meal old names (Nov 4, owner: catchy emoji meal names): Meals `old_names` (`;` separated, at the end of the
 //      tab) = names a meal had before. Old vote / rate cards matched by name (no (mNN)) still count after a rename;
 //      mealSave keeps the previous name there when a parent renames a meal. The app's meal search reads it too.
-const API_VERSION = 47;
+// 48 = cart helper heartbeat (Nov 4, owner): the cart watcher's every-minute cartJobsOpen call (with chrome=1/0)
+//      records Script Property watcher_seen / watcher_chrome; state.settings.watcher_seen / watcher_chrome let the
+//      Carts screen say truthfully whether the home computer is on and ready (runner_seen only moves when Claude runs).
+const API_VERSION = 48;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd'];
@@ -318,7 +321,7 @@ function handle(req) {
     requestOrder: () => withLock(() => requestOrder(req)),
     cartJob: () => withLock(() => addCartJob(Object.assign({}, req, { _system: false }))),
     cartJobCancel: () => withLock(() => cancelCartJob(req)),
-    cartJobsOpen: () => openCartJobs(),
+    cartJobsOpen: () => openCartJobs(req),
     cartPush: () => withLock(() => cartPush(req)),
     cartRemove: () => withLock(() => cartRemove(req)),
     itemInfo: () => itemInfo(req),
@@ -607,6 +610,8 @@ function buildState() {
       admins: String(settings.admins || '').split(',').map((s) => s.trim()).filter(String),
       runner_seen: settings.runner_seen instanceof Date ? Utilities.formatDate(settings.runner_seen, scriptTz(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.runner_seen || ''),
       stores_ok: storesOk(settings.stores_ok),
+      watcher_seen: scriptProp('watcher_seen'),
+      watcher_chrome: scriptProp('watcher_chrome'),
       stores_checked: settings.stores_checked instanceof Date ? Utilities.formatDate(settings.stores_checked, scriptTz(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.stores_checked || ''),
     },
   };
@@ -2422,6 +2427,8 @@ function cartRemove(req) {
 }
 
 // api 24: what the cart watcher asks every minute. Read-only and small; no full state.
+function scriptProp(k) { try { return String(PropertiesService.getScriptProperties().getProperty(k) || ''); } catch (e) { return ''; } }
+
 // Settings stores_ok "GE=ok;WF=out" → {GE: 'ok', WF: 'out'} (api 42).
 function storesOk(v) {
   const out = {};
@@ -2432,7 +2439,11 @@ function storesOk(v) {
   return out;
 }
 
-function openCartJobs() {
+function openCartJobs(req) {
+  // Heartbeat: the watcher calls this every minute while the home computer is on (no Sheet write; a Script Property).
+  try {
+    PropertiesService.getScriptProperties().setProperties({ watcher_seen: nowStamp(), watcher_chrome: req && String(req.chrome) === '0' ? '0' : '1' });
+  } catch (e) { /* a heartbeat can be skipped */ }
   if (!tab(TABS.jobs)) return { jobs: [] };
   const jobs = readTab(TABS.jobs)
     .filter((r) => JOB_OPEN.indexOf(String(r.status)) >= 0)

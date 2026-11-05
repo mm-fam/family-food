@@ -164,3 +164,11 @@ test('a renamed meal keeps its name-only votes (api 47)', () => {
   // A kid can't rename.
   assert.ok(b.call({ action: 'mealSave', pass: PASS, by: 'Kim', id: 'm01', name: 'x', item_ids: [] }).error);
 });
+
+test('cart helper heartbeat: the watcher check-in shows in state', () => {
+  const b = fresh();
+  assert.strictEqual(b.call({ action: 'cartJobsOpen', pass: PASS, chrome: '0' }).ok, true);
+  const s = b.call({ action: 'state', pass: PASS, by: 'Pat' }).state.settings;
+  assert.ok(s.watcher_seen, 'watcher_seen set');
+  assert.strictEqual(s.watcher_chrome, '0');
+});

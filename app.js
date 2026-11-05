@@ -1615,26 +1615,18 @@
   // Cart totals (api 26): the store's own cart subtotal and line count from the latest finished job.
   const lastTotal = (code) => jobs().find((j) => j.store === code && j.status === 'done' && j.subtotal !== '' && j.subtotal != null);
   const fmtMoney = (v) => '$' + Number(v).toFixed(2);
-  // When the cart runner next looks (hourly at :17, 8 am–9 pm on the owner's computer).
-  function nextRunText() {
-    const d = new Date();
-    let h = d.getHours() + (d.getMinutes() >= 17 ? 1 : 0);
-    if (h < 8) h = 8;
-    if (h > 21) return 'tomorrow at 8:17 am';
-    return 'at ' + ((h % 12) || 12) + ':17 ' + (h >= 12 ? 'pm' : 'am');
-  }
   // Where one cart stands, in plain words: { icon, cls, text }.
-  // Is the cart helper (the scheduled task on the owner's computer) alive? It writes Settings runner_seen every run.
+  // Is the cart helper on the home computer ready? The watcher checks in every minute while the computer is on
+  // (Settings watcher_seen, api 48, with whether Chrome is open); runner_seen is when Claude last ran a job there.
   function helperState() {
-    const seen = String((D().settings || {}).runner_seen || '');
+    const st = D().settings || {};
+    const w = String(st.watcher_seen || ''), r = String(st.runner_seen || '');
+    const seen = [w, r].filter(String).sort().pop() || '';
     if (!seen) return { ok: false, never: true, text: 'The cart helper on the home computer hasn’t checked in yet.' };
-    const t = new Date(seen.replace(' ', 'T'));
-    const mins = (Date.now() - t.getTime()) / 60000;
-    const h = new Date().getHours();
-    const quiet = h < 8 || h >= 22; // it only runs 8 am–9 pm
-    const ok = quiet ? mins < 14 * 60 : mins < 75;
-    return { ok: ok, seen: seen, text: ok ? 'Cart helper on the home computer checked in at ' + fmtWhen(seen) + '. Next check ' + nextRunText() + '.'
-      : 'Cart helper hasn’t checked in since ' + fmtWhen(seen) + '. The home computer may be asleep or the Claude app closed; changes wait until it’s back.' };
+    const mins = (Date.now() - new Date(seen.replace(' ', 'T')).getTime()) / 60000;
+    if (w && mins < 5 && String(st.watcher_chrome) === '0') return { ok: false, chrome: true, seen: seen, text: 'Home computer is on, but Chrome is closed. Open Chrome there and cart changes start within a minute.' };
+    if (w && mins < 5) return { ok: true, seen: seen, text: 'Cart helper is ready on the home computer. Changes start within a minute.' };
+    return { ok: false, seen: seen, text: 'Cart helper last checked in ' + fmtWhen(seen) + '. The home computer may be asleep or off; changes wait until it’s back.' };
   }
   function cartStatus(code) {
     const r = cartRows(code);
@@ -1649,7 +1641,7 @@
     if (running) return { cls: 'run', text: '🔄 Claude is updating this cart right now.' };
     if (open.length) {
       const hs = helperState();
-      return { cls: 'wait', text: '⏳ Waiting on Claude: ' + (todo.join(', ') || 'an update') + '. ' + (hs.ok || hs.never ? 'Next check ' + nextRunText() + '.' : 'The cart helper is offline (last seen ' + fmtWhen(hs.seen) + '), so this waits until the home computer is back.') };
+      return { cls: 'wait', text: '⏳ Waiting on Claude: ' + (todo.join(', ') || 'an update') + '. ' + (hs.ok ? 'Starting within a minute.' : hs.never ? 'It starts when the home computer is on with Chrome open.' : hs.chrome ? 'Waiting for Chrome on the home computer.' : 'The home computer is asleep or off (last seen ' + fmtWhen(hs.seen) + '), so this waits until it’s back.') };
     }
     if (r.going.length || r.leaving.length) return { cls: 'wait', text: '⏳ ' + todo.join(', ') + ' not sent yet.' };
     if (last && last.status === 'failed') return { cls: 'fail', text: '⚠ The last update didn’t work: ' + (last.result || 'no reason given') + '.' };
@@ -1681,7 +1673,7 @@
         '<div class="cart-sub">' + esc(t.sub) + '</div>' +
         '<div class="cart-status st-' + s2.cls + '">' + esc(s2.text) + '</div></button>';
     });
-    html += '<div class="how-it-works"><b>How carts work</b><ol><li>You tap Put in cart or Take it out. The item shows ⏳ right away: asked for, not done yet.</li><li>The cart helper on the home computer checks at :17 past each hour, 8 am–9 pm, makes the change on the store’s site and reads the cart back.</li><li>The item flips to 🛒 In … cart and the totals update. Totals are the store’s own cart total after sale savings, before tax and fees.</li></ol>A person always places the order.</div>';
+    html += '<div class="how-it-works"><b>How carts work</b><ol><li>You tap Put in cart or Take it out. The item shows ⏳ right away: asked for, not done yet.</li><li>The cart helper on the home computer picks it up within a minute (whenever the computer is on with Chrome open), makes the change on the store’s site and reads the cart back.</li><li>The item flips to 🛒 In … cart and the totals update. Totals are the store’s own cart total after sale savings, before tax and fees.</li><li>Each morning it also checks that all four stores are signed in (the dots above). A red dot = sign in to that store in the home computer’s Chrome, then tap Check sign-ins.</li></ol>A person always places the order.</div>';
     return html;
   }
   function viewCartDetail(code) {

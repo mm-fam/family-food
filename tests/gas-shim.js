@@ -80,7 +80,7 @@ function loadBackend(tabs, props) {
     Utilities: { formatDate: formatDate, sleep: () => {} },
     Session: { getScriptTimeZone: () => 'America/New_York', getEffectiveUser: () => ({ getEmail: () => 'owner@example.invalid' }) },
     LockService: { getScriptLock: () => ({ waitLock: () => {}, tryLock: () => true, releaseLock: () => {} }) },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props || {})[k] || null }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props || {})[k] || null, setProperties: (o) => Object.assign(props || {}, o), setProperty: (k, v) => { (props || {})[k] = v; } }) },
     ContentService: { createTextOutput: (t) => ({ setMimeType: () => t, _text: t }), MimeType: { JSON: 'json' } },
     MailApp: { getRemainingDailyQuota: () => 100, sendEmail: (o) => sent.push(o) },
     ScriptApp: { getProjectTriggers: () => [], deleteTrigger: () => {}, newTrigger: () => ({ timeBased: () => ({ everyDays: () => ({ atHour: () => ({ create: () => {} }) }) }) }) },

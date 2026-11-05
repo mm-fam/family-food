@@ -34,9 +34,10 @@ if ($now.DayOfWeek -eq 'Friday' -and $now.Hour -ge 18 -and -not (Test-Path $fri)
   } catch { Log ('Friday check failed: ' + $_.Exception.Message) }
 }
 
-# Any open jobs?
+# Any open jobs? (The call is also the heartbeat the app shows on Carts: "on, Chrome open" or "on, Chrome closed".)
+$chromeOpen = if (Get-Process -Name chrome -ErrorAction SilentlyContinue) { '1' } else { '0' }
 try {
-  $r = Invoke-RestMethod -Uri "$api`?action=cartJobsOpen&pass=$pass" -TimeoutSec 60
+  $r = Invoke-RestMethod -Uri "$api`?action=cartJobsOpen&chrome=$chromeOpen&pass=$pass" -TimeoutSec 60
 } catch { Log ('Backend unreachable: ' + $_.Exception.Message); exit 0 }
 if (-not $r.ok) { Log ('Backend said: ' + $r.error); exit 0 }
 $jobs = @($r.result.jobs)
