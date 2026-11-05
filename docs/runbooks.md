@@ -291,3 +291,9 @@ Say "Hey Siri, Add to Poppy", then "milk, eggs and two avocados". An error comes
 ## Stores ready: sign-in check (api 42)
 - **Owner's morning routine:** wake the cart computer and open Chrome. Within a minute the watcher starts the day's sign-in check (from 6 am). In the app, Carts shows four dots; red = signed out. Sign in on that site in the computer's Chrome, then tap **Check sign-ins**.
 - Runner step 3b (`runner/cart-runner-prompt.md`): look-only visits to gianteagle.com, amazon.com (covers Whole Foods and Amazon) and target.com; never signs in. Writes Settings `stores_ok` + `stores_checked`; the job's result is "All 4 stores signed in" or "Signed out: …".
+
+
+## Builder guardrails (Nov 4)
+- One session changes code at a time: Settings `dev_lock` ("<session link> | <what> | <time>"); rules in `CLAUDE.md`.
+- `node --test tests/` runs the backend smoke tests: the real `apps-script/Code.gs` on an in-memory Sheet (`tests/gas-shim.js`) with a made-up household (`tests/fixture.js`). Deploy backend runs them first and stops on a failure (the live backend keeps the last good version); the Checks workflow runs them on every push.
+- Add a test for each new backend action. Keep fixture names made up (the repo is public).

@@ -1,0 +1,19 @@
+# Runs the smoke tests on every push and pull request, so an app-only change (which GitHub Pages
+# publishes straight away) still gets checked, and a broken change shows a red ✗ on the commit.
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Smoke tests
+        run: node --test tests/
