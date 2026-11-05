@@ -417,12 +417,18 @@
     const focus = captureFocus();
     const scrolls = {};
     root.querySelectorAll('[data-keep-scroll]').forEach((el) => { if (el.id) scrolls[el.id] = el.scrollLeft; });
+    // The open sheet keeps its scroll position across renders (Nov 4: opening Details at the bottom jumped back up).
+    const sheetEl = root.querySelector('.sheet');
+    const sheetTop = sheetEl && S.sheet && S.sheet === S._sheetSeen ? sheetEl.scrollTop : 0;
     if (!apiUrl()) root.innerHTML = viewNoBackend();
     else if (S.pass && !S.data) root.innerHTML = viewLoading();
     else if (!S.pass) root.innerHTML = viewSetup();
     else if (!S.me) root.innerHTML = viewPickPerson();
     else root.innerHTML = viewApp();
     Object.keys(scrolls).forEach((id) => { const el = document.getElementById(id); if (el) el.scrollLeft = scrolls[id]; });
+    const sheetNew = root.querySelector('.sheet');
+    if (sheetNew && sheetTop) sheetNew.scrollTop = sheetTop;
+    S._sheetSeen = S.sheet;
     restoreFocus(focus);
   }
 
@@ -1276,7 +1282,8 @@
     const open = sh.open || (sh.open = {});
     const storeCode = (row && row.store) || (it && it.store) || 'Either';
     let h = '<div class="is-head"><div><h2>' + esc(sh.name) + '</h2><div class="is-sub"><span class="store-dot ' + storeOf(storeCode).cls + '"></span>' + esc(storeOf(storeCode).name) +
-      (it && it.group ? ' · ' + esc(it.group) : '') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
+      (it && it.group ? ' · ' + esc(it.group) : '') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      viewItemProduct(sh.item_id, storeCode, it); // not in the sticky head: it scrolls away
 
     // ---- Quick: where it stands, how many, the cart
     if (row) {
@@ -1359,8 +1366,8 @@
           const stale = pr && (!freshPrice(p) || !likeItem(p));
           return '<div class="buy-row' + (low && low.store === k ? ' best' : '') + '"><span class="store-dot ' + storeOf(k).cls + '"></span>' +
             '<div class="buy-main"><div><b>' + esc(storeOf(k).name) + '</b>' + (p.aisle ? ' <span class="aisle-tag">' + esc(p.aisle) + '</span>' : '') + '</div>' +
-            '<small>' + esc(p.name) + (p.size ? ' · ' + esc(p.size) : '') + (packCount(p.pack) || packCount(p.name) || packCount(p.size) ? ' · 📦 ' + (packCount(p.pack) || packCount(p.name) || packCount(p.size)) + ' ct' : '') + '</small></div>' +
-            '<span class="price-val' + (stale ? ' stale' : '') + '">' + (pr ? fmtUnit(p) + (likeItem(p) ? '' : '*') : '') + '</span></div>';
+            '<small>' + esc(p.name) + (sizeIfNew(p.name, p.size) ? ' · ' + esc(p.size) : '') + (packCount(p.pack) || packCount(p.name) || packCount(p.size) ? ' · 📦 ' + (packCount(p.pack) || packCount(p.name) || packCount(p.size)) + ' ct' : '') + '</small></div>' +
+            '<span class="price-val' + (stale ? ' stale' : '') + '">' + (Number(p.price) > 0 && showPrice ? '<b>' + money(p.price) + '</b>' : '') + (pr ? '<small>' + fmtUnit(p) + (likeItem(p) ? '' : '*') + '</small>' : '') + '</span></div>';
         }).join('');
         pk.forEach((k) => {
           const x = prods[k].sb && Object.assign({ store: k }, prods[k].sb);
@@ -1383,6 +1390,11 @@
       if (Number(it.orders)) facts.push('Bought in ' + it.orders + ' order' + (Number(it.orders) > 1 ? 's' : ''));
       if (it.last_bought) facts.push('last ' + esc(daysAgo(it.last_bought)));
       if (it.avg_days) facts.push('about every ' + it.avg_days + ' days');
+      if (!facts.length) {
+        // No receipts yet (e.g. items from store order history): use the newest store last-bought date we have.
+        const lb = Object.keys(prods).map((k) => ({ k, d: String(prods[k].last_bought || '') })).filter((x) => x.d).sort((a, b) => (a.d < b.d ? 1 : -1))[0];
+        if (lb) facts.push('Last bought ' + esc(fmtShort(lb.d)) + ' at ' + esc(storeOf(lb.k).name) + ' (store history)');
+      }
       const info = sh.info;
       more += acc('hist', 'History', facts.length ? facts.join(' · ') : 'No purchases on record yet', () => {
         let hist = facts.length ? '<p class="is-fact">' + facts.join(' · ') + '</p>' : '<p class="note">No purchases on record yet.</p>';
@@ -1409,7 +1421,7 @@
     if (it && sh.d) {
       const swap = { Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping';
       more += acc('details', 'Details', esc([sh.d.status || '', swap, sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
-        const seg = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
+        const seg = (field, opts) => '<div class="seg' + (opts.length > 4 ? ' seg-grid' : '') + '">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         return '<div class="is-details">' +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
@@ -1426,6 +1438,26 @@
     if (more) h += '<div class="is-more">' + more + '</div>';
     return h;
   }
+
+  // Item screen header (Nov 4, Mike: "there's no price"): the exact product we buy and its shelf price, up top.
+  // Product = the usual store's Products row (else the first one we know); falls back to Items brand_size.
+  // Price only from a like item (not an `alt` row); the date shows how old it is.
+  function viewItemProduct(itemId, storeCode, it) {
+    const prods = (D().products || {})[itemId] || {};
+    const k = prods[storeCode] ? storeCode : CART_STORES.find((x) => prods[x]) || Object.keys(prods)[0];
+    const p = k && prods[k];
+    const name = (p && p.name) || (it && it.brand_size) || '';
+    const priced = p && likeItem(p) && Number(p.price) > 0;
+    if (!name && !priced) return '';
+    const bits = [];
+    if (priced && hasPrice(p)) bits.push(fmtUnit(p));
+    if (priced && k !== storeCode) bits.push('at ' + storeOf(k).name);
+    if (priced && p.price_at) bits.push(fmtShort(p.price_at));
+    return '<div class="is-prod">' + (name ? '<span class="is-prod-name">' + esc(name) + '</span>' : '') +
+      (priced ? '<span class="is-prod-price"><b>' + money(p.price) + '</b>' + (bits.length ? ' <small>' + esc(bits.join(' · ')) + '</small>' : '') + '</span>' : '') + '</div>';
+  }
+  // Drop a size that the product name already ends with ("…, 12 oz" + "12 oz").
+  const sizeIfNew = (name, size) => (size && String(name || '').toLowerCase().replace(/\s+/g, ' ').indexOf(String(size).toLowerCase().replace(/\s+/g, ' ')) < 0 ? size : '');
 
   // The item screen's cart buttons (api 25), parents only. The status line above already says where it stands.
   // Moving to another store sits behind one "Move…" / "Other store…" tap.
@@ -3123,7 +3155,13 @@
     'row-bought': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'bought', 'Bought ' + r.name); else render(); },
     'row-remove': () => { const r = sheetRow(); S.sheet = null; if (r) setStatus(r, 'skipped', 'Took ' + r.name + ' off'); else render(); },
     'toggle-details': () => { S.sheet.details = !S.sheet.details; render(); },
-    'is-fold': (el) => { const o = S.sheet.open || (S.sheet.open = {}); o[el.dataset.k] = !o[el.dataset.k]; render(); },
+    'is-fold': (el) => {
+      const k = el.dataset.k;
+      const o = S.sheet.open || (S.sheet.open = {});
+      o[k] = !o[k]; render();
+      const acc = o[k] && document.querySelector('.is-acc-head[data-k="' + k + '"]');
+      if (acc && acc.parentNode.scrollIntoView) acc.parentNode.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    },
     'is-move': () => { S.sheet.move = !S.sheet.move; render(); },
     'is-note': () => { S.sheet.noteOpen = true; render(); const f = document.querySelector('[data-input="row-note"]'); if (f) f.focus(); },
     'd-seg': (el) => { S.sheet.d[el.dataset.field] = el.dataset.v; render(); },

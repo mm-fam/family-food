@@ -609,7 +609,8 @@ function productsMap() {
   const pick = (p) => ({
     name: String(p.product || ''), size: String(p.size || ''), aisle: String(p.aisle || ''),
     price: num(p.price), unit_price: num(p.unit_price), unit: String(p.unit || ''), price_at: day(p.price_at),
-    match: String(p.match || ''), pack: String(p.pack || ''), // api 35: Products pack ("8 ct"), blank = read from the name
+    match: String(p.match || ''), last_bought: day(p.last_bought), // Nov 4: item screen History when there are no receipts yet
+    pack: String(p.pack || ''), // api 35: Products pack ("8 ct"), blank = read from the name
   });
   readTab(TABS.products).forEach((p) => {
     if (!p.item_id || !p.store) return;
