@@ -260,3 +260,13 @@ Setup (once): install Claude Code on the PC and sign in with the family's Claude
    f. Set Settings `ge_orders_through` = today as text 'yyyy-mm-dd (add the row if missing). Report line only when something was added: "🧾 Giant Eagle order Nov 8: 41 lines (38 matched), 12 List rows bought".
 
 **Rules:** never check out, enter payment or change account settings; never sign in; never touch a cart that holds an order the family is in the middle of placing (ask in the push instead). Reports go only to the owner by push; the family sees the status in the app.
+
+
+## Siri Shortcut: "Add to Poppy" (api 41)
+One shortcut per phone, in the Shortcuts app. Siri asks "What do we need?" and reads back what was added.
+1. Shortcuts → **+** → name it **Add to Poppy**.
+2. **Ask for Input** (Text), prompt "What do we need?".
+3. **Get Contents of URL**: the `API_URL` from `config.js`; Method **POST**; Request Body **JSON** with text fields `action` = `voiceAdd`, `pass` = the family passcode, `by` = that phone's person (exactly as in Settings), `text` = *Provided Input*.
+4. **Get Dictionary Value**: key `say` from *Contents of URL*.
+5. **Speak Text** (or **Show Result**): *Dictionary Value*.
+Say "Hey Siri, Add to Poppy", then "milk, eggs and two avocados". An error comes back as `{ok:false, error}` and Siri says nothing; run the shortcut by hand to see it.

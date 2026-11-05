@@ -226,7 +226,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 40 = best price (Nov 4, Mike): Items best_price = Y ("any store, best price"). When such an item is on the List
 //      and another store sells the same product cheaper (fresh, like items, 10%+ and $0.50+), the parents get one
 //      ⚖ `bestprice` card with every store's price; the answer puts the row in that store's cart (cartPush).
-const API_VERSION = 40;
+// 41 = voice adds (Nov 4, Mike): voiceAdd {by, text} for the "Add to Poppy" Siri Shortcut. Splits a spoken phrase
+//      ("milk, eggs and two avocados") into parts, matches each to the catalog (name, aliases, store product names;
+//      what we buy now wins ties), adds it like the app's + (kids' adds are requests), and returns `say`, one
+//      sentence Siri reads back. No match → added as a new item, noted "by Siri" so a parent can tidy the name.
+const API_VERSION = 41;
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
@@ -299,6 +303,7 @@ function handle(req) {
     mealRequest: () => withLock(() => addMealRequest(req)),
     useSoon: () => withLock(() => useSoonAction(req)),
     feedback: () => withLock(() => addFeedback(req)),
+    voiceAdd: () => withLock(() => voiceAdd(req)),
   };
   const fn = actions[req.action];
   if (!fn) return reply({ ok: false, error: 'unknown_action' });
@@ -306,7 +311,7 @@ function handle(req) {
     const out = fn();
     // Every write returns fresh state so the app never has to guess.
     // Reads that don't change anything skip the full state.
-    const state = req.action === 'state' || req.action === 'ping' ? out : (req.action === 'itemInfo' || req.action === 'pointsLog' || req.action === 'cartJobsOpen') ? undefined : getState();
+    const state = req.action === 'state' || req.action === 'ping' ? out : (req.action === 'itemInfo' || req.action === 'pointsLog' || req.action === 'cartJobsOpen' || req.action === 'voiceAdd') ? undefined : getState();
     return reply({ ok: true, result: req.action === 'state' ? undefined : out, state: state });
   } catch (err) {
     return reply({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -674,6 +679,125 @@ function isLeftover(p) {
 }
 
 /* ---------------------------------------------------------------- writes */
+
+/* ---------------------------------------------------------------- voice adds (api 41) */
+
+const VOICE_NUMS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, couple: 2 };
+const VOICE_FILLER = /^(please |ok |okay |hey )*(add |get |buy |grab |order |put |we need |we're out of |we are out of |were out of |out of |need |i need |i want |can we get |could we get |more |some |another |extra )+/;
+
+function voiceWords(s) {
+  return String(s || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(String);
+}
+// Plural-tolerant word match: "avocados" ~ "avocado", "berries" ~ "berry".
+function voiceStem(w) {
+  if (w.length > 4 && /ies$/.test(w)) return w.slice(0, -3) + 'y';
+  if (w.length > 3 && /(ches|shes|oes|xes)$/.test(w)) return w.slice(0, -2);
+  if (w.length > 3 && /s$/.test(w) && !/ss$/.test(w)) return w.slice(0, -1);
+  return w;
+}
+
+// One spoken part → {qty, words}. "two dozen eggs" → 2 + "dozen eggs" is rare; we take the first number only.
+function voicePart(raw) {
+  let t = String(raw || '').toLowerCase().replace(/[’']/g, "'").trim();
+  t = t.replace(/\b(to|on|onto|in|into) (the )?(poppy|list|grocery list|shopping list)( list)?\b.*$/, '').trim();
+  let prev;
+  do { prev = t; t = t.replace(VOICE_FILLER, '').trim(); } while (t !== prev);
+  let qty = 1;
+  const m = t.match(/^(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|twelve|couple)( of)?\s+(.+)$/);
+  if (m) {
+    qty = /^\d+$/.test(m[1]) ? Number(m[1]) : VOICE_NUMS[m[1]];
+    t = m[3];
+  }
+  // "a dozen eggs" is one carton; packs, bags and boxes are the unit we already buy.
+  t = t.replace(/^(of |the |some |more |dozen |dozens of |pack of |packs of |bag of |bags of |box of |boxes of |carton of |cartons of |bottle of |bottles of |jar of |jars of )+/, '').trim();
+  return { qty: Math.max(1, Math.min(qty || 1, 24)), text: t, words: voiceWords(t).map(voiceStem) };
+}
+
+// Best catalog match for a part, or null. Exact name/alias first; then every spoken word must start a word of
+// the name, an alias or a store product name. Ties go to what we buy now (recent last_bought), then fewer extra words.
+function voiceMatch(items, productsByItem, part) {
+  if (!part.words.length) return null;
+  const want = part.words.join(' ');
+  const today = Date.now();
+  let best = null;
+  items.forEach((it) => {
+    if (!it.id || !String(it.name || '').trim()) return;
+    const drop = /^drop/i.test(String(it.status || ''));
+    // ALL-CAPS aliases are receipt codes ("BUSH CHILI BEANS MAC"), not words people say.
+    const names = [String(it.name)].concat(String(it.aliases || '').split(/[;,]/).filter((a) => /[a-z]/.test(a))).map((s) => voiceWords(s).map(voiceStem)).filter((w) => w.length);
+    const prods = (productsByItem[it.id] || []).map((s) => voiceWords(s).map(voiceStem));
+    let score = 0, extra = 99;
+    names.forEach((w, i) => {
+      if (w.join(' ') === want) { score = Math.max(score, i === 0 ? 100 : 95); extra = 0; }
+    });
+    if (!score) {
+      // Spoken words are whole words, so match whole (stemmed) words, not prefixes ("mac" isn't "machine").
+      const covers = (w) => part.words.every((q) => w.indexOf(q) >= 0);
+      names.forEach((w) => { if (covers(w)) { score = Math.max(score, 70); extra = Math.min(extra, w.length - part.words.length); } });
+      if (!score) prods.forEach((w) => { if (covers(w)) { score = Math.max(score, 60); extra = Math.min(extra, w.length - part.words.length); } });
+    }
+    if (!score) return;
+    if (drop) { if (score < 95) return; score -= 10; }
+    const lb = it.last_bought ? new Date(it.last_bought).getTime() : 0;
+    const days = lb ? (today - lb) / 864e5 : 9999;
+    const fresh = days <= 60 ? 8 : days <= 180 ? 4 : 0;
+    const total = score + fresh - Math.min(extra, 6);
+    if (!best || total > best.total) best = { item: it, total: total, score: score };
+  });
+  return best;
+}
+
+function voiceJoin(list) {
+  if (list.length <= 1) return list.join('');
+  return list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1];
+}
+
+function voiceAdd(req) {
+  const by = String(req.by || '').trim();
+  const st = settingsMap();
+  const people = String(st.parents || '').split(',').concat(String(st.kids || '').split(',')).map((s) => s.trim()).filter(String);
+  const who = people.find((p) => p.toLowerCase() === by.toLowerCase());
+  if (!who) throw new Error('Unknown name "' + by + '". Set "by" in the shortcut to one of: ' + people.join(', '));
+  const text = String(req.text || '').trim();
+  if (!text) return { say: 'I didn’t catch anything to add.', added: [] };
+
+  // Split on commas and the like first; split a chunk on "and" only when the whole chunk isn't one thing we buy
+  // ("mac and cheese", "salt and vinegar chips" stay one item).
+  let items = readTab(TABS.items);
+  const productsByItem = {};
+  readTab(TABS.products).forEach((r) => { if (r.item_id) (productsByItem[r.item_id] = productsByItem[r.item_id] || []).push(r.product); });
+  const parts = [];
+  text.split(/\s*(?:,|;|&|\bplus\b|\band then\b|\band also\b|\balso\b)\s*/i).forEach((chunk) => {
+    const whole = voicePart(chunk);
+    if (!whole.words.length) return;
+    const m = /\band\b/i.test(chunk) ? voiceMatch(items, productsByItem, whole) : null;
+    if (!/\band\b/i.test(chunk) || (m && m.score >= 95)) { parts.push({ p: whole, m: m }); return; }
+    // Split on "and" only if every piece is something we buy; otherwise it's one new thing ("mac and cheese").
+    const pieces = chunk.split(/\s*\band\b\s*/i).map(voicePart).filter((x) => x.words.length).map((x) => ({ p: x, m: voiceMatch(items, productsByItem, x) }));
+    if (m || pieces.some((x) => !x.m)) parts.push({ p: whole, m: m });
+    else pieces.forEach((x) => parts.push(x));
+  });
+
+  const added = [], already = [], fresh = [];
+  parts.forEach((x) => {
+    const p = x.p;
+    const hit = x.m !== undefined && x.m ? x.m : voiceMatch(items, productsByItem, p);
+    const it = hit ? hit.item : null;
+    const res = it
+      ? addToList({ by: who, item_id: it.id, qty: p.qty, note: 'by Siri' })
+      : addToList({ by: who, name: p.text.charAt(0).toUpperCase() + p.text.slice(1), qty: p.qty, note: 'by Siri (new item, check the name)' });
+    const label = (p.qty > 1 ? p.qty + ' ' : '') + (it ? String(it.name) : p.text);
+    if (!it) { fresh.push(p.text); items = readTab(TABS.items); } // the new item is found if it's said twice
+    if (res.merged) already.push(label); else added.push(label);
+  });
+
+  const kid = isKid(who);
+  const bits = [];
+  if (added.length) bits.push((kid ? 'Asked for ' : 'Added ') + voiceJoin(added) + (kid ? '. A parent will OK it.' : ' to the list.'));
+  if (already.length) bits.push(voiceJoin(already) + (already.length > 1 ? ' were' : ' was') + ' already on the list.');
+  if (fresh.length) bits.push('New to Poppy: ' + voiceJoin(fresh) + '.');
+  return { say: bits.join(' ') || 'Nothing to add.', added: added, already: already, new_items: fresh };
+}
 
 function findItemByName(items, name) {
   const n = String(name || '').trim().toLowerCase();
