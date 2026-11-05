@@ -690,6 +690,12 @@ function isLeftover(p) {
 const VOICE_NUMS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, couple: 2 };
 const VOICE_FILLER = /^(please |ok |okay |hey )*(add |get |buy |grab |order |put |we need |we're out of |we are out of |were out of |out of |need |i need |i want |can we get |could we get |more |some |another |extra )+/;
 
+// Store names say what a product lacks ("No Sugar Added", "Sugar Free", "50% Less Sugar"); those words don't count.
+function voiceDescribe(s) {
+  return String(s || '').toLowerCase()
+    .replace(/\b(no|zero|less|lower|low in|reduced|without)\s+(added\s+)?[a-z]+(\s+added)?/g, ' ')
+    .replace(/\b[a-z]+[- ]free\b/g, ' ');
+}
 function voiceWords(s) {
   return String(s || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(String);
 }
@@ -729,8 +735,8 @@ function voiceMatch(items, productsByItem, part) {
     if (!it.id || !String(it.name || '').trim()) return;
     const drop = /^drop/i.test(String(it.status || ''));
     // ALL-CAPS aliases are receipt codes ("BUSH CHILI BEANS MAC"), not words people say.
-    const names = [String(it.name)].concat(String(it.aliases || '').split(/[;,]/).filter((a) => /[a-z]/.test(a))).map((s) => voiceWords(s).map(voiceStem)).filter((w) => w.length);
-    const prods = (productsByItem[it.id] || []).map((s) => voiceWords(s).map(voiceStem));
+    const names = [String(it.name)].concat(String(it.aliases || '').split(/[;,]/).filter((a) => /[a-z]/.test(a))).map((s) => voiceWords(voiceDescribe(s)).map(voiceStem)).filter((w) => w.length);
+    const prods = (productsByItem[it.id] || []).map((s) => voiceWords(voiceDescribe(s)).map(voiceStem));
     let score = 0, extra = 99;
     names.forEach((w, i) => {
       if (w.join(' ') === want) { score = Math.max(score, i === 0 ? 100 : 95); extra = 0; }
@@ -738,14 +744,15 @@ function voiceMatch(items, productsByItem, part) {
     if (!score) {
       // Spoken words are whole words, so match whole (stemmed) words, not prefixes ("mac" isn't "machine").
       const covers = (w) => part.words.every((q) => w.indexOf(q) >= 0);
-      names.forEach((w) => { if (covers(w)) { score = Math.max(score, 70); extra = Math.min(extra, w.length - part.words.length); } });
+      // The item's own name beats an alias, which beats a store product name.
+      names.forEach((w, i) => { if (covers(w)) { score = Math.max(score, i === 0 ? 75 : 70); extra = Math.min(extra, w.length - part.words.length); } });
       if (!score) prods.forEach((w) => { if (covers(w)) { score = Math.max(score, 60); extra = Math.min(extra, w.length - part.words.length); } });
     }
     if (!score) return;
     if (drop) { if (score < 95) return; score -= 10; }
     const lb = it.last_bought ? new Date(it.last_bought).getTime() : 0;
     const days = lb ? (today - lb) / 864e5 : 9999;
-    const fresh = days <= 60 ? 8 : days <= 180 ? 4 : 0;
+    const fresh = days <= 60 ? 4 : days <= 180 ? 2 : 0;
     const total = score + fresh - Math.min(extra, 6);
     if (!best || total > best.total) best = { item: it, total: total, score: score };
   });
