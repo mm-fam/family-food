@@ -1,4 +1,4 @@
-// Smoke tests for the backend (apps-script/Code.gs), run with `node --test tests/`.
+// Smoke tests for the backend (apps-script/Code.gs), run with `node --test tests/*.test.js`.
 // The Deploy backend workflow runs these first; a failure stops the deploy.
 'use strict';
 const test = require('node:test');
@@ -107,4 +107,16 @@ test('each backend version number is used once (two sessions picking the same ap
   assert.deepStrictEqual(dup, [], 'duplicate "// N = " version notes: ' + dup.join(', '));
   const live = Number((src.match(/const API_VERSION = (\d+)/) || [])[1]);
   assert.ok(nums.indexOf(live) >= 0, 'API_VERSION ' + live + ' has a "// ' + live + ' = …" note');
+});
+
+test('catalog: sold by the pound and words we say', () => {
+  const b = fresh();
+  let r = b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i002', fields: { sold_by: 'lb', spoken: 'milk, Fairlife, milk' } });
+  assert.strictEqual(r.ok, true, r.error);
+  const it = r.state.items.find((x) => x.id === 'i002');
+  assert.strictEqual(it.sold_by, 'lb');
+  assert.strictEqual(it.aliases, 'FAIRLIFE MILK WHOLAC;milk;fairlife'); // receipt code kept, words deduped
+  assert.ok(!b.call({ action: 'itemSave', pass: PASS, by: 'Kim', id: 'i002', fields: { sold_by: '' } }).ok, 'kids can’t edit items');
+  r = b.call({ action: 'voiceAdd', pass: PASS, by: 'Pat', text: 'fairlife' });
+  assert.ok(r.result.added.some((x) => /Fairlife/.test(x)), 'a word we say is an exact match for Siri');
 });

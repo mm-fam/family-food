@@ -239,7 +239,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      Poppy: the spoken words become an alias, so next time it's sure.
 // 44 = hardening (Nov 4, owner): text written to the Sheet that starts with = + - @ is stored as plain text (no
 //      formula injection); every write needs a `by` that is a parent, a kid or the cart runner.
-const API_VERSION = 44;
+// 45 = catalog quality (Nov 4, owner): Items `sold_by` (lb = by the pound: List qty in pounds, ½ lb steps; blank = each)
+//      and `itemSave` fields.spoken = the words the family says for an item (lowercase aliases, used by Shop search
+//      and Siri; ALL-CAPS receipt codes are kept).
+const API_VERSION = 45;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd'];
@@ -1092,9 +1095,17 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
+  // api 45: sold by the pound (List qty in lb, ½ lb steps) or each (blank).
+  if (f.sold_by !== undefined) { f.sold_by = /^lb/i.test(String(f.sold_by)) ? 'lb' : ''; ensureColumn(TABS.items, 'sold_by'); }
+  // api 45: "words we say" (search + Siri). Receipt codes (ALL CAPS aliases) are kept as they are.
+  if (req.fields && req.fields.spoken !== undefined) {
+    const codes = String(item.aliases || '').split(';').map((x) => x.trim()).filter((x) => x && !/[a-z]/.test(x));
+    const said = String(req.fields.spoken || '').split(/[;,]/).map((x) => x.trim().toLowerCase()).filter(String);
+    f.aliases = codes.concat(said.filter((x, i) => said.indexOf(x) === i)).join(';');
+  }
   if (f.best_price !== undefined) { f.best_price = /^y/i.test(String(f.best_price)) ? 'Y' : ''; ensureColumn(TABS.items, 'best_price'); }
   if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
   if (f.open_to_try !== undefined) { f.open_to_try = /^y/i.test(String(f.open_to_try)) ? 'Y' : ''; ensureColumn(TABS.items, 'open_to_try'); }

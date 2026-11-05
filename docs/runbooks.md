@@ -295,5 +295,17 @@ Say "Hey Siri, Add to Poppy", then "milk, eggs and two avocados". An error comes
 
 ## Builder guardrails (Nov 4)
 - One session changes code at a time: Settings `dev_lock` ("<session link> | <what> | <time>"); rules in `CLAUDE.md`.
-- `node --test tests/` runs the backend smoke tests: the real `apps-script/Code.gs` on an in-memory Sheet (`tests/gas-shim.js`) with a made-up household (`tests/fixture.js`). Deploy backend runs them first and stops on a failure (the live backend keeps the last good version); the Checks workflow runs them on every push.
+- `node --test tests/*.test.js` runs the backend smoke tests: the real `apps-script/Code.gs` on an in-memory Sheet (`tests/gas-shim.js`) with a made-up household (`tests/fixture.js`). Deploy backend runs them first and stops on a failure (the live backend keeps the last good version); the Checks workflow runs them on every push.
 - Add a test for each new backend action. Keep fixture names made up (the repo is public).
+
+
+## 14. Catalog house style + weekly tidy (api 45, Nov 4)
+**An item is what the family asks for; Products holds the exact store products under it.**
+- **Name** the way the family would say it, specific enough to pick the right thing: brand + kind when we always buy one brand ("Starbucks Espresso Roast whole beans", "Fairlife whole milk"); the kind alone when we buy several brands side by side ("Lettuce", "Granola bars (assorted)"). Never just the store's category ("Coffee beans") when one product is what we buy. No receipt abbreviations.
+- **Words we say** (lowercase aliases): what people type or tell Siri ("milk", "ribeye", "pb cups"). ALL-CAPS aliases are receipt codes; leave them. Siri's `voice` cards add these automatically when answered.
+- **Brand / size**: the usual pack ("52 fl oz", "12 ct"). Facts only, from Products or a parent.
+- **Aisle** (group): never `Other` once known. **Store**: where we usually get it; `Either` only for GE/WF groceries.
+- **Sold by** (`sold_by`): `lb` when the store prices it by weight (deli counter, butcher / meat counter, loose produce priced per lb: Products size "by the lb" / "by weight"). The List qty is then pounds (½ lb steps) and the trip note carries the cut and thickness ("ribeye, 1½ in thick, 2 steaks"). "(avg.)" sizes (GE packs priced each) stay each.
+- **Adding a new item** (app): a parent's "Add … as something new" opens the item with Details so brand/size, aisle, store, sold by and words we say get filled while it's fresh. Kids' adds are requests; the parent tidies on approval.
+- **Cart builds** (§2): a `sold_by = lb` row's qty is pounds: pick the store's weight option closest to it (WF meat/deli: the lb quantity; GE deli: the ½ lb / 1 lb choice) and put the note in the store's special-instructions box if it has one. Never guess a cut that isn't in the note.
+**Weekly tidy (morning check, Sundays):** up to 5 cards to the owner, most-bought items first: (1) a vague name whose item has one product we actually buy → "Rename '<name>' to '<brand + kind>'? (iNNN) Options: Yes; Keep it; Something else (type it)"; (2) group `Other` → "Which aisle is <name>? (iNNN) Options: <groups>"; (3) meat, seafood or deli items with no `sold_by` and a by-weight product → "How is <name> sold? (iNNN) Options: By the pound; Each / package". Facts that need no question are filled directly: brand_size from the one exact Products row's size when blank. Answers are applied in B1 (rename → Items name; aisle → group; By the pound → sold_by `lb`).

@@ -374,9 +374,18 @@
     const known = D().items.find((i) => String(i.name).toLowerCase() === clean.toLowerCase());
     if (known) { addItem(known); return; }
     const status = isKid(S.me) ? 'requested' : 'needed';
-    act('add', { name: clean, store: storeCode || 'Either' }, () => {
+    const p = act('add', { name: clean, store: storeCode || 'Either' }, () => {
       D().list.push({ id: tmpId(), item_id: '', name: clean, store: storeCode || 'Either', qty: 1, added_by: S.me, wanted_by: S.me, status: status });
     }, status === 'requested' ? 'Asked for ' + clean + (ptsTag('list_add') ? ' · +1 when a parent approves' : '') : 'Added ' + clean + ptsTag('list_add'));
+    // Catalog quality (api 45): a parent's brand-new item opens with Details, so brand/size, aisle, store and
+    // how it's sold get filled in while it's fresh. Kids' adds stay requests; a parent tidies them on approval.
+    if (!isKid(S.me) && canV45() && p && p.then) p.then(() => {
+      const it = D().items.find((i) => String(i.name).toLowerCase() === clean.toLowerCase());
+      const row = it && D().list.find((r) => r.item_id === it.id && r.status !== 'bought');
+      if (!it || S.sheet) return;
+      openItemSheet(it.id, row ? row.id : '');
+      if (S.sheet) { S.sheet.open = { details: true }; S.sheet.fresh = true; render(); }
+    });
   }
 
   function setStatus(row, status, msg) {
@@ -706,8 +715,13 @@
   }
   const packHtml = (pk) => (pk ? '<span class="pack">' + (pk.count ? '📦 ' : '') + esc(pk.text) + '</span>' : '');
 
+  // Sold by the pound (api 45): qty is pounds, in ½ lb steps.
+  const canV45 = () => Number(D().api || 0) >= 45;
+  const byLb = (itemId) => { const it = itemId && itemById(itemId); return !!(it && canV45() && it.sold_by === 'lb'); };
+  const lbText = (q) => { const n = Number(q) || 0.5; return (n % 1 ? String(n).replace(/\.5$/, '½').replace(/^0½/, '½') : String(n)) + ' lb'; };
   function rowMeta(r) {
     const meta = [];
+    if (byLb(r.item_id)) { meta.push('<span class="pack">⚖ ' + esc(lbText(r.qty)) + '</span>'); if (r.note) meta.push(esc(r.note)); return meta; }
     const pk = r.item_id ? packOf(r.item_id, cartStore(r) || r.store) : null;
     if (pk && pk.count) { if (Number(r.qty) > 1) meta.push('×' + r.qty); meta.push(packHtml(pk)); }
     else if (pk) meta.push((Number(r.qty) > 1 ? '×' + r.qty + ' ' : '') + '<span class="pack">' + esc(Number(r.qty) > 1 ? '(' + pk.text + ' each)' : pk.text) + '</span>');
@@ -1312,7 +1326,7 @@
     const it = itemById(itemId);
     S.sheet = {
       type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
-      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}) : null,
+      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}, canV45() ? { sold_by: it.sold_by === 'lb' ? 'lb' : '', spoken: String(it.aliases || '').split(';').map((x) => x.trim()).filter((x) => /[a-z]/.test(x)).join(', ') } : {}) : null,
     };
     render();
     if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
@@ -1357,7 +1371,7 @@
         (mealTag(row) ? '<div class="is-now-meal">' + mealTag(row) + '</div>' : '') +
         (packOf(row.item_id, cartStore(row) || row.store) ? '<div class="is-now-pack pack">' + (packOf(row.item_id, cartStore(row) || row.store).count ? '📦 ' : '') + 'Each one: ' + esc(packOf(row.item_id, cartStore(row) || row.store).text) + '</div>' : '') +
         (c && c.kind === 'failed' && c.note ? '<div class="note">' + esc(c.note) + '</div>' : '') + '</div>' +
-        '<div class="stepper small" aria-label="How many"><button type="button" data-act="row-qty" data-d="-1" aria-label="Fewer">−</button><b>' + (Number(row.qty) || 1) +
+        '<div class="stepper small" aria-label="How many"><button type="button" data-act="row-qty" data-d="-1" aria-label="Fewer">−</button><b>' + (byLb(row.item_id) ? esc(lbText(row.qty)) : (Number(row.qty) || 1)) +
         '</b><button type="button" data-act="row-qty" data-d="1" aria-label="More">+</button></div></div>';
       if (c && !kid) h += viewCartButtons(row, c, sh);
       h += row.note || sh.noteOpen
@@ -1476,13 +1490,15 @@
       const swap = { Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping';
       more += acc('details', 'Details', esc([sh.d.status || '', swap, sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg' + (opts.length > 4 ? ' seg-grid' : '') + '">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
-        return '<div class="is-details">' +
+        return '<div class="is-details">' + (sh.fresh && !kid ? '<p class="note fresh-note">✨ New to Poppy. Fill in the brand and size, the aisle, where we get it and how it’s sold, so search, Siri and the carts get it right.</p>' : '') +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
           (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +
           (canTry() ? '<div><label>Open to trying something else?</label>' + seg('open_to_try', [['', 'No, we like it'], ['Y', 'Yes, suggest some']]) + '<p class="note">Yes = Claude looks for other brands and store brands at our stores and asks you in the Inbox (⚖ Decisions). Nothing changes until you say so.</p></div>' : '') +
           '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
+          (canV45() ? '<div><label>How it’s sold</label>' + seg('sold_by', [['', 'Each / package'], ['lb', 'By the pound']]) + '<p class="note">By the pound = the List and carts count pounds (½ lb steps). Put the cut and thickness in the trip note, e.g. “ribeye, 1½ in thick, 2 steaks”.</p></div>' +
+            '<div><label for="d-spoken">Words we say</label><input id="d-spoken" class="field" style="width:100%" data-input="d" data-field="spoken" value="' + esc(sh.d.spoken || '') + '" placeholder="e.g. milk, fairlife"' + (kid ? ' disabled' : '') + '><p class="note">What the family calls it, comma-separated. Shop search and Siri find it by these.</p></div>' : '') +
           '<div><label for="d-brand">Brand / size</label><input id="d-brand" class="field" style="width:100%" data-input="d" data-field="brand_size" value="' + esc(sh.d.brand_size) + '"' + (kid ? ' disabled' : '') + '></div>' +
           '<div><label for="d-aisle">Aisle</label><select id="d-aisle" class="select" style="width:100%" data-input="d" data-field="group"' + (kid ? ' disabled' : '') + '>' + GROUPS.map((g) => '<option' + (g === sh.d.group ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></div>' +
           (canUseSoon() ? '<div><label for="d-shelf">Stays good about (days)</label><input id="d-shelf" class="field" style="width:100%" inputmode="numeric" data-input="d" data-field="shelf_days" value="' + esc(sh.d.shelf_days) + '" placeholder="Blank = doesn’t go bad fast"' + (kid ? ' disabled' : '') + '></div>' : '') +
@@ -3264,13 +3280,15 @@
     'close-x': () => { S.sheet = null; render(); },
     'row-qty': (el) => {
       const r = sheetRow(); if (!r) return;
-      const q = Math.max(1, (Number(r.qty) || 1) + Number(el.dataset.d));
+      const lb = byLb(r.item_id);
+      const step = lb ? 0.5 : 1;
+      const q = Math.max(step, (Number(r.qty) || 1) + Number(el.dataset.d) * step);
       if (q === (Number(r.qty) || 1)) return;
       // api 34: a parent changing how many of a carted row → the runner changes that cart line too.
       const st = cartStore(r);
       const sync = Number(D().api || 0) >= 34 && !isKid(S.me) && r.status === 'carted' && CART_STORES.indexOf(st) >= 0 && (!r.cart_want || r.cart_want === st);
       act('update', { id: r.id, fields: { qty: q } }, () => { r.qty = q; if (sync) { r.cart_want = st; r.cart_note = ''; queueLocal(st); } },
-        sync ? '⏳ ' + r.name + ': ' + q + ' in the ' + storeOf(st).name + ' cart, updating' : undefined);
+        sync ? '⏳ ' + r.name + ': ' + (lb ? lbText(q) : q) + ' in the ' + storeOf(st).name + ' cart, updating' : undefined);
     },
     'have-level': (el) => {
       const v = el.dataset.v;
