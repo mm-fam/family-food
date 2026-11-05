@@ -302,6 +302,8 @@ test('missionsAsk: a parent sends Missing for meals to the kids as missions (api
 
 test('mission fairness: 6 missions a day count; bulk missions alternate, whoever is behind first (api 57)', () => {
   const b = fresh();
+  // Limits are off by default since api 58; turn them on (and the catch-up bonus off) to test them.
+  b._ss.getSheetByName('Settings')._data.push(['quick_cap', '8'], ['mission_cap', '6'], ['catchup', '1']);
   const today = b.isoDate(new Date());
   const rv = rows(b, 'Review');
   const H = rv[0];
@@ -323,7 +325,35 @@ test('mission fairness: 6 missions a day count; bulk missions alternate, whoever
   const to = r.result.to.reduce((m, x) => ((m[x.kid] = x.n), m), {});
   assert.ok(to.Lee >= to.Kim && to.Lee - to.Kim <= 1, JSON.stringify(to));
   // mission_cap 0 turns the limit off.
-  b._ss.getSheetByName('Settings')._data.push(['mission_cap', '0']);
+  const st = b._ss.getSheetByName('Settings')._data; st.find((x) => x[0] === 'mission_cap')[1] = '0';
   r = b.call({ action: 'state', pass: PASS, by: 'Pat' });
   assert.strictEqual(r.state.points.today.Kim, 8 * 3 + 8);
+});
+
+test('catch-up bonus: below the week top score pays 1.5x (at least +1); every point counts (api 58)', () => {
+  const b = fresh();
+  const today = b.isoDate(new Date());
+  const rv = rows(b, 'Review'), H = rv[0];
+  const row = (o) => H.map((h) => (o[h] === undefined ? '' : o[h]));
+  const add = (id, who, at, pts, why) => rv.push(row({ id, created: today, type: why === 'check' ? 'check' : 'profile', detail: 'q (i001)', status: 'closed', answer: 'Out (' + who + ')', audience: who, answered_at: today + 'T' + at, points: pts, points_to: who, points_why: why }));
+  add('r901', 'Kim', '09:00:00', 3, 'check');   // first score: everyone at 0, no bonus → Kim 3
+  add('r902', 'Lee', '09:01:00', 3, 'check');   // Lee 0 < 3 → 4 (floor 4.5) → Lee 4
+  add('r903', 'Kim', '09:02:00', 1, 'other');   // Kim 3 < 4 → 2 → Kim 5
+  add('r904', 'Kim', '09:03:00', 1, 'other');   // Kim 5 is top → 1 → Kim 6
+  add('r905', 'Pat', '09:04:00', 5, 'task');    // Pat 0 < 6 → 7
+  for (let i = 0; i < 12; i++) add('r91' + i, 'Kim', '10:' + String(10 + i) + ':00', 1, 'other'); // no limit: all 12 count
+  const r = b.call({ action: 'state', pass: PASS, by: 'Kim' });
+  assert.strictEqual(r.ok, true, r.error);
+  const P = r.state.points;
+  assert.strictEqual(P.week.Lee, 4);
+  assert.strictEqual(P.week.Pat, 7);
+  assert.strictEqual(P.week.Kim, 19, 'Kim 6, then Pat 7 leads so Kim\'s next card pays 2 (→8 leads), then 11 more at 1');
+  assert.strictEqual(P.catchup, 1.5);
+  assert.strictEqual(P.behind.Lee, true);
+  assert.strictEqual(P.behind.Kim, false);
+  const log = b.call({ action: 'pointsLog', pass: PASS, by: 'Kim' }).result;
+  assert.ok(log.entries.some((e) => e.id === 'r902' && e.pts === 4 && e.bonus === 1));
+  // catchup 1 turns it off.
+  b._ss.getSheetByName('Settings')._data.push(['catchup', '1']);
+  assert.strictEqual(b.call({ action: 'state', pass: PASS, by: 'Kim' }).state.points.week.Lee, 3);
 });

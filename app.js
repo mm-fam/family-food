@@ -2717,7 +2717,7 @@
   ];
   const ruleGroup = (x) => x.group || (x.to === 'kid' ? 'kitchen' : 'inbox');
   // " · +1" on a toast for points earned outside the Inbox (api 16: List adds, meal asks, handling kids' requests).
-  const ptsTag = (k) => (Number(D().api || 0) >= 16 && !preStart() && rulePts(k) ? ' · +' + rulePts(k) : '');
+  const ptsTag = (k) => (Number(D().api || 0) >= 16 && !preStart() && rulePts(k) ? ' · +' + boostPts(rulePts(k), S.me) : '');
   const pointRules = () => (D().points && D().points.rules) || DEFAULT_RULES;
   const rulePts = (k) => { const x = pointRules().find((y) => y.key === k); return x ? Number(x.pts) || 0 : 0; };
   // Quick cards (💬 questions, votes, decisions) count up to points.quickCap a day each (api 36).
@@ -2725,7 +2725,14 @@
   // Missions count up to points.missionCap a day each (api 57).
   const missionCapped = () => { const P = D().points || {}; return !!P.missionCap && ((P.missionToday || {})[S.me] || 0) >= P.missionCap; };
   const isQuick = (r) => { const t = String(r.type || '').toLowerCase(); return !['meal_request', 'have_check', 'helped', 'rate', 'still'].includes(t) && ['due', 'mission', 'settle'].indexOf(sectionOf(r)) < 0; };
+  // Catch-up bonus (api 58): below the week's top score → 1.5× (at least +1). The backend does the real count.
+  const behindNow = (who) => { const P = D().points || {}; return !!P.catchup && !!(P.behind || {})[who]; };
+  const boostPts = (p, who) => { const P = D().points || {}; return p > 0 && behindNow(who) ? Math.max(p + 1, Math.floor(p * P.catchup)) : p; };
   function cardPoints(r, answer) {
+    const base = basePoints(r, answer);
+    return boostPts(base, r.type === 'helped' ? String(r.points_to || '') : S.me);
+  }
+  function basePoints(r, answer) {
     const a = String(answer || '').trim().toLowerCase();
     const t = String(r.type || '').toLowerCase();
     if (a === 'skip') return 0;
@@ -2763,7 +2770,7 @@
       '<span class="note">' + (streak ? '🔥 ' + streak + '-day streak' : 'Hit ' + goal + ' today to start a streak') + '</span></div></div>' +
       '<div class="board">' + people.map((p, i) => '<div class="board-p' + (p === me ? ' me' : '') + '"><span class="board-n">' + (winners.indexOf(p) >= 0 ? '👑 ' : '') + esc(p) + '</span><b>' + (P.week[p] || 0) + '</b>' +
         ((P.streak[p] || 0) ? '<span class="board-s">🔥' + P.streak[p] + '</span>' : '') + '</div>').join('') + '</div>' +
-      '<div class="note board-foot">This week’s points (Mon–Sun)' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div>' + raceLine() +
+      '<div class="note board-foot">This week’s points (Mon–Sun)' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div>' + catchupLine() + raceLine() +
       '<div class="score-links"><button type="button" class="link-btn" data-act="points-open" data-tab="rules">ⓘ How points work</button>' +
       '<button type="button" class="link-btn" data-act="points-open" data-tab="history">📜 Points history</button></div></section>';
   }
@@ -2789,6 +2796,7 @@
         '<ul class="pr-list"><li>A kid’s add is a request: it earns its point when a parent approves it. A skipped request earns nothing.</li>' +
         '<li>Adding something that’s already on the List counts if you weren’t on it yet (you show up as “asked by … + you”).</li>' +
         '<li>Approve and Skip both count for the parent: saying no is a decision too (that includes answering a kid’s “we have it”).</li></ul>' : '') +
+      ((D().points || {}).catchup ? '<h3 class="pr-h">⚡ Catch-up bonus</h3><p class="note">Not in first place this week? Everything you score pays <b>' + D().points.catchup + '×</b> (always at least +1 extra): a +1 card pays +2, a +3 mission +4, Due soon +7, Cooked it +15. It switches off the moment you’re in first (or tied for first) and back on if someone passes you. Monday everyone starts at 0, so nobody has it until someone scores. Every point always counts; nothing stops paying.</p>' : '') +
       viewRaceRules() +
       '<h3 class="pr-h">🧑‍🍳 Kitchen help</h3>' +
       '<p class="note">The day after a planned dinner, a parent gets a card for each kid: “Did <i>kid</i> help cook <i>dinner</i>?” The points go to the <b>kid</b>, not to the parent who answers.</p>' +
@@ -2828,6 +2836,11 @@
       '<li><b>💬 Questions:</b> kids’ decks are kept fuller (' + X.qa + ' cards) than the parents’.</li>' +
       '<li>“Behind” is checked once a day, when the day’s cards are made, using this week’s points (Mon–Sun). Pass your sister and the extra missions switch to her the next day.</li></ul>';
   }
+  function catchupLine() {
+    const P = D().points || {};
+    if (!P.catchup) return '';
+    return behindNow(S.me) ? '<div class="note board-foot">⚡ Catch-up bonus is on for you: every card pays ' + P.catchup + '× until you’re in first.</div>' : '';
+  }
   function raceLine() {
     const P = D().points || {};
     if (!P.extra || !isKid(S.me)) return '';
@@ -2864,7 +2877,7 @@
       const t = e.at.slice(11, 16);
       const hh = Number(t.slice(0, 2)), time = t ? ((hh % 12) || 12) + ':' + t.slice(3) + (hh < 12 ? ' am' : ' pm') : '';
       const forOther = e.by && e.by !== e.to;
-      list += '<div class="ph-row"><b class="ph-pts' + (e.capped ? ' zero' : '') + '">+' + e.pts + '</b><div class="ph-body"><div><b>' + esc(e.to) + '</b> · ' + esc(e.label) + (e.capped ? ' <span class="note">· past the day’s ' + (e.capWhy === 'check' ? (L.missionCap || '') + ' missions' : (L.quickCap || '') + ' quick cards') + '</span>' : '') + '</div>' +
+      list += '<div class="ph-row"><b class="ph-pts' + (e.capped ? ' zero' : '') + '">+' + e.pts + '</b><div class="ph-body"><div><b>' + esc(e.to) + '</b> · ' + esc(e.label) + (e.bonus ? ' <span class="note">· ⚡ +' + e.bonus + ' catch-up</span>' : '') + (e.capped ? ' <span class="note">· past the day’s ' + (e.capWhy === 'check' ? (L.missionCap || '') + ' missions' : (L.quickCap || '') + ' quick cards') + '</span>' : '') + '</div>' +
         '<div class="note">' + esc(e.q) + (e.answer ? ' → <i>' + esc(e.answer) + '</i>' : '') + '</div>' +
         '<div class="note ph-meta">' + time + (forOther ? ' · answered by ' + esc(e.by) : '') + '</div></div></div>';
     });
@@ -2905,7 +2918,7 @@
     P.today[to] = before + pts; P.week[to] = (P.week[to] || 0) + pts;
     if (to !== S.me) return '+' + pts + ' for ' + to;
     if (before < P.goal && before + pts >= P.goal) { P.streak[to] = (P.streak[to] || 0) + 1; return '🎉 Daily goal! +' + pts; }
-    return '+' + pts + ' points';
+    return '+' + pts + ' points' + (behindNow(S.me) ? ' · ⚡ catch-up' : '');
   }
 
   function viewSectionChips() {
@@ -2982,7 +2995,7 @@
     let html = top + viewSectionChips() + '<div class="ask-progress"><span>' + pos + ' of ' + total + '</span><div class="bar"><i style="width:' + Math.round(100 * (pos - 1) / total) + '%"></i></div></div>';
     html += '<section class="qcard" data-swipe="' + (kind === 'yesno' ? 'yesno' : 'later') + '" data-id="' + r.id + '">' +
       (r.passed_by && String(r.passed_by).toLowerCase() !== String(S.me).toLowerCase() ? '<div class="passed-note">' + esc(r.passed_by) + ' passed this to you</div>' : '') +
-      '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() && !preStart() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : ((isQuick(r) && quickCapped()) || (sectionOf(r) === 'mission' && missionCapped()) ? '+0 today' : '+' + cardPoints(r))) + '</span>' : '') + '</div>' +
+      '<div class="qcard-sec"><span>' + sec.icon + ' ' + esc(sec.label) + '</span>' + (canPoints() && !preStart() ? '<span class="qcard-pts">' + (r.type === 'helped' ? 'up to +10 for ' + esc(r.points_to || 'them') : ((isQuick(r) && quickCapped()) || (sectionOf(r) === 'mission' && missionCapped()) ? '+0 today' : '+' + cardPoints(r) + (behindNow(r.type === 'helped' ? String(r.points_to || '') : S.me) && cardPoints(r) ? ' ⚡' : ''))) + '</span>' : '') + '</div>' +
       voteTagHtml(r) +
       '<div class="qcard-q">' + esc(voteQuestion(r, sp.q).replace(/\s*\((i\d{3,}|m\d{2,}|x\d{3,}|r\d{3,}|L\d{4,}|order \w+|meal m\d+|\d{4}-\d\d-\d\d)\)/g, '')) + '</div>' + control + (isMission ? '' : typing ? textBox :
         (kind !== 'text' ? '<button type="button" class="link-btn" data-act="ask-type" data-id="' + r.id + '">Something else? Type it</button>' : '')) +

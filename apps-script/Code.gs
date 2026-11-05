@@ -68,7 +68,7 @@ const POINTS_GOAL = 10; // daily goal; Settings points_goal overrides
 // Quick cards (rule `other`: questions, dinner votes, decisions) count toward the leaderboard only up to this many
 // a day per person (api 36, owner Nov 3: whoever gets the most cards shouldn't run away with it). Settings quick_cap
 // overrides; 0 = no limit. Applied when points are counted, so Review keeps each card's face value.
-const QUICK_CAP = 8;
+const QUICK_CAP = 0; // api 58: off by default (owner: points that stop counting send the wrong message)
 function quickCap() {
   const v = settingsMap().quick_cap;
   return v === '' || v === undefined || v === null || isNaN(Number(v)) ? QUICK_CAP : Math.max(0, Number(v));
@@ -76,7 +76,16 @@ function quickCap() {
 // Missions (rule `check`) count toward the leaderboard only up to this many a day per person (api 57, owner Nov 5:
 // ten missions in four minutes shouldn't decide the week). Settings mission_cap overrides; 0 = no limit. Counted
 // like the quick-card limit: when points are added up, so Review keeps face values.
-const MISSION_CAP = 6;
+const MISSION_CAP = 0; // api 58: off by default, like QUICK_CAP
+// Catch-up bonus (api 58, owner Nov 5): anyone not in first place this week when they score gets CATCHUP × the points
+// (at least +1), worked out in time order when points are counted. Settings catchup overrides; 1 or 0 = off.
+const CATCHUP = 1.5;
+function catchup() {
+  const v = Number(settingsMap().catchup);
+  const m = settingsMap().catchup === undefined || settingsMap().catchup === '' || isNaN(v) ? CATCHUP : v;
+  return m > 1 ? m : 0;
+}
+function boosted(pts, m) { return m && pts > 0 ? Math.max(pts + 1, Math.floor(pts * m)) : pts; }
 function missionCap() {
   const v = settingsMap().mission_cap;
   return v === '' || v === undefined || v === null || isNaN(Number(v)) ? MISSION_CAP : Math.max(0, Number(v));
@@ -298,7 +307,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 57 = mission fairness (Nov 5, owner): missions (rule check) count only the first mission_cap (Settings; default 6,
 //      0 = off) per person per day, like the quick-card limit; state.points.missionCap / missionToday; pointsLog
 //      capped entries carry capWhy. missionsAsk deals cards out in turn, whoever is behind this week first.
-const API_VERSION = 57;
+// 58 = catch-up bonus (Nov 5, owner: "I don't like the fact that items stop counting"): the daily limits are off by
+//      default (QUICK_CAP / MISSION_CAP 0; Settings quick_cap / mission_cap still work). Instead anyone below the
+//      week's top score when they score gets 1.5× (at least +1; Settings catchup, 1 or 0 = off), worked out in time
+//      order in scoredEvents. state.points.catchup / behind; pointsLog entries carry bonus.
+const API_VERSION = 58;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk'];
@@ -1752,6 +1765,22 @@ function scoredEvents() {
     seen[k] = (seen[k] || 0) + 1;
     if (seen[k] > cap) { e.pts = 0; e.capped = true; e.capWhy = why; }
   });
+  // Catch-up bonus (api 58): in time order, per Mon–Sun week, whoever is below the week's top score at that moment
+  // gets the boosted points (e.bonus = the extra). Ties at the top (e.g. Monday morning) get no bonus.
+  const m = catchup();
+  if (m) {
+    const weeks = {};
+    kept.slice().sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)).forEach((e) => {
+      if (!(e.pts > 0)) return;
+      const day = e.at.slice(0, 10), dow = new Date(day + 'T12:00:00').getDay();
+      const wk = addDays(day, -((dow + 6) % 7));
+      const tot = (weeks[wk] = weeks[wk] || {});
+      const who = e.to.trim().toLowerCase();
+      const top = Math.max.apply(null, Object.keys(tot).map((k) => tot[k]).concat([0]));
+      if ((tot[who] || 0) < top) { const b = boosted(e.pts, m); e.bonus = b - e.pts; e.pts = b; }
+      tot[who] = (tot[who] || 0) + e.pts;
+    });
+  }
   return kept;
 }
 // The rule a scored Review row came under (rows from before api 14 have no points_why: worked out from the card).
@@ -1791,7 +1820,7 @@ function pointsLog(req) {
     goalDays[to][day] = (goalDays[to][day] || 0) + pts;
     if (day < since) return;
     if (e.src === 'ledger') {
-      entries.push({ id: String(r.ref || ''), at: at, to: to, by: String(r.by || ''), pts: pts, why: String(r.why), label: ruleByKey(String(r.why)).label, guessed: false, q: String(r.note || ''), answer: '' });
+      entries.push({ id: String(r.ref || ''), at: at, to: to, by: String(r.by || ''), pts: pts, why: String(r.why), label: ruleByKey(String(r.why)).label, guessed: false, bonus: e.bonus || 0, q: String(r.note || ''), answer: '' });
       return;
     }
     let why = String(r.points_why || '');
@@ -1803,7 +1832,7 @@ function pointsLog(req) {
     const answer = String(r.answer || '');
     entries.push({
       id: r.id, at: at, to: to, by: (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || '', pts: pts,
-      why: why, label: ruleByKey(why).label, guessed: guessed, capped: !!e.capped, capWhy: e.capWhy || '',
+      why: why, label: ruleByKey(why).label, guessed: guessed, capped: !!e.capped, capWhy: e.capWhy || '', bonus: e.bonus || 0,
       q: String(r.detail || '').replace(/\s*Options:[\s\S]*$/, '').replace(/\s*\((i|m|x|r|f|c)\d{2,}\)|\s*\(\d{4}-\d\d-\d\d\)/g, '').trim(),
       answer: answer.replace(/\s*\([^()]*\)\s*$/, '').trim(),
     });
@@ -1841,7 +1870,7 @@ function pointsSummary(today) {
   const monday = addDays(today, -((dow + 6) % 7));
   const lastMonday = addDays(monday, -7);
   const sum = (m, a, b) => Object.keys(m).reduce((t, d) => t + (d >= a && d <= b ? m[d] : 0), 0);
-  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: pointRulesOut(), start: pointsStart(), quickCap: quickCap(), quickToday: {}, missionCap: missionCap(), missionToday: {} };
+  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: pointRulesOut(), start: pointsStart(), quickCap: quickCap(), quickToday: {}, missionCap: missionCap(), missionToday: {}, catchup: catchup(), behind: {} };
   let best = 0;
   everyone.forEach((p) => {
     const m = byDay[p];
@@ -1857,6 +1886,10 @@ function pointsSummary(today) {
   if (out.quickCap) {
     const q = quickToday(today);
     everyone.forEach((p) => { const k = Object.keys(q).find((x) => x.trim().toLowerCase() === p.toLowerCase()); out.quickToday[p] = k ? q[k] : 0; });
+  }
+  if (out.catchup) {
+    const top = Math.max.apply(null, everyone.map((p) => out.week[p] || 0).concat([0]));
+    everyone.forEach((p) => (out.behind[p] = (out.week[p] || 0) < top));
   }
   if (out.missionCap) {
     const q = quickToday(today, 'check');
