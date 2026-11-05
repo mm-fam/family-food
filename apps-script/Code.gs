@@ -285,7 +285,7 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      missionsAsk {items: [{id, why}]} (parents only) makes one 🔎 mission card per item that isn't on the List and
 //      isn't already on an open mission, split between the kids (fewest open missions first). Same card and answer
 //      as the daily missions (Plenty / Some / A little / Out; low / out puts it on the List as a request).
-const API_VERSION = 55;
+const API_VERSION = 56;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk'];
@@ -443,10 +443,12 @@ function readTab(name) {
   }
   const values = raw.slice(1);
   const head = raw[0].map(String);
+  const keepTime = name === TABS.jobs;
   return values
     .map((row, i) => {
       const o = { _row: i + 2 };
-      head.forEach((h, j) => (o[h] = row[j] instanceof Date ? isoDate(row[j]) : row[j]));
+      // Cart Jobs stamps keep their time (Nov 5: a GE check typed as "2026-11-05 9:45:00" became a date cell and read back as just the day).
+      head.forEach((h, j) => (o[h] = row[j] instanceof Date ? (keepTime ? isoStamp(row[j]) : isoDate(row[j])) : row[j]));
       return o;
     })
     .filter((o) => String(o[head[0]] || '') !== '');
@@ -517,6 +519,12 @@ function scriptTz() { return TZ_ || (TZ_ = Session.getScriptTimeZone()); }
 function isoDate(d) {
   const k = d.getTime();
   return ISO_[k] || (ISO_[k] = Utilities.formatDate(d, scriptTz(), 'yyyy-MM-dd'));
+}
+
+// A Sheet date-time cell as yyyy-MM-ddTHH:mm:ss (just yyyy-MM-dd when it has no time).
+function isoStamp(d) {
+  const t = Utilities.formatDate(d, scriptTz(), 'HH:mm:ss');
+  return Utilities.formatDate(d, scriptTz(), 'yyyy-MM-dd') + (t === '00:00:00' ? '' : 'T' + t);
 }
 
 function nowStamp() {

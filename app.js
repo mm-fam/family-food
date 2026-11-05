@@ -3075,22 +3075,19 @@
     return '<section class="card signins"><div class="signin-dots">' + dots + '</div><div class="signin-text">' + esc(text) + '</div>' +
       (amParent() ? '<button class="btn btn-outline btn-sm" data-act="cart-job" data-kind="signin" data-store="ALL"' + (s.open ? ' disabled' : '') + '>↻ Check all stores</button><p class="note">Checks each store’s sign-in and re-reads every cart and total, a few minutes apart.</p>' : '') + '</section>';
   }
+  // One stamp everywhere (Mike, Nov 5): "Nov 5, 9:45 am"; a date with no time reads "Nov 5".
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function fmtWhen(iso) {
     const s = String(iso || '');
-    // "2026-11-02T08:37:00" and the older "2026-11-02 8:37:00" (space, one-digit hour) both read.
-    const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})/);
-    if (!m) {
-      // A date with no time (a Sheet date cell reads back as yyyy-mm-dd): show the day.
-      const d = s.match(/^(\d{4}-\d{2}-\d{2})$/);
-      if (!d) return '';
-      return d[1] === D().today ? 'today' : DAYS[new Date(d[1] + 'T12:00:00').getDay()] + ' ' + Number(d[1].slice(5, 7)) + '/' + Number(d[1].slice(8, 10));
-    }
-    let h = Number(m[2]);
+    // "2026-11-02T08:37:00", the older "2026-11-02 8:37:00" (space, one-digit hour) and a bare "2026-11-02" all read.
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2}))?/);
+    if (!m) return '';
+    const day = MON[Number(m[2]) - 1] + ' ' + Number(m[3]);
+    if (m[4] == null) return day;
+    let h = Number(m[4]);
     const ap = h >= 12 ? 'pm' : 'am';
     h = h % 12 || 12;
-    const t = h + ':' + m[3] + ' ' + ap;
-    if (m[1] === D().today) return t;
-    return DAYS[new Date(m[1] + 'T12:00:00').getDay()] + ' ' + t;
+    return day + ', ' + h + ':' + m[5] + ' ' + ap;
   }
   const daysSince = (iso) => Math.round((new Date(D().today + 'T12:00:00') - new Date(String(iso).slice(0, 10) + 'T12:00:00')) / 86400000);
   // Latest job for a store + kind (newest first from the backend).
