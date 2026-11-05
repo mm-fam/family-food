@@ -183,3 +183,13 @@ test('Check all stores queues a sign-in check plus a cart check per store', () =
   const again = b.call({ action: 'cartJob', pass: PASS, by: 'Pat', store: 'ALL', kind: 'signin' });
   assert.strictEqual(again.result.already, true); // a second tap doesn't pile up jobs
 });
+
+test("Laptop's on: one 'all' job plus a check per store", () => {
+  const b = fresh();
+  const r = b.call({ action: 'cartJob', pass: PASS, by: 'Sam', store: 'ALL', kind: 'all' });
+  assert.strictEqual(r.ok, true, r.error);
+  const open = r.state.cartJobs.filter((j) => j.status === 'queued');
+  assert.strictEqual(open.filter((j) => j.kind === 'all').length, 1);
+  assert.strictEqual(open.filter((j) => j.kind === 'check').length, 4);
+  assert.ok(!b.call({ action: 'cartJob', pass: PASS, by: 'Kim', store: 'ALL', kind: 'all' }).ok, 'kids can’t start it');
+});

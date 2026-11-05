@@ -41,7 +41,7 @@ const JOB_STORES = ['GE', 'WF', 'TGT', 'AMZ'];
 const DELIVERY_SOURCES = { WG: 'Wildgrain', BB: 'Bleu Box' };
 const isDeliveryItem = (it) => !!(it && DELIVERY_SOURCES[String(it.store || '')]);
 const STORE_NAMES = { GE: 'Giant Eagle', WF: 'Whole Foods', TGT: 'Target', AMZ: 'Amazon' };
-const JOB_KINDS = ['build', 'check', 'signin']; // signin = store 'ALL' (api 42)
+const JOB_KINDS = ['build', 'check', 'signin', 'all']; // signin / all = store 'ALL' (api 42 / 50)
 const JOB_OPEN = ['queued', 'running', 'waiting']; // waiting = runner tried, computer/Chrome/sign-in not ready; it retries
 const JOB_SHOW_DAYS = 14;
 
@@ -258,7 +258,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 49 = Check all stores (Nov 4, owner: "when I hit the check button… all the as-of stamps would be the same"): a
 //      parent's signin job also queues a cart `check` for each of the four stores (skipping any already open), so one
 //      tap re-reads every cart and its total; a signed-out store's check fails and shows red with the reason.
-const API_VERSION = 49;
+// 50 = "Laptop's on: update everything" (Nov 4, owner: "the laptop's open… free to do it… keep it awake for the next
+//      30 minutes"): cartJob {store: 'ALL', kind: 'all'} queues one `all` job plus a cart `check` per store. The runner
+//      then does, within ~30 min: waiting cart changes, sign-ins, every cart re-read, order history for all stores and
+//      the price pass, even if the daily passes already ran today.
+const API_VERSION = 50;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd'];
@@ -2254,7 +2258,8 @@ function addCartJob(req) {
   if (!req._system && isKid(req.by)) throw new Error('Ask a parent to do this');
   const store = String(req.store || '').toUpperCase();
   const kind = String(req.kind || 'build').toLowerCase();
-  if (kind === 'signin' ? store !== 'ALL' : JOB_STORES.indexOf(store) < 0) throw new Error('Unknown store');
+  const allStores = kind === 'signin' || kind === 'all';
+  if (allStores ? store !== 'ALL' : JOB_STORES.indexOf(store) < 0) throw new Error('Unknown store');
   if (JOB_KINDS.indexOf(kind) < 0) throw new Error('Unknown job');
   jobsSheet();
   const rows = readTab(TABS.jobs);
@@ -2267,7 +2272,7 @@ function addCartJob(req) {
   appendObj(TABS.jobs, { id: id, at: nowStamp(), by: req.by || '', store: store, kind: kind, status: 'queued' });
   // api 49: Check all stores = the sign-in check plus a fresh read of every cart.
   const checks = [];
-  if (kind === 'signin' && !req._system) {
+  if (allStores && !req._system) {
     JOB_STORES.forEach((st) => {
       const r = addCartJob({ by: req.by, store: st, kind: 'check', _system: true });
       if (r && r.id) checks.push(r.id);

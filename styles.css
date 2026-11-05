@@ -952,3 +952,4 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .cdot.cd-wait, .cdot.cd-run { background: #E0A100; }
 .cdot.cd-fail { background: var(--tgt-edge); }
 .carts-foot { text-align: center; margin-top: 4px; }
+.carts-btn-note { text-align: center; margin: 6px 0 0; }
