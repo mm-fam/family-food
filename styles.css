@@ -993,3 +993,6 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 .mh-row { display: flex; align-items: center; gap: 8px; }
 .mh-row .row-main { flex: 1; min-width: 0; }
 .mh-pantry { flex: none; font-size: 13px; padding: 6px 10px; white-space: nowrap; }
+/* api 55: 🔎 Have the girls check + who's checking what. */
+.miss-send { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0 4px; }
+.miss-chk { font-size: 12px; opacity: 0.85; white-space: nowrap; }

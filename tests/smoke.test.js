@@ -278,3 +278,24 @@ test('pantry staple: parents set Items pantry, kids can’t (api 54)', () => {
   assert.strictEqual(r.state.items.find((x) => x.id === 'i002').pantry, '');
   assert.ok(!b.call({ action: 'itemSave', pass: PASS, by: 'Kim', id: 'i002', fields: { pantry: 'Y' } }).ok);
 });
+
+test('missionsAsk: a parent sends Missing for meals to the kids as missions (api 55)', () => {
+  const b = loadBackend(tabs(), { FAMILY_PASSCODE: PASS });
+  b.call({ action: 'add', pass: PASS, by: 'Pat', item_id: 'i003' }); // on the List: skipped
+  let r = b.call({ action: 'missionsAsk', pass: PASS, by: 'Pat', items: [{ id: 'i001', why: 'Pancakes' }, { id: 'i002', why: 'Pancakes' }, { id: 'i003' }, { id: 'i005' }, { id: 'i999' }] });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.result.sent, 3);
+  const checks = r.state.review.filter((x) => x.type === 'check' && /meal plan/.test(x.detail));
+  assert.strictEqual(checks.length, 3);
+  assert.ok(checks.some((x) => x.audience === 'Kim') && checks.some((x) => x.audience === 'Lee'));
+  assert.ok(/It's for Pancakes\. \(i001\) Options: Plenty; Some; A little; Out/.test(checks.find((x) => /\(i001\)/.test(x.detail)).detail));
+  // Sending again doesn't double up; kids can't send.
+  r = b.call({ action: 'missionsAsk', pass: PASS, by: 'Pat', items: [{ id: 'i001' }] });
+  assert.strictEqual(r.result.sent, 0);
+  assert.ok(!b.call({ action: 'missionsAsk', pass: PASS, by: 'Kim', items: [{ id: 'i004' }] }).ok);
+  // A kid's answer works like any mission: Out puts it on the List as a request.
+  const card = checks.find((x) => /\(i002\)/.test(x.detail));
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: card.audience, id: card.id, answer: 'Out' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.ok(r.state.list.some((x) => x.item_id === 'i002' && x.status === 'requested'));
+});

@@ -281,10 +281,14 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      for meals assumes a pantry item is on hand unless its latest sighting in 14 days is low / out, today's meals
 //      drop off once their slot has passed, and Have opens a sheet (have / need per item, 🫙 Always have). Missions
 //      skip pantry items for meal checks.
-const API_VERSION = 54;
+// 55 = Missing for meals → the girls' missions (Nov 5, owner: "these are great mission items for the girls to check"):
+//      missionsAsk {items: [{id, why}]} (parents only) makes one 🔎 mission card per item that isn't on the List and
+//      isn't already on an open mission, split between the kids (fewest open missions first). Same card and answer
+//      as the daily missions (Plenty / Some / A little / Out; low / out puts it on the List as a request).
+const API_VERSION = 55;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
-  'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote'];
+  'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk'];
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
@@ -360,6 +364,7 @@ function handle(req) {
     voiceAdd: () => withLock(() => voiceAdd(req)),
     productPick: () => withLock(() => productPick(req)),
     mealVote: () => withLock(() => mealVote(req)),
+    missionsAsk: () => withLock(() => missionsAsk(req)),
   };
   const fn = actions[req.action];
   if (!fn) return reply({ ok: false, error: 'unknown_action' });
@@ -1903,6 +1908,41 @@ function mealVote(req) {
     answer: vote + ' ' + VOTE_WORDS[vote] + ' (' + who + ')', answered_at: nowStamp(), points: 0,
   });
   return { id: id };
+}
+
+// api 55: a parent sends Missing for meals to the girls. One mission card per item, same wording and answers as the
+// daily missions, so missionAnswer handles them. Skips items on the List or already on an open mission.
+const MISSIONS_ASK_MAX = 40;
+function missionsAsk(req) {
+  const who = people().find((p) => p.toLowerCase() === String(req.by || '').trim().toLowerCase());
+  if (!who) throw new Error('Pick who you are first');
+  if (isKid(who)) throw new Error('Ask a parent to send missions');
+  const kids = String(settingsMap().kids || '').split(',').map((x) => x.trim()).filter(String);
+  if (!kids.length) throw new Error('No kids set up in Settings');
+  const byId = {}; readTab(TABS.items).forEach((i) => (byId[i.id] = i));
+  const onList = {}; readTab(TABS.list).forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0) onList[r.item_id] = true; });
+  const review = readTab(TABS.review);
+  const open = {}, load = {};
+  kids.forEach((k) => (load[k] = 0));
+  review.forEach((r) => {
+    if (r.type !== 'check' || r.status !== 'open') return;
+    const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) open[m[1]] = true;
+    if (load[r.audience] !== undefined) load[r.audience]++;
+  });
+  let n = nextIdNum(review);
+  const sent = [];
+  (req.items || []).slice(0, MISSIONS_ASK_MAX).forEach((x) => {
+    const id = String((x && x.id) || x || '');
+    const it = byId[id];
+    if (!it || it.status === 'Drop' || onList[id] || open[id] || sent.some((s) => s.id === id)) return;
+    const kid = kids.slice().sort((a, b) => load[a] - load[b])[0];
+    load[kid]++;
+    const why = String((x && x.why) || '').replace(/[()]/g, '').slice(0, 80);
+    appendObj(TABS.review, { id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), type: 'check', status: 'open', answer: '', audience: kid, asked_by: who,
+      detail: '🍽 For the meal plan: go check the ' + it.name + ': how much do we have?' + (why ? ' It\'s for ' + why + '.' : '') + ' (' + id + ') Options: ' + MISSION_OPTIONS });
+    sent.push({ id: id, to: kid });
+  });
+  return { sent: sent.length, to: kids.map((k) => ({ kid: k, n: sent.filter((s) => s.to === k).length })) };
 }
 
 // Ideas still being worked on, plus ones finished in the last 14 days (so people see what happened).

@@ -981,9 +981,19 @@
     if (!groups.length) return '<div class="miss-line">🍽 Nothing missing for meals' + (gap ? ' · ' + gap : '') + '</div>';
     const n = groups.reduce((t, g) => t + g.ids.length, 0);
     const kid = isKid(S.me);
-    return '<section class="card missing"><div class="card-head"><span>🍽 MISSING FOR MEALS · ' + n + '</span>' + (gap ? '<span class="sub">' + gap + '</span>' : '') + '</div>' + groups.map((g) =>
+    // api 55: who's already checking what (open 🔎 mission cards), so the girls' answers show up right here.
+    const checking = {};
+    (D().review || []).forEach((r) => { if (r.type === 'check' && r.status === 'open') { const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) checking[m[1]] = r.audience; } });
+    const toSend = [];
+    groups.forEach((g) => g.ids.forEach((id) => { if (!checking[id]) toSend.push({ id: id, why: g.meal.name }); }));
+    const out = n - toSend.length;
+    const send = canMissionsAsk() && (D().settings.kids || []).length
+      ? '<div class="miss-send">' + (toSend.length ? '<button class="btn btn-outline btn-sm" data-act="miss-send" data-items="' + esc(JSON.stringify(toSend)) + '">🔎 Have the girls check ' + toSend.length + '</button>' : '') +
+        (out ? '<span class="row-meta">🔎 ' + out + ' out for checking</span>' : '') + '</div>'
+      : '';
+    return '<section class="card missing"><div class="card-head"><span>🍽 MISSING FOR MEALS · ' + n + '</span>' + (gap ? '<span class="sub">' + gap + '</span>' : '') + '</div>' + send + groups.map((g) =>
       '<div class="miss-row"><div class="miss-main"><div class="miss-items">' +
-        g.ids.map((id) => '<button class="link-btn" data-act="open-item" data-id="' + esc(id) + '">' + esc(itemById(id).name) + '</button>').join(', ') + '</div>' +
+        g.ids.map((id) => '<button class="link-btn" data-act="open-item" data-id="' + esc(id) + '">' + esc(itemById(id).name) + '</button>' + (checking[id] ? '<span class="miss-chk"> 🔎 ' + esc(checking[id]) + '</span>' : '')).join(', ') + '</div>' +
         '<div class="row-meta">' + esc(shortDay(g.date).split(' ')[0]) + ' · ' + esc(g.meal.name) + '</div></div>' +
       '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="miss-add" data-meal="' + esc(g.meal.id) + '" data-ids="' + esc(g.ids.join(',')) + '">' + (kid ? 'Ask' : 'Add') + '</button>' +
         (kid ? '' : '<button class="btn btn-plain btn-sm" data-act="miss-have" data-meal="' + esc(g.meal.id) + '" data-name="' + esc(g.meal.name) + '" data-ids="' + esc(g.ids.join(',')) + '">Have</button>') + '</div></div>').join('') + '</section>';
@@ -1363,6 +1373,7 @@
   const canV9 = () => Number(D().api || 0) >= 9;
   const canFridge = () => Number(D().api || 0) >= 53;
   const canPantry = () => Number(D().api || 0) >= 54;
+  const canMissionsAsk = () => Number(D().api || 0) >= 55;
 
   function openItemSheet(itemId, rowId, name) {
     const it = itemById(itemId);
@@ -3546,6 +3557,16 @@
       ids.forEach((id) => { have[id] = true; pantry[id] = isPantry(id); });
       S.sheet = { type: 'misshave', meal_id: el.dataset.meal || '', name: el.dataset.name || '', ids: ids, have: have, pantry: pantry };
       render();
+    },
+    'miss-send': (el) => {
+      if (isKid(S.me)) return;
+      let items = []; try { items = JSON.parse(el.dataset.items || '[]'); } catch (e) { items = []; }
+      if (!items.length) return;
+      const kids = D().settings.kids || [];
+      act('missionsAsk', { items: items }, () => {
+        // Show them as out for checking right away; the next state brings the real cards.
+        items.forEach((x, i) => (D().review = D().review || []).push({ id: tmpId(), type: 'check', status: 'open', audience: kids[i % kids.length], detail: '(' + x.id + ')' }));
+      }, '🔎 Sent ' + items.length + ' missions to the girls');
     },
     'mh-toggle': (el) => { const sh = S.sheet; if (sh && sh.type === 'misshave') { sh.have[el.dataset.id] = !sh.have[el.dataset.id]; render(); } },
     'mh-pantry': (el) => { const sh = S.sheet; if (sh && sh.type === 'misshave') { sh.pantry[el.dataset.id] = !sh.pantry[el.dataset.id]; render(); } },
