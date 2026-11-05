@@ -223,7 +223,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 38 = only parents add a meal's ingredients (Nov 4, Mike): addMeal from a kid is refused.
 // 39 = meal head-to-heads (Nov 4, Mike): daily `pick` cards ("Which do you like more: A or B? (mNN) (mNN)"), one
 //      per person; mealStats gains wins / matchups from them (the rating stays the vote average).
-const API_VERSION = 39;
+// 40 = best price (Nov 4, Mike): Items best_price = Y ("any store, best price"). When such an item is on the List
+//      and another store sells the same product cheaper (fresh, like items, 10%+ and $0.50+), the parents get one
+//      ⚖ `bestprice` card with every store's price; the answer puts the row in that store's cart (cartPush).
+const API_VERSION = 40;
+const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
 const SAME_TRIP_DAYS = 2; // buys this close together are one purchase (a receipt and the List tap for the same order)
@@ -609,7 +613,7 @@ function productsMap() {
   const pick = (p) => ({
     name: String(p.product || ''), size: String(p.size || ''), aisle: String(p.aisle || ''),
     price: num(p.price), unit_price: num(p.unit_price), unit: String(p.unit || ''), price_at: day(p.price_at),
-    match: String(p.match || ''), last_bought: day(p.last_bought), // Nov 4: item screen History when there are no receipts yet
+    match: String(p.match || ''), last_bought: day(p.last_bought), sale: /\bsale\b/i.test(String(p.notes || '')) ? 'Y' : '', // api 40 // Nov 4: item screen History when there are no receipts yet
     pack: String(p.pack || ''), // api 35: Products pack ("8 ct"), blank = read from the name
   });
   readTab(TABS.products).forEach((p) => {
@@ -752,6 +756,7 @@ function addToList(req) {
   });
   // Parents score when they add; a kid's add is a request and scores when a parent approves it.
   if (!req._noPoints && !isKid(req.by)) awardPoints(req.by, 'list_add', id, req.by, 'Added ' + item.name + ' to the List');
+  if (!isKid(req.by) && /^y/i.test(String(item.best_price || ''))) { try { addBestPriceCards(id); } catch (e) { /* a card can wait for tomorrow */ } }
   return { id: id, merged: false };
 }
 
@@ -871,9 +876,10 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
+  if (f.best_price !== undefined) { f.best_price = /^y/i.test(String(f.best_price)) ? 'Y' : ''; ensureColumn(TABS.items, 'best_price'); }
   if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
   if (f.open_to_try !== undefined) { f.open_to_try = /^y/i.test(String(f.open_to_try)) ? 'Y' : ''; ensureColumn(TABS.items, 'open_to_try'); }
   if (f.shelf_days !== undefined) {
@@ -1195,7 +1201,8 @@ function answerReview(req) {
   const mission = r.type === 'check' ? missionAnswer(r, answer, who) : null;
   if (r.type === 'have_check') haveCheckAnswer(r, answer, who);
   const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : r.type === 'settle_meal' ? settleMealAnswer(r, answer, who) : null;
-  return { id: r.id, points: pts, why: why, mission: mission, settled: settled };
+  const best = r.type === 'bestprice' ? bestPriceAnswer(r, answer, who) : null;
+  return { id: r.id, points: pts, why: why, mission: mission, settled: settled, best: best };
 }
 
 // Which rule (POINT_RULES key) a card scores under when answered, or '' for no points: "skip" (Don't care),
@@ -1716,6 +1723,9 @@ function dailyCards() {
     makeSettle(today, kids, review).forEach((m) => add(m));
     makeMealSettle(today, review, plan, mealOf).forEach((m) => add(m));
 
+    // Best price: best_price items on the List that another store sells cheaper (prices arrive from the price pass).
+    makeBestPrice(review).forEach((m) => add(m));
+
     // Head-to-heads: which of two meals of the same kind do you like more (see makePicks).
     makePicks(today, everyone, review, meals).forEach((m) => add(m));
 
@@ -2007,6 +2017,79 @@ function cartQtyFields(row, qty, by) {
   ensureCartCols();
   addCartJob({ store: st, kind: 'build', by: by || 'Poppy', _system: true });
   return { cart_want: st, cart_by: by || '', cart_note: '' };
+}
+
+// ---------- Best price (api 40, Nov 4, Mike) ----------
+// "Any store, best price" items (Items best_price = Y): Mike decides case by case, once he can see every store's
+// price side by side. Compared only like items (not `alt`), priced in the last BEST_FRESH_DAYS, in the same unit
+// as the usual store's product. One parents' ⚖ card per List row, never re-asked for that row.
+function bestPriceFor(row, item, prods) {
+  const base = row.store && row.store !== 'Either' ? row.store : item.store;
+  const today = isoDate(new Date());
+  const ok = (p) => p && p.match !== 'alt' && Number(p.unit_price) > 0 && p.unit && p.price_at && daysBetween(p.price_at, today) <= BEST_FRESH_DAYS;
+  const b = ok(prods[base]) ? Object.assign({ store: base }, prods[base]) : null;
+  if (!b) return null;
+  const all = JOB_STORES.filter((k) => ok(prods[k]) && prods[k].unit === b.unit).map((k) => Object.assign({ store: k }, prods[k]))
+    .sort((x, y) => Number(x.unit_price) - Number(y.unit_price));
+  const c = all[0];
+  if (!c || c.store === base) return null;
+  const amount = Number(b.price) > 0 ? Number(b.price) / Number(b.unit_price) : 1;
+  const qty = Number(row.qty) || 1;
+  const save = (Number(b.unit_price) - Number(c.unit_price)) * amount * qty;
+  const pct = (Number(b.unit_price) - Number(c.unit_price)) / Number(b.unit_price);
+  if (pct < BEST_MIN_PCT || save < BEST_MIN_SAVE) return null;
+  return { base: base, all: all, save: save, qty: qty };
+}
+function bestPriceCard(row, item, prods) {
+  const x = bestPriceFor(row, item, prods);
+  if (!x) return null;
+  const sizeDiffers = x.all.some((p) => String(p.size) !== String(x.all[0].size));
+  const line = x.all.map((p) => STORE_NAMES[p.store] + ' $' + Number(p.price).toFixed(2) + (sizeDiffers && p.size ? ' (' + p.size + ')' : '') +
+    (p.store === x.base ? ' (usual)' : '') + (p.sale ? ' on sale' : '')).join(' · ');
+  return { type: 'bestprice', audience: 'parents',
+    detail: '💲 ' + row.name + (x.qty > 1 ? ' ×' + x.qty : '') + ' is cheaper at ' + STORE_NAMES[x.all[0].store] + ': ' + line +
+      '. About $' + x.save.toFixed(2) + ' less' + (x.qty > 1 ? ' for ' + x.qty : '') + '. Which cart? (' + row.id + ') (' + item.id + ') Options: ' +
+      x.all.map((p) => STORE_NAMES[p.store] + ' cart').join('; ') };
+}
+// Rows already asked about (any status): one card per List row.
+function bestAsked(review) {
+  const asked = {};
+  review.forEach((r) => { if (r.type === 'bestprice') { const m = String(r.detail).match(LIST_ID_RE); if (m) asked[m[1]] = true; } });
+  return asked;
+}
+function makeBestPrice(review, onlyId) {
+  const items = readTab(TABS.items);
+  if (!items.length || !('best_price' in items[0])) return [];
+  const best = {};
+  items.forEach((i) => { if (/^y/i.test(String(i.best_price || ''))) best[i.id] = i; });
+  if (!Object.keys(best).length) return [];
+  const asked = bestAsked(review);
+  const prods = productsMap();
+  const today = isoDate(new Date());
+  return readTab(TABS.list).filter((r) => (onlyId ? r.id === onlyId : true) && r.status === 'needed' && best[r.item_id] && !asked[r.id] &&
+    !(r.hold_until && String(r.hold_until).slice(0, 10) > today) && !r.cart_want)
+    .map((r) => bestPriceCard(r, best[r.item_id], prods[r.item_id] || {})).filter(Boolean);
+}
+function addBestPriceCards(rowId) {
+  const review = readTab(TABS.review);
+  const cards = makeBestPrice(review, rowId);
+  let n = nextIdNum(review);
+  cards.forEach((o) => appendObj(TABS.review, Object.assign({ id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), status: 'open', answer: '' }, o)));
+}
+// "<Store> cart" → the row moves to that store and goes into its cart (cart job queued). The usual store's cart
+// when the row isn't carted yet puts it there too. A row no longer on the List is left alone.
+function bestPriceAnswer(r, answer, who) {
+  const id = (String(r.detail).match(LIST_ID_RE) || [])[1];
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!id || !a || a === 'skip') return null;
+  const st = JOB_STORES.find((k) => a.indexOf(STORE_NAMES[k].toLowerCase()) === 0);
+  if (!st) return null;
+  const row = readTab(TABS.list).find((x) => x.id === id);
+  if (!row || (row.status !== 'needed' && row.status !== 'carted')) return { list: id, already: true };
+  if (String(row.store) !== st) setFields(TABS.list, row._row, { store: st, updated_at: nowStamp() });
+  let pushed = 0;
+  try { pushed = cartPush({ rows: [{ id: id, store: st }], by: who }).done; } catch (e) { /* the row still moved stores */ }
+  return { list: id, store: st, pushed: pushed };
 }
 
 // {rows: [{id, store}]}: put each row in that store's cart. Returns { done: n, stores: {GE: n}, skipped: [ids] }.

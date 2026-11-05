@@ -916,3 +916,6 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 /* Store we use (7 choices) in two rows instead of 7 squeezed, cut-off buttons (Nov 4). */
 .seg.seg-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
 .seg.seg-grid button { border-left: 1px solid var(--field); border-top: 1px solid var(--field); margin: -1px 0 0 -1px; padding: 0 4px; font-size: 13px; }
+.is-best { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.is-best > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; background: var(--line-soft); font-size: 13px; }
+.is-best > span.best { background: var(--accent-soft); color: var(--accent-deep); }

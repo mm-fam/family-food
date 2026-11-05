@@ -723,6 +723,8 @@
     const only = onlyAt(r);
     if (CART_STORES.indexOf(only) >= 0) return { store: only, why: 'only sold there', guess: !prods[only] };
     const s = r.store && r.store !== 'Either' ? r.store : (it && it.store) || 'Either';
+    // Best-price items (api 40): the cheapest store for the same product, when it clears the price rule.
+    if (canBest() && isBest(it)) { const c = cheaperElsewhere(r.item_id, CART_STORES.indexOf(s) >= 0 ? s : 'GE'); if (c) return { store: c.store, why: 'best price: about $' + c.save.toFixed(2) + ' less there' }; }
     if (CART_STORES.indexOf(s) >= 0) return { store: s, why: 'where we usually get it', guess: !prods[s] };
     // Either grocery store: the one we know the product at, then the cheaper one, then a cart already going.
     const both = ['GE', 'WF'];
@@ -1000,6 +1002,9 @@
   const canUseSoon = () => Number(D().api || 0) >= 22;
   // api 29: Items open_to_try ("we'd try something else": the price pass looks up alternatives, offered as `try` cards).
   const canTry = () => Number(D().api || 0) >= 29;
+  // api 40 (Nov 4, Mike): "any store, best price" items (Items best_price = Y).
+  const canBest = () => Number(D().api || 0) >= 40;
+  const isBest = (it) => !!it && /^y/i.test(String(it.best_price || ''));
   function useSoonWhen(x) {
     if (x.left >= 1) return 'good through tomorrow';
     if (x.left === 0) return 'last good day today';
@@ -1258,7 +1263,7 @@
     const it = itemById(itemId);
     S.sheet = {
       type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
-      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}) : null,
+      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}) : null,
     };
     render();
     if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
@@ -1426,6 +1431,7 @@
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
+          (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +
           (canTry() ? '<div><label>Open to trying something else?</label>' + seg('open_to_try', [['', 'No, we like it'], ['Y', 'Yes, suggest some']]) + '<p class="note">Yes = Claude looks for other brands and store brands at our stores and asks you in the Inbox (⚖ Decisions). Nothing changes until you say so.</p></div>' : '') +
           '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
           '<div><label for="d-brand">Brand / size</label><input id="d-brand" class="field" style="width:100%" data-input="d" data-field="brand_size" value="' + esc(sh.d.brand_size) + '"' + (kid ? ' disabled' : '') + '></div>' +
@@ -1453,8 +1459,16 @@
     if (priced && hasPrice(p)) bits.push(fmtUnit(p));
     if (priced && k !== storeCode) bits.push('at ' + storeOf(k).name);
     if (priced && p.price_at) bits.push(fmtShort(p.price_at));
+    let all = '';
+    if (canBest() && isBest(it)) {
+      // Best-price items: every store's price for the same product, cheapest first (green), same unit only.
+      const rows = itemPrices(itemId).filter((x) => !priced || !hasPrice(p) || x.unit === p.unit);
+      all = rows.length > 1
+        ? '<div class="is-best">' + rows.map((x, i) => '<span class="' + (i === 0 ? 'best' : '') + '"><span class="store-dot ' + storeOf(x.store).cls + '"></span>' + esc(storeOf(x.store).name) + ' <b>' + money(x.price) + '</b>' + (x.sale === 'Y' ? ' sale' : '') + '</span>').join('') + '</div>'
+        : '<p class="note">💲 Best price: Claude checks the other stores on the next price pass.</p>';
+    }
     return '<div class="is-prod">' + (name ? '<span class="is-prod-name">' + esc(name) + '</span>' : '') +
-      (priced ? '<span class="is-prod-price"><b>' + money(p.price) + '</b>' + (bits.length ? ' <small>' + esc(bits.join(' · ')) + '</small>' : '') + '</span>' : '') + '</div>';
+      (priced ? '<span class="is-prod-price"><b>' + money(p.price) + '</b>' + (bits.length ? ' <small>' + esc(bits.join(' · ')) + '</small>' : '') + '</span>' : '') + all + '</div>';
   }
   // Drop a size that the product name already ends with ("…, 12 oz" + "12 oz").
   const sizeIfNew = (name, size) => (size && String(name || '').toLowerCase().replace(/\s+/g, ' ').indexOf(String(size).toLowerCase().replace(/\s+/g, ' ')) < 0 ? size : '');
@@ -2274,6 +2288,11 @@
         const m = String(r.detail).match(/\((L\d{4,})\)/);
         if (m && !D().list.some((x) => x.id === m[1])) return false;
       }
+      if (r.type === 'bestprice') { // gone once the row left the List or is in a cart already
+        const m = String(r.detail).match(/\((L\d{4,})\)/);
+        const x = m && D().list.find((y) => y.id === m[1]);
+        if (m && (!x || x.status !== 'needed' || x.cart_want)) return false;
+      }
       if (r.type === 'settle_meal') { // gone once no List row is tied to that meal anymore
         const m = String(r.detail).match(/\(meal (m\d+)\)/);
         if (m && !D().list.concat(D().held || []).some((x) => x.meal_id === m[1])) return false;
@@ -2336,7 +2355,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still' || (t === 'vote' && voteTiming(r) === 'after')) return 'rate'; // api 35: a vote right after the meal
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }
