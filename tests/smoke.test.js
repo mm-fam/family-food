@@ -120,3 +120,29 @@ test('catalog: sold by the pound and words we say', () => {
   r = b.call({ action: 'voiceAdd', pass: PASS, by: 'Pat', text: 'fairlife' });
   assert.ok(r.result.added.some((x) => /Fairlife/.test(x)), 'a word we say is an exact match for Siri');
 });
+
+test('substitutions: backups show per store; subbed answers set the rule (api 46)', () => {
+  const t = require('./fixture').tabs();
+  t.Products[0].push('backup');
+  t.Products.slice(1).forEach((r) => r.push(''));
+  t.Products.push(['i002', 'GE', 'Giant Eagle Whole Milk', '1 gal', '', 'alt', 'sub 2026-11-04', 'sent as substitute r010', '', '', '', '', '', '', '', '', '']);
+  t.Products.push(['i002', 'GE', 'Horizon Organic Whole Milk', '64 fl oz', '', 'alt', 'Pat', '', '', '', '', '', '', '', '', '', 1]);
+  t.Review.push(['r010', '2026-11-04T10:00:00', 'subbed', 'Giant Eagle sent Giant Eagle Whole Milk instead of fairlife Whole Ultra-Filtered Milk (i002). Next time? Options: That\'s fine; Don\'t substitute; Make it the backup', 'open', '', 'parents', '', '', '', '', '', '', '', '', '', '']);
+  t.Review.push(['r011', '2026-11-04T10:00:00', 'subbed', 'Giant Eagle sent X instead of Salted butter (i005). Next time? Options: That\'s fine; Don\'t substitute; Make it the backup', 'open', '', 'parents', '', '', '', '', '', '', '', '', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  let s = b.call({ action: 'state', pass: PASS, by: 'Pat' }).state;
+  assert.strictEqual(s.products.i002.GE.name, 'fairlife Whole Ultra-Filtered Milk');
+  assert.strictEqual(s.products.i002.GE.backup.name, 'Horizon Organic Whole Milk');
+  // A kid's answer changes nothing.
+  let r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: 'r011', answer: "Don't substitute (Kim)" });
+  assert.strictEqual(r.result.subbed, null);
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: 'r011', answer: "Don't substitute (Pat)" });
+  assert.strictEqual(r.result.subbed.ok_swap, 'N');
+  assert.strictEqual(r.state.items.find((x) => x.id === 'i005').ok_swap, 'N');
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Sam', id: 'r010', answer: 'Make it the backup (Sam)' });
+  assert.strictEqual(r.result.subbed.backup, true);
+  assert.strictEqual(r.state.products.i002.GE.backup.name, 'Giant Eagle Whole Milk');
+  const p = rows(b, 'Products');
+  const col = p[0].indexOf('backup');
+  assert.strictEqual(Number(p.find((x) => x[2] === 'Horizon Organic Whole Milk')[col]), 2);
+});

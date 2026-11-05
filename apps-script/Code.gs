@@ -242,7 +242,14 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 45 = catalog quality (Nov 4, owner): Items `sold_by` (lb = by the pound: List qty in pounds, ½ lb steps; blank = each)
 //      and `itemSave` fields.spoken = the words the family says for an item (lowercase aliases, used by Shop search
 //      and Siri; ALL-CAPS receipt codes are kept).
-const API_VERSION = 45;
+// 46 = substitutions (Nov 4, owner): what the store may send when something is out. Items ok_swap is the rule
+//      (Y = let the store pick / best available, N = don't substitute, blank = store default + ask after). Products
+//      `backup` (1, 2, … at the end of the tab) marks our pick of substitute at that store, lowest first; the cart
+//      runner sets each line's substitution choice from these. state.products[item][store].backup = {name, size}.
+//      `subbed` cards (parents; the runner writes them when an order came with a substitution, plus an alt Products
+//      row noted `sent as substitute rNNN`): That's fine → ok_swap Y; Don't substitute → ok_swap N; Make it the
+//      backup → that Products row gets backup 1 (others move down).
+const API_VERSION = 46;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd'];
@@ -646,6 +653,7 @@ function productsMap() {
   const rank = { exact: 0, likely: 1, alt: 2 };
   const best = {};
   const sb = {};
+  const bk = {}; // api 46: our picked substitutes per item|store
   const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? '' : Number(v));
   const day = (v) => (v instanceof Date ? isoDate(v) : String(v || '').slice(0, 10));
   const pick = (p) => ({
@@ -657,6 +665,7 @@ function productsMap() {
   readTab(TABS.products).forEach((p) => {
     if (!p.item_id || !p.store) return;
     const k = p.item_id + '|' + p.store;
+    if (Number(p.backup) > 0) (bk[k] = bk[k] || []).push(p);
     const r = rank[String(p.match)] === undefined ? 3 : rank[String(p.match)];
     const storeBrand = /^y/i.test(String(p.store_brand || ''));
     if (storeBrand && r !== 0) {
@@ -676,6 +685,12 @@ function productsMap() {
     const opts = (sb[k] || []).filter((x) => String(x.unit || '') === o.unit).sort((a, b) => Number(a.unit_price) - Number(b.unit_price));
     if (opts.length) o.sb = pick(opts[0]);
     out[p.item_id][p.store] = o;
+  });
+  Object.keys(bk).forEach((k) => {
+    const b = bk[k].sort((x, y) => Number(x.backup) - Number(y.backup))[0];
+    out[b.item_id] = out[b.item_id] || {};
+    out[b.item_id][b.store] = out[b.item_id][b.store] || pick(b);
+    out[b.item_id][b.store].backup = { name: String(b.product || ''), size: String(b.size || '') };
   });
   return out;
 }
@@ -1430,7 +1445,32 @@ function answerReview(req) {
   const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : r.type === 'settle_meal' ? settleMealAnswer(r, answer, who) : null;
   const best = r.type === 'bestprice' ? bestPriceAnswer(r, answer, who) : null;
   const voice = r.type === 'voice' ? voiceAnswer(r, answer, who) : null;
-  return { id: r.id, points: pts, why: why, mission: mission, settled: settled, best: best, voice: voice };
+  const subbed = r.type === 'subbed' ? subbedAnswer(r, answer, who) : null;
+  return { id: r.id, points: pts, why: why, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed };
+}
+
+// api 46: "The store sent X instead of Y. Next time?" → the item's substitution rule. A parent's answer only.
+function subbedAnswer(r, answer, who) {
+  if (isKid(who)) return null;
+  const id = (String(r.detail).match(/\((i\d{3,})\)/) || [])[1];
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!id || !a || a === 'skip') return null;
+  const it = readTab(TABS.items).find((x) => x.id === id);
+  if (!it) return null;
+  if (/^that'?s fine|^fine|^ok/.test(a)) { setFields(TABS.items, it._row, { ok_swap: 'Y' }); return { item: id, ok_swap: 'Y' }; }
+  if (/^don'?t sub|^no sub|^never/.test(a)) { setFields(TABS.items, it._row, { ok_swap: 'N' }); return { item: id, ok_swap: 'N' }; }
+  if (/backup/.test(a)) {
+    if (!tab(TABS.products)) return null;
+    ensureColumn(TABS.products, 'backup');
+    const prods = readTab(TABS.products);
+    const sent = prods.find((p) => p.item_id === id && new RegExp('sent as substitute ' + r.id + '\\b').test(String(p.notes || '')));
+    if (!sent) return { item: id, backup: false };
+    prods.filter((p) => p.item_id === id && p.store === sent.store && Number(p.backup) > 0 && p._row !== sent._row)
+      .forEach((p) => setFields(TABS.products, p._row, { backup: Number(p.backup) + 1 }));
+    setFields(TABS.products, sent._row, { backup: 1, notes: String(sent.notes || '') + '; backup (' + who + ')' });
+    return { item: id, store: sent.store, backup: true };
+  }
+  return null;
 }
 
 // Which rule (POINT_RULES key) a card scores under when answered, or '' for no points: "skip" (Don't care),

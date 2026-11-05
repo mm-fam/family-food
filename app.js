@@ -717,6 +717,7 @@
 
   // Sold by the pound (api 45): qty is pounds, in ½ lb steps.
   const canV45 = () => Number(D().api || 0) >= 45;
+  const canV46 = () => Number(D().api || 0) >= 46; // substitution rules + backups
   const byLb = (itemId) => { const it = itemId && itemById(itemId); return !!(it && canV45() && it.sold_by === 'lb'); };
   const lbText = (q) => { const n = Number(q) || 0.5; return (n % 1 ? String(n).replace(/\.5$/, '½').replace(/^0½/, '½') : String(n)) + ' lb'; };
   function rowMeta(r) {
@@ -1434,7 +1435,8 @@
           const stale = pr && (!freshPrice(p) || !likeItem(p));
           return '<div class="buy-row' + (low && low.store === k ? ' best' : '') + '"><span class="store-dot ' + storeOf(k).cls + '"></span>' +
             '<div class="buy-main"><div><b>' + esc(storeOf(k).name) + '</b>' + (p.aisle ? ' <span class="aisle-tag">' + esc(p.aisle) + '</span>' : '') + '</div>' +
-            '<small>' + esc(p.name) + (sizeIfNew(p.name, p.size) ? ' · ' + esc(p.size) : '') + (packCount(p.pack) || packCount(p.name) || packCount(p.size) ? ' · 📦 ' + (packCount(p.pack) || packCount(p.name) || packCount(p.size)) + ' ct' : '') + '</small></div>' +
+            '<small>' + esc(p.name) + (sizeIfNew(p.name, p.size) ? ' · ' + esc(p.size) : '') + (packCount(p.pack) || packCount(p.name) || packCount(p.size) ? ' · 📦 ' + (packCount(p.pack) || packCount(p.name) || packCount(p.size)) + ' ct' : '') + '</small>' +
+            (p.backup && p.backup.name ? '<small class="sub-line">↪ If it’s out: ' + esc(p.backup.name) + '</small>' : '') + '</div>' +
             '<span class="price-val' + (stale ? ' stale' : '') + '">' + (Number(p.price) > 0 && showPrice ? '<b>' + money(p.price) + '</b>' : '') + (pr ? '<small>' + fmtUnit(p) + (likeItem(p) ? '' : '*') + '</small>' : '') + '</span></div>';
         }).join('');
         pk.forEach((k) => {
@@ -1487,13 +1489,14 @@
 
     // Details (store, swaps, how often): parents edit, kids read.
     if (it && sh.d) {
-      const swap = { Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping';
+      const swap = canV46() ? ({ Y: 'store may substitute', N: 'don’t substitute' }[sh.d.ok_swap] || 'ask about substitutes') : ({ Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping');
       more += acc('details', 'Details', esc([sh.d.status || '', swap, sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg' + (opts.length > 4 ? ' seg-grid' : '') + '">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         return '<div class="is-details">' + (sh.fresh && !kid ? '<p class="note fresh-note">✨ New to Poppy. Fill in the brand and size, the aisle, where we get it and how it’s sold, so search, Siri and the carts get it right.</p>' : '') +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
-          '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>' +
+          (canV46() ? '<div><label>If the store is out of it</label>' + seg('ok_swap', [['Y', 'Let the store pick'], ['N', 'Don’t substitute'], ['', 'Ask me']]) + '<p class="note">Claude sets this on each line of the online cart. A backup we picked (shown under What we buy) comes first. Ask me = the store’s default, and you get a ⚖ Decisions card if it swaps something.</p></div>'
+            : '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>') +
           (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +
           (canTry() ? '<div><label>Open to trying something else?</label>' + seg('open_to_try', [['', 'No, we like it'], ['Y', 'Yes, suggest some']]) + '<p class="note">Yes = Claude looks for other brands and store brands at our stores and asks you in the Inbox (⚖ Decisions). Nothing changes until you say so.</p></div>' : '') +
           '<div><label>How often</label>' + seg('status', [['Always', 'Always'], ['Sometimes', 'Sometimes'], ['Drop', 'Stop buying']]) + '</div>' +
@@ -2466,7 +2469,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still' || (t === 'vote' && voteTiming(r) === 'after')) return 'rate'; // api 35: a vote right after the meal
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }

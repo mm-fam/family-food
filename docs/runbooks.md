@@ -56,7 +56,14 @@ Step-by-step procedures. Read `family-food-system.md` first for the schema.
    - ok_swap `Y` → pick the closest equivalent, note it.
    - ok_swap `N` → skip.
    - blank → skip and ask.
-   Each swap/miss → a Review row (type `swap` or `miss`). Leave the store's per-line substitution setting as it is.
+   Each swap/miss → a Review row (type `swap` or `miss`).
+
+**Substitutions (api 46, Nov 4).** What the store may send if it's out when it shops our order. Rule per item, backups per store:
+- Items `ok_swap`: `Y` = let the store pick (best available), `N` = don't substitute, blank = store default (best available), and a parent gets asked after a swap.
+- Products `backup` (last column; 1, 2, …): our pick of substitute at that store, lowest first. A backup beats ok_swap N (picking one says that one is fine).
+- **Cart builds:** after adding a line (or changing its qty), set that line's own substitution choice: backup 1 → that product as the specific substitute (if the site can't pick it, best available + job note "backup not offered"); else ok_swap N → don't substitute; else leave the default. Never change an account-wide substitution default. Report "🔁 Subs: …".
+- **How each store's control works:** not written yet. The first build that sets one writes it here (where on the cart line, what it's called, the choices).
+- **Order history (§13 steps 10–12):** a line the store substituted, for a Poppy item, with a product that isn't already its exact/likely/backup row at that store → Products row (`alt`, source `sub <date>`, notes `sent as substitute rNNN`) + a parents' `subbed` card: "<Store> sent <X> instead of <Y> (iNNN). Next time? Options: That's fine; Don't substitute; Make it the backup" (one per item per 30 days; ⚖ Decisions). The backend applies the answer right away (That's fine → ok_swap Y; Don't substitute → N; Make it the backup → that row `backup` = 1, other backups move down). Settings `subs_through`: one 30-day look-back the first time.
 5. Set filled rows to `carted`, `cart` = store code, `cart_at` = now. Clear `order_requested`. A product added that isn't in Products yet → add a Products row (`match` = `likely`, source `cart build <date>`).
 6. Hand off: cart total (Giant Eagle has a $35 minimum), then a short list of swaps, misses and guesses. **Stop there. Never check out.**
 
