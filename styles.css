@@ -948,10 +948,9 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .job-banner.warn { border-color: var(--tgt-edge); }
 
 /* Carts, simplified (Nov 4) */
-.carts-summary { margin: 10px 0 10px; font-size: 15px; font-weight: 600; }
-.carts-summary.cs-ok { color: var(--accent-deep); }
-.carts-summary.cs-run { color: var(--accent-deep); }
-.carts-summary.cs-off, .carts-summary.cs-fail { color: #8A1C1C; }
+.carts-summary { margin: 8px 0 12px; font-size: 14px; font-weight: 500; color: var(--muted); }
+.carts-summary .cdot { width: 8px; height: 8px; margin-right: 6px; vertical-align: 1px; }
+.carts-summary.cs-fail { color: #8A1C1C; }
 .cdot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 8px; vertical-align: 1px; background: var(--wf-edge); }
 .cdot.cd-wait, .cdot.cd-run { background: #E0A100; }
 .cdot.cd-fail { background: var(--tgt-edge); }

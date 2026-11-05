@@ -1673,11 +1673,11 @@
     const si = Number(D().api || 0) >= 42 ? signinState() : { out: [] };
     const last = jobs().find((j) => j.store === code && (j.status === 'done' || j.status === 'failed'));
     if (open.some((j) => j.status === 'running')) return { cls: 'run', text: '🔄 Updating now' };
-    if (si.out.indexOf(code) >= 0 && !open.length) return { cls: 'fail', text: 'Signed out on the home computer' };
+    if (si.out.indexOf(code) >= 0 && !open.length) return { cls: 'fail', text: 'Signed out on the laptop' };
     const todo = [];
     if (r.going.length) todo.push(r.going.length + ' to add');
     if (r.leaving.length) todo.push(r.leaving.length + ' to take out');
-    if (open.length) return { cls: 'wait', text: '⏳ ' + (todo.join(', ') || 'Waiting to re-read') };
+    if (open.length) return { cls: 'wait', text: '⏳ ' + (todo.join(', ') || (open.every((j) => j.kind === 'check') ? 'Waiting to re-read' : 'Waiting to update')) };
     if (todo.length) return { cls: 'wait', text: '⏳ ' + todo.join(', ') + ' (not sent yet)' };
     if (last && last.status === 'failed') return { cls: 'fail', text: last.result || 'Last update didn’t work' };
     if (r.failed.length) return { cls: 'fail', text: r.failed.length + ' couldn’t be added' };
@@ -1690,14 +1690,15 @@
     const running = CART_STORES.some((k) => states[k].cls === 'run') || signinJobs().some((j) => j.status === 'running');
     const fail = CART_STORES.filter((k) => states[k].cls === 'fail');
     const big = (D().cartJobs || []).find((j) => j.kind === 'all' && JOB_OPEN.indexOf(j.status) >= 0);
-    if (big && big.status === 'running') return { cls: 'run', text: '💻 Working on the laptop: carts first, then order history and prices. Keep it awake ~30 min.' };
-    if (big && !hs.ok) return { cls: 'off', text: '💤 Waiting for the laptop: open it with Chrome and it starts within a minute.' };
-    if (big) return { cls: 'run', text: '💻 Starting on the laptop within a minute…' };
-    if (busy.length && !running && !hs.ok && !hs.never) return { cls: 'off', text: hs.chrome ? '💤 Chrome is closed on the home computer. Updates start when it’s open.' : '💤 The home computer is asleep. Updates wait until it’s on.' };
-    if (busy.length) return { cls: 'run', text: '🔄 Updating carts… ' + (CART_STORES.length - busy.length) + ' of ' + CART_STORES.length + ' done' };
-    if (fail.length === 1) return { cls: 'fail', text: '⚠ ' + storeOf(fail[0]).name + ': ' + states[fail[0]].text.charAt(0).toLowerCase() + states[fail[0]].text.slice(1) };
-    if (fail.length) return { cls: 'fail', text: '⚠ ' + fail.map((k) => storeOf(k).name).join(', ') + ' need a look' };
-    return { cls: 'ok', text: '✓ All carts up to date' };
+    const asleep = !hs.ok && !hs.never;
+    const nap = hs.chrome ? 'Chrome is closed on the laptop · updates run when it’s open' : 'Laptop asleep · updates run when it’s on';
+    if (big && big.status === 'running') return { cls: 'run', text: 'Laptop is working: carts, then order history and prices' };
+    if ((big || busy.length) && !running && asleep) return { cls: 'off', text: nap };
+    if (big) return { cls: 'run', text: 'Starting on the laptop…' };
+    if (busy.length) return { cls: 'run', text: 'Updating carts · ' + (CART_STORES.length - busy.length) + ' of ' + CART_STORES.length + ' done' };
+    if (fail.length === 1) return { cls: 'fail', text: storeOf(fail[0]).name + ': ' + states[fail[0]].text.charAt(0).toLowerCase() + states[fail[0]].text.slice(1) };
+    if (fail.length) return { cls: 'fail', text: fail.map((k) => storeOf(k).name).join(', ') + ' need a look' };
+    return { cls: 'ok', text: 'All carts up to date' };
   }
   function viewCarts() {
     if (S.cartOpen) return viewCartDetail(S.cartOpen);
@@ -1710,10 +1711,9 @@
     const checking = signinJobs().some((j) => JOB_OPEN.indexOf(j.status) >= 0);
     let html = '<section class="card carts-total"><div class="ct-label">All carts</div><div class="ct-money">' + (known.length ? fmtMoney(sum) : '—') + '</div>' +
       '<div class="cart-sub">' + items + ' item' + (items === 1 ? '' : 's') + '</div>' +
-      '<div class="carts-summary cs-' + sum1.cls + '">' + esc(sum1.text) + '</div>' +
-      (amParent() && Number(D().api || 0) >= 50 ? '<button class="btn btn-primary btn-block" data-act="cart-job" data-kind="all" data-store="ALL"' + (checking ? ' disabled' : '') + '>' + (checking ? '💻 Laptop is on it…' : '💻 Laptop’s on: update everything') + '</button>' +
-        (checking ? '' : '<p class="note carts-btn-note">Carts, sign-ins, order history and prices. Keep the laptop awake about 30 minutes.</p>')
-        : amParent() && Number(D().api || 0) >= 49 ? '<button class="btn btn-outline btn-block" data-act="cart-job" data-kind="signin" data-store="ALL"' + (checking ? ' disabled' : '') + '>' + (checking ? 'Updating all carts…' : '↻ Update all carts') + '</button>' : '') +
+      '<div class="carts-summary cs-' + sum1.cls + '"><span class="cdot cd-' + ({ off: 'wait', run: 'wait' }[sum1.cls] || sum1.cls) + '" aria-hidden="true"></span>' + esc(sum1.text) + '</div>' +
+      (amParent() && Number(D().api || 0) >= 50 ? '<button class="btn btn-primary btn-block" data-act="cart-job" data-kind="all" data-store="ALL">Laptop’s on: update everything</button>' +
+        '<p class="note carts-btn-note">Carts, sign-ins, order history and prices · keep it awake ~30 min</p>' : '') +
       '</section>';
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
@@ -1724,7 +1724,7 @@
         '<div class="cart-sub">' + (t ? (Number(t.lines) || 0) + ' item' + (Number(t.lines) === 1 ? '' : 's') + ' · ' + esc(fmtWhen(t.finished_at || t.at)) : 'Not read yet') + '</div>' +
         (c.text ? '<div class="cart-status st-' + c.cls + '">' + esc(c.text) + '</div>' : '') + '</button>';
     });
-    html += '<p class="hint carts-foot">Claude fills the carts on the home computer. A person always places the order.</p>';
+    html += '<p class="hint carts-foot">Claude fills the carts on the laptop. A person always places the order.</p>';
     return html;
   }
   function viewCartDetail(code) {
@@ -3298,7 +3298,7 @@
         if ((kind === 'signin' || kind === 'all') && Number(D().api || 0) >= 49) CART_STORES.forEach((k) => {
           if (!openJobs(k).some((j) => j.kind === 'check')) D().cartJobs = [{ id: tmpId(), at: new Date().toISOString().slice(0, 19), by: S.me, store: k, kind: 'check', status: 'queued' }].concat(D().cartJobs || []);
         });
-      }, kind === 'all' ? '💻 Thanks! The laptop starts within a minute' : kind === 'signin' ? 'Updating all 4 carts' : kind === 'check' ? 'Cart check queued' : 'Cart build queued');
+      }, kind === 'all' ? 'Got it. The laptop starts within a minute when it’s on' : kind === 'signin' ? 'Updating all 4 carts' : kind === 'check' ? 'Cart check queued' : 'Cart build queued');
     },
     'open-me': () => { S.sheet = { type: 'me' }; render(); },
     'cart-open': (el) => { S.cartOpen = el.dataset.store || ''; S.tab = 'carts'; store.set('ff_tab', 'carts'); S.sheet = null; render(); window.scrollTo(0, 0); },
