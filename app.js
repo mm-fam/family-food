@@ -876,14 +876,32 @@
   }
 
   // At home a tap opens the item screen. Only In-store mode checks things off.
-  function listRow(r) {
+  // A cart line's price (Nov 5, owner: "cart total at the top but no price at the item level"): the store's
+  // latest price for the product we buy there (Products, written by every cart build/check and the price pass) × qty.
+  // Sold by the pound: price is per lb, qty is pounds. null when that store has no price for it yet.
+  function linePrice(r, code) {
+    const p = ((D().products || {})[r.item_id] || {})[code];
+    const each = p ? Number(p.price) : 0;
+    if (!(each > 0)) return null;
+    const lb = byLb(r.item_id);
+    const q = lb ? (Number(r.qty) || 0.5) : Math.max(1, Math.round(Number(r.qty) || 1));
+    const age = p.price_at ? (Date.now() - new Date(String(p.price_at).replace(/^'/, '').slice(0, 10) + 'T12:00').getTime()) / 864e5 : 99;
+    return { total: each * q, each: each, qty: q, lb: lb, sale: p.sale === 'Y', old: !(age <= 14) };
+  }
+  function linePriceHtml(r, code) {
+    const lp = linePrice(r, code);
+    if (!lp) return '<span class="line-price none" title="No price from the store yet">—</span>';
+    const sub = lp.lb ? fmtMoney(lp.each) + '/lb' : lp.qty > 1 ? lp.qty + ' × ' + fmtMoney(lp.each) : (lp.sale ? 'sale' : '');
+    return '<span class="line-price' + (lp.old ? ' old' : '') + '" title="' + (lp.old ? 'Price from more than 2 weeks ago' : 'Latest store price') + '"><b>' + fmtMoney(lp.total) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>';
+  }
+  function listRow(r, priceAt) {
     const meta = rowMeta(r);
     const tag = mealTag(r);
     const only = onlyAt(r) ? storeMark(r) : '';
     const cart = cartTag(r);
     const price = r.status === 'needed' ? priceTag(r) : '';
     return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + (only ? '' : storeMark(r)) + esc(r.name) + fridgeTag(r.item_id) + '</span>' +
-      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag || only || cart || price ? '<span class="tags">' + cart + only + tag + price + '</span>' : '') + '</button>' + whoHtml(r) + '</div>';
+      (meta.length ? '<span class="row-meta">' + meta.join(' · ') + '</span>' : '') + (tag || only || cart || price ? '<span class="tags">' + cart + only + tag + price + '</span>' : '') + '</button>' + whoHtml(r) + (priceAt ? linePriceHtml(r, priceAt) : '') + '</div>';
   }
 
   // Just taken off: crossed out for a few seconds with Undo.
@@ -1820,11 +1838,14 @@
     }
     html += '</section>';
     const sect = (label, rows, empty) => rows.length ? '<section class="card"><div class="card-head">' + label + ' · ' + rows.length + '</div>' +
-      rows.slice().sort((a, b) => groupOf(a).localeCompare(groupOf(b)) || String(a.name).localeCompare(String(b.name))).map(listRow).join('') + '</section>' : (empty || '');
+      rows.slice().sort((a, b) => groupOf(a).localeCompare(groupOf(b)) || String(a.name).localeCompare(String(b.name))).map((x) => listRow(x, code)).join('') + '</section>' : (empty || '');
     html += sect('⏳ GOING IN', r.going);
     html += sect('🛒 IN THE CART', r.in, '<div class="empty">Nothing in the ' + esc(st.name) + ' cart that Poppy knows about.' + (kid ? '' : ' Check the cart reads what’s really there.') + '</div>');
     html += sect('⏳ COMING OUT', r.leaving);
     html += sect('⚠ COULDN’T ADD', r.failed);
+    const lined = r.in.concat(r.going);
+    const unpriced = lined.filter((x) => !linePrice(x, code)).length;
+    if (lined.length) html += '<p class="hint">Item prices are ' + esc(st.name) + '’s latest price for what we buy, times the quantity; the total at the top is the cart’s own.' + (unpriced ? ' ' + unpriced + ' without a price yet (—) get one on the next update.' : '') + '</p>';
     html += '<p class="hint">Tap an item to take it out, move it to another store’s cart, or see why it wasn’t added. Things someone put in on the store’s own site show up after a check.</p>';
     return html;
   }

@@ -996,3 +996,10 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 /* api 55: 🔎 Have the girls check + who's checking what. */
 .miss-send { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0 4px; }
 .miss-chk { font-size: 12px; opacity: 0.85; white-space: nowrap; }
+
+/* Cart line prices (Nov 5): right-hand column on a store's cart screen. */
+.line-price { flex: none; display: flex; flex-direction: column; align-items: flex-end; min-width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+.line-price b { font-size: 15px; font-weight: 600; }
+.line-price small { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.line-price.old b { color: var(--muted); font-weight: 500; }
+.line-price.none { color: var(--muted); font-size: 15px; }
