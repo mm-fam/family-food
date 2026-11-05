@@ -1993,7 +1993,7 @@
   function mealMatch(m, q) {
     const words = normQ(q).split(/\s+/).filter(String);
     if (!words.length) return 1;
-    const name = normQ(m.name);
+    const name = normQ(m.name + ' ' + String(m.old_names || '').replace(/;/g, ' ')); // old names still find it (api 47)
     const ings = mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => normQ([i.name, i.brand_size, i.aliases].join(' '))).join(' ');
     const hay = name + ' ' + ings;
     if (!words.every((w) => hay.indexOf(w) >= 0)) return 0;
@@ -2041,10 +2041,16 @@
     return h;
   }
 
+  // A name that starts with its own emoji (Nov 4: catchy emoji names) doesn't get the 🥣 / 🥪 / 🍎 kind icon too;
+  // its kind shows as a small tag instead.
+  const startsWithEmoji = (t) => /^\p{Extended_Pictographic}/u.test(String(t || '').trim());
   function mealRow(m) {
-    return '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (featureOf(m) ? '<span class="hero-star" title="' + esc(featureOf(m).badge) + '">🌟</span>' : '') + (canSlots() && kindOf(m) !== 'dinner' ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
+    const showKind = canSlots() && kindOf(m) !== 'dinner';
+    const ownEmoji = startsWithEmoji(m.name);
+    const tags = (showKind && ownEmoji ? ['<span class="stat-tag kind">' + esc(slotLabel(kindOf(m))) + '</span>'] : []).concat(mealTags(m));
+    return '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (featureOf(m) ? '<span class="hero-star" title="' + esc(featureOf(m).badge) + '">🌟</span>' : '') + (showKind && !ownEmoji ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
       '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span>' +
-      (mealTags(m).length ? '<span class="tags">' + mealTags(m).join('') + '</span>' : '') + '</button></div>';
+      (tags.length ? '<span class="tags">' + tags.join('') + '</span>' : '') + '</button></div>';
   }
 
   // Favorites view (owner, Nov 4: "not all meals are created equal"): the list in sections by the family's rating,
@@ -2374,7 +2380,7 @@
     const id = (d.match(/\((m\d{2,})\)/) || [])[1];
     if (id) return id;
     const n = ((d.match(/about (.+?)\?/) || [])[1] || '').toLowerCase();
-    const m = n && (D().meals || []).find((x) => String(x.name).toLowerCase() === n);
+    const m = n && (D().meals || []).find((x) => String(x.name).toLowerCase() === n || String(x.old_names || '').split(';').some((o) => o.trim().toLowerCase() === n));
     return m ? m.id : '';
   }
   // 'after' = had it in the last 2 days, 'held' = planned from today on, 'new' = never had, 'had' = had before.

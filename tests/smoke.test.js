@@ -146,3 +146,21 @@ test('substitutions: backups show per store; subbed answers set the rule (api 46
   const col = p[0].indexOf('backup');
   assert.strictEqual(Number(p.find((x) => x[2] === 'Horizon Organic Whole Milk')[col]), 2);
 });
+
+test('a renamed meal keeps its name-only votes (api 47)', () => {
+  const t = tabs();
+  const vote = (id, ans) => [id, '2026-11-01', 'vote', 'Dinner vote: how do you feel about Pancakes? Options: 😍; 🙂; 😐; 👎', 'answered', ans, '', '', '', '', '', '', '2026-11-01', '', '', '', ''];
+  t.Review.push(vote('r901', '😍 (Pat)'), vote('r902', '👎 (Kim)'));
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  let s = b.call({ action: 'state', pass: PASS, by: 'Pat' }).state;
+  assert.strictEqual(Object.keys(s.mealStats.m01.voters).length, 2);
+  const m = s.meals.find((x) => x.id === 'm01');
+  const r = b.call({ action: 'mealSave', pass: PASS, by: 'Pat', id: 'm01', name: '🥞 Pancake Party', item_ids: String(m.item_ids).split(';'), kind: 'breakfast' });
+  assert.strictEqual(r.ok, true, r.error);
+  const after = r.state.meals.find((x) => x.id === 'm01');
+  assert.strictEqual(after.name, '🥞 Pancake Party');
+  assert.strictEqual(after.old_names, 'Pancakes');
+  assert.deepStrictEqual(r.state.mealStats.m01.voters, { Pat: '😍', Kim: '👎' });
+  // A kid can't rename.
+  assert.ok(b.call({ action: 'mealSave', pass: PASS, by: 'Kim', id: 'm01', name: 'x', item_ids: [] }).error);
+});

@@ -249,7 +249,10 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      `subbed` cards (parents; the runner writes them when an order came with a substitution, plus an alt Products
 //      row noted `sent as substitute rNNN`): That's fine → ok_swap Y; Don't substitute → ok_swap N; Make it the
 //      backup → that Products row gets backup 1 (others move down).
-const API_VERSION = 46;
+// 47 = meal old names (Nov 4, owner: catchy emoji meal names): Meals `old_names` (`;` separated, at the end of the
+//      tab) = names a meal had before. Old vote / rate cards matched by name (no (mNN)) still count after a rename;
+//      mealSave keeps the previous name there when a parent renames a meal. The app's meal search reads it too.
+const API_VERSION = 47;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd'];
@@ -1092,6 +1095,14 @@ function saveMeal(req) {
     const f = { name: req.name || existing.name, item_ids: ids, notes: req.notes || existing.notes };
     if (req.kind && headers(TABS.meals).indexOf('kind') >= 0) f.kind = String(req.kind).toLowerCase();
     if (req.meat_qty !== undefined) { f.meat_qty = meatQtyField(req.meat_qty); ensureColumn(TABS.meals, 'meat_qty'); }
+    // A rename keeps the old name (api 47), so name-only vote cards and searches still find the meal.
+    const was = String(existing.name || '').trim();
+    if (req.name && was && String(req.name).trim() !== was) {
+      const olds = String(existing.old_names || '').split(';').map((x) => x.trim()).filter(String);
+      if (olds.map((x) => x.toLowerCase()).indexOf(was.toLowerCase()) < 0) olds.push(was);
+      ensureColumn(TABS.meals, 'old_names');
+      f.old_names = olds.join('; ');
+    }
     setFields(TABS.meals, existing._row, f);
     return { id: existing.id };
   }
@@ -1725,6 +1736,7 @@ function mealStats(meals, today) {
   // Votes: "Dinner vote: how do you feel about <name>? (mNN)". Latest answer per person wins.
   const byName = {};
   meals.forEach((m) => (byName[String(m.name).toLowerCase()] = m.id));
+  meals.forEach((m) => String(m.old_names || '').split(';').map((x) => x.trim().toLowerCase()).filter(String).forEach((n) => { if (!byName[n]) byName[n] = m.id; }));
   readTab(TABS.review).forEach((r) => {
     if ((String(r.type) !== 'vote' && String(r.type) !== 'rate') || !r.answer) return;
     const d = String(r.detail);

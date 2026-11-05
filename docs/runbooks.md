@@ -152,7 +152,7 @@ The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it on
 
 **When:** the daily morning check, or when someone says an idea came in. Read Meal Ideas rows with status `new`.
 
-1. Read the text (a recipe, a link, or just an idea). Pick a short meal name the family would say ("Tuscan chicken linguine").
+1. Read the text (a recipe, a link, or just an idea). Name it in the house style (owner, Nov 4): one emoji, then a short, catchy name that keeps the main food words the family would say ("🍝 Tuscan Chicken Linguine", "🌯 Crunchy Burrito Roll-Ups"). A name the person gave ("Dad's …") stays in it. Vote cards use the full new name plus `(mNN)`.
 2. If a meal with that name (or clearly the same dish) already exists, don't duplicate it: set the idea `done`, `meal_id` = that meal, notes "Already in Our meals".
 3. **Idea from a parent:** add a Meals row (next free `mNN`): `item_ids` = only catalog items that clearly match an ingredient (prefer what the family already buys); `notes` = "From <who>'s idea <date>." + "Not in the catalog yet: …" for unmatched ingredients + the link if there was one. Never create Items from an idea; unmatched ingredients wait for receipts or a parent. Then set the idea `done` and `meal_id`.
 4. **Idea from a kid:** add one Ask card to the parents: `<who> suggested <name>. Add it to Our meals? (xNNN) Options: Yes; No`. Set the idea `asked`. On Yes, do step 3; on No, set it `declined` with notes "A parent said not now".
@@ -165,7 +165,7 @@ The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it on
 
 Design and the full steps: `docs/hearth.md`.
 
-- **Hearth → Poppy** (a screenshot of the Hearth Meal Plan): read every day × Breakfast / Lunch / Snack / Dinner cell; match to Meals or add new ones (kind = the row; link only catalog items the name clearly names; never complete cut-off names or create Items); write Plan rows with slot (and note `Leftovers` for leftover cells). Hearth wins for that date + slot. Back up first above ~20 rows.
+- **Hearth → Poppy** (a screenshot of the Hearth Meal Plan): read every day × Breakfast / Lunch / Snack / Dinner cell; match to Meals (by name, ignoring the leading emoji, or by Meals `old_names`) or add new ones (named in the §8 house style) (kind = the row; link only catalog items the name clearly names; never complete cut-off names or create Items); write Plan rows with slot (and note `Leftovers` for leftover cells). Hearth wins for that date + slot. Back up first above ~20 rows.
 - **Poppy → Hearth:** Meals → THIS WEEK → **→ Hearth** → week → Copy → paste into Hearth Helper → approve its preview.
 
 ## 10. Family feedback and automatic cards (api 9)
