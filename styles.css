@@ -919,3 +919,9 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .is-best { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .is-best > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; background: var(--line-soft); font-size: 13px; }
 .is-best > span.best { background: var(--accent-soft); color: var(--accent-deep); }
+
+/* Meal card: edit ingredients in place (Nov 4) */
+.ing-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ing-x { flex: none; width: 32px; height: 32px; border: 0; border-radius: 999px; background: var(--line-soft); color: var(--muted); font-size: 13px; }
+.ing-add { position: relative; margin: 8px 0 10px; }
+.ing-add .field { width: 100%; }

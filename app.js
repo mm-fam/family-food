@@ -2087,6 +2087,24 @@
     }).join('') + '</section>';
   }
 
+  // "+ Add an ingredient" on the meal card: search what we buy (every word must match), tap to add; or add it as a new item.
+  function mealCardIngAdd(sh, ids) {
+    const q = String(sh.iq || '').trim();
+    const found = q ? findItems(q, D().items.filter((i) => i.status !== 'Drop')) : { all: false, hits: [] };
+    const hits = (found.all ? searchItems(q, 6) : []).filter((i) => ids.indexOf(i.id) < 0);
+    const exact = q && D().items.some((i) => String(i.name).toLowerCase() === q.toLowerCase());
+    return '<div class="ing-add"><label class="sr" for="mc-iq">Add an ingredient</label>' +
+      '<input id="mc-iq" class="field" type="search" data-input="draft" data-field="iq" value="' + esc(sh.iq || '') + '" placeholder="＋ Add an ingredient…" autocomplete="off" enterkeyhint="search">' +
+      (q ? '<div class="suggest suggest-inline">' +
+        (hits.length ? '' : '<div class="s-none">Nothing we buy matches “' + esc(q) + '”.</div>') +
+        hits.map((h) => '<button type="button" data-act="mc-ing-add" data-id="' + h.id + '"><span class="s-name">' + esc(h.name) + '</span><span class="s-meta">' + esc([h.brand_size, storeOf(h.store).name].filter(String).join(' · ')) + '</span></button>').join('') +
+        (exact ? '' : '<button type="button" class="s-new" data-act="mc-ing-new"' + (sh.creating ? ' disabled' : '') + '><span class="add-btn" aria-hidden="true">+</span><span class="s-name">' + (sh.creating ? 'Adding “' + esc(q) + '”…' : 'Add “' + esc(q) + '” as a new item') + '</span></button>') +
+        '<button type="button" class="s-close" data-act="mc-ing-clear">Close</button></div>' : '') + '</div>';
+  }
+  function saveMealIngredients(m, ids, msg, undo) {
+    act('mealSave', { id: m.id, name: m.name, item_ids: ids, kind: kindOf(m) }, () => { m.item_ids = ids.join(';'); }, msg, undo);
+  }
+
   // The meal card: plan it on a night, its ingredients, its stats, edit.
   function viewMealCard(sh) {
     const m = mealById(sh.id);
@@ -2129,11 +2147,16 @@
 
     const ids = mealItems(m).filter((id) => itemById(id));
     const need = ids.filter((id) => !listRowFor(id));
+    // Parents edit ingredients right here (Nov 4, Mike): ✕ takes one off, the box below adds one (or a new item).
+    // Each change saves at once; no trip through Edit meal.
+    const canEditIng = amParent();
     h += '<div class="is-block"><div class="is-label">Ingredients</div>' + (ids.length
       ? (meatQty(m) > 1 && ids.some(isMeat) ? '<div class="meat-more">🍗 Making more: ' + meatQty(m) + ' of each meat go on the List</div>' : '') +
-        '<ul class="is-notes">' + ids.map((id) => '<li>' + esc(itemById(id).name) + (meatQty(m) > 1 && isMeat(id) ? ' <b>×' + meatQty(m) + '</b>' : '') + (listRowFor(id) ? ' <span class="tag tag-listed">On list</span>' : '') + '</li>').join('') + '</ul>' +
-        (isKid(S.me) ? '' : need.length ? '<button class="btn btn-outline btn-block" data-act="meal-add-all" data-id="' + m.id + '">Add ' + need.length + ' to the List</button>' : '<p class="note">Everything is on the List already.</p>')
-      : '<p class="note">No ingredients linked yet.</p>') + '</div>';
+        '<ul class="is-notes ing-list">' + ids.map((id) => '<li><span>' + esc(itemById(id).name) + (meatQty(m) > 1 && isMeat(id) ? ' <b>×' + meatQty(m) + '</b>' : '') + (listRowFor(id) ? ' <span class="tag tag-listed">On list</span>' : '') + '</span>' +
+          (canEditIng ? '<button type="button" class="ing-x" data-act="mc-ing-remove" data-id="' + id + '" aria-label="Take ' + esc(itemById(id).name) + ' off this meal">✕</button>' : '') + '</li>').join('') + '</ul>'
+      : '<p class="note">' + (canEditIng ? 'No ingredients yet. Add them below.' : 'No ingredients linked yet.') + '</p>') +
+      (canEditIng ? mealCardIngAdd(sh, ids) : '') +
+      (ids.length && !isKid(S.me) ? (need.length ? '<button class="btn btn-outline btn-block" data-act="meal-add-all" data-id="' + m.id + '">Add ' + need.length + ' to the List</button>' : '<p class="note">Everything is on the List already.</p>') : '') + '</div>';
     if (m.notes) h += '<div class="is-block"><div class="is-label">Notes</div><p class="is-fact">' + esc(m.notes) + '</p></div>';
     if (!kidAsks) h += '<div class="is-actions"><button class="btn btn-plain" data-act="edit-meal" data-id="' + m.id + '">Edit meal</button></div>';
     return h;
@@ -2310,9 +2333,9 @@
     if (!m) return { q: String(detail || ''), opts: [] };
     return { q: m[1], opts: m[2].split(';').map((o) => o.trim()).filter(String) };
   }
-  const isTypeOpt = (o) => /type it|^other$/i.test(o);
+  const isTypeOpt = (o) => /\(type[^)]*\)|type it|^other$/i.test(o); // "Other (type it)", "Fix some (type which)"…
   const isSkipOpt = (o) => /^don.?t care$/i.test(o);
-  const cleanOpt = (o) => o.replace(/\s*\(type it\)/i, '');
+  const cleanOpt = (o) => o.replace(/\s*\(type[^)]*\)/i, '');
 
   // The card's control comes from its options, so Claude picks the interaction by how it words them:
   //   Yes; No            -> yes/no (big buttons, swipe right = yes, left = no)
@@ -3036,6 +3059,30 @@
     'slot-item': (el) => { const sh = S.sheet; sh.find = null; sh.fq = ''; planSlotItem(sh.day, el.dataset.slot, el.dataset.id); },
     'slot-find-close': () => { S.sheet.find = null; S.sheet.fq = ''; render(); },
     'ing-clear': () => { S.sheet.q = ''; render(); },
+    // Meal card ingredients (parents): add / take off / new item, saved right away.
+    'mc-ing-add': (el) => {
+      const m = mealById(S.sheet.id); const it = itemById(el.dataset.id); if (!m || !it) return;
+      const ids = mealItems(m).filter((x) => x !== it.id).concat([it.id]);
+      S.sheet.iq = ''; saveMealIngredients(m, ids, 'Added ' + it.name);
+      const f = document.getElementById('mc-iq'); if (f) f.focus();
+    },
+    'mc-ing-remove': (el) => {
+      const m = mealById(S.sheet.id); const it = itemById(el.dataset.id); if (!m) return;
+      const before = mealItems(m);
+      saveMealIngredients(m, before.filter((x) => x !== el.dataset.id), 'Took ' + (it ? it.name : 'it') + ' off', () => saveMealIngredients(m, before, 'Put back'));
+    },
+    'mc-ing-clear': () => { S.sheet.iq = ''; render(); },
+    'mc-ing-new': async () => {
+      const sh = S.sheet; const name = String(sh.iq || '').trim(); const m = mealById(sh.id);
+      if (!name || !m || sh.creating) return;
+      sh.creating = true; render();
+      try {
+        const j = await api('itemSave', { fields: { name: name, store: 'Either' } });
+        const id = j && j.result && j.result.id;
+        if (id) { sh.iq = ''; const mm = mealById(m.id) || m; saveMealIngredients(mm, mealItems(mm).filter((x) => x !== id).concat([id]), 'Added ' + name + ' (new item)'); }
+      } catch (e) { handleError(e); }
+      sh.creating = false; render();
+    },
     // A new catalog item straight from the meal editor (itemSave without an id creates one).
     'ing-new': async () => {
       const sh = S.sheet; const name = String(sh.q || '').trim();
@@ -3310,7 +3357,7 @@
     if (kind === 'draft' && S.sheet) {
       S.sheet[el.dataset.field] = el.value;
       // Only the meal search and name-gated Save buttons need a redraw while typing.
-      if (el.dataset.field === 'q' || el.dataset.field === 'name' || el.dataset.field === 'fq') render();
+      if (el.dataset.field === 'q' || el.dataset.field === 'name' || el.dataset.field === 'fq' || el.dataset.field === 'iq') render();
       if (el.dataset.field === 'text') { const b = document.querySelector('[data-act="save-idea"], [data-act="save-feedback"]'); if (b) b.disabled = !el.value.trim(); }
     }
   });
