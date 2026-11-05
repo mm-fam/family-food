@@ -18,7 +18,12 @@ $pass = [uri]::EscapeDataString($cfg.pass)
 # One Claude run at a time. A lock older than 90 minutes is from a run that died.
 $lock = Join-Path $here 'runner.lock'
 if (Test-Path $lock) {
-  if (((Get-Date) - (Get-Item $lock).LastWriteTime).TotalMinutes -lt 90) { exit 0 }
+  if (((Get-Date) - (Get-Item $lock).LastWriteTime).TotalMinutes -lt 90) {
+    # Claude is busy: still check in, so the app doesn't say the computer is asleep mid-run.
+    $c = if (Get-Process -Name chrome -ErrorAction SilentlyContinue) { '1' } else { '0' }
+    try { Invoke-RestMethod -Uri "$api`?action=cartJobsOpen&chrome=$c&pass=$pass" -TimeoutSec 30 | Out-Null } catch { }
+    exit 0
+  }
   Remove-Item $lock -Force
   Log 'Removed a stale lock'
 }

@@ -942,3 +942,13 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .signin-text { font-size: 13px; color: var(--muted); }
 .signins .btn { align-self: flex-start; }
 .job-banner.warn { border-color: var(--tgt-edge); }
+
+/* Carts, simplified (Nov 4) */
+.carts-summary { margin: 10px 0 10px; font-size: 15px; font-weight: 600; }
+.carts-summary.cs-ok { color: var(--accent-deep); }
+.carts-summary.cs-run { color: var(--accent-deep); }
+.carts-summary.cs-off, .carts-summary.cs-fail { color: #8A1C1C; }
+.cdot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 8px; vertical-align: 1px; background: var(--wf-edge); }
+.cdot.cd-wait, .cdot.cd-run { background: #E0A100; }
+.cdot.cd-fail { background: var(--tgt-edge); }
+.carts-foot { text-align: center; margin-top: 4px; }
