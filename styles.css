@@ -980,3 +980,8 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .buy-row.opt-row { grid-template-columns: 1fr auto; }
 .opt-row .buy-main > div { line-height: 1.3; }
 .opt-row .btn-small { margin-top: 6px; padding: 5px 10px; font-size: 13px; min-height: 0; }
+
+/* Recipe sheet (Nov 4) */
+.recipe-bar { position: sticky; top: -1px; z-index: 2; display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 0; background: var(--card); }
+.recipe-tip { margin: 0 0 10px; }
+.recipe-page { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line-soft); margin: 0 0 12px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.08); }

@@ -81,11 +81,11 @@ function render(r) {
   const files = fs.readdirSync(SRC).filter((f) => /^m\d+\.json$/.test(f)).sort();
   const tpl = fs.readFileSync(path.join(DIR, 'card.html'), 'utf8');
   const browser = await chromium.launch();
-  const page = await browser.newPage();
+  const page = await browser.newPage({ viewport: { width: 816, height: 1056 }, deviceScaleFactor: 1.25 });
   const index = {};
   for (const f of files) {
     const r = JSON.parse(fs.readFileSync(path.join(SRC, f), 'utf8'));
-    index[r.id] = { name: r.name, pdf: 'recipes/' + r.id + '.pdf', serves: r.serves || '', minutes: (Number(r.prep) || 0) + (Number(r.cook) || 0), draft: r.draft !== false };
+    index[r.id] = { name: r.name, pdf: 'recipes/' + r.id + '.pdf', img: ['recipes/img/' + r.id + '-1.jpg', 'recipes/img/' + r.id + '-2.jpg'], serves: r.serves || '', minutes: (Number(r.prep) || 0) + (Number(r.cook) || 0), draft: r.draft !== false };
     if (want.length && want.indexOf(r.id) < 0) continue;
     await makeQr(r.id);
     const tmp = path.join(DIR, '.tmp-' + r.id + '.html');
@@ -104,6 +104,10 @@ function render(r) {
     }
     if (fs_ < 7.6) console.warn('⚠ ' + r.id + ' still overflows at the smallest size');
     await page.pdf({ path: path.join(DIR, r.id + '.pdf'), format: 'Letter', printBackground: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } });
+    // Page pictures for the app's recipe sheet (the iPhone home-screen app can't show a PDF with a way back).
+    fs.mkdirSync(path.join(DIR, 'img'), { recursive: true });
+    const pages = await page.$$('.page');
+    for (let i = 0; i < pages.length; i++) await pages[i].screenshot({ path: path.join(DIR, 'img', r.id + '-' + (i + 1) + '.jpg'), type: 'jpeg', quality: 72 });
     fs.unlinkSync(tmp);
     console.log(r.id, 'ok', fs_.toFixed(1) + 'pt');
   }

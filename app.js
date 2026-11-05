@@ -2294,9 +2294,34 @@
   function recipeButton(m) {
     const r = recipeOf(m.id);
     if (!r) return '';
-    return '<a class="btn btn-outline btn-block recipe-btn" href="' + esc(r.pdf) + '?v=' + esc(S.recipes.built || '') + '" target="_blank" rel="noopener">🖨 Recipe card<small>' +
-      esc([r.minutes ? r.minutes + ' min' : '', r.serves ? 'serves ' + r.serves : ''].filter(String).join(' · ')) + ' · open, then print</small></a>';
+    return '<button type="button" class="btn btn-outline btn-block recipe-btn" data-act="open-recipe" data-id="' + esc(m.id) + '">🖨 Recipe card<small>' +
+      esc([r.minutes ? r.minutes + ' min' : '', r.serves ? 'serves ' + r.serves : ''].filter(String).join(' · ')) + ' · see it, print it</small></button>';
   }
+  // The recipe sheet (Nov 4, owner: opening the PDF in the home-screen app left no Share and no way back): page
+  // pictures inside Poppy, Print or share hands the PDF file to the phone's share sheet (Print is in there), ✕ goes back.
+  const recipeUrl = (r) => r.pdf + '?v=' + encodeURIComponent((S.recipes && S.recipes.built) || '');
+  function prefetchRecipe(id) {
+    const r = recipeOf(id); S.recipeFiles = S.recipeFiles || {};
+    if (!r || S.recipeFiles[id]) return;
+    S.recipeFiles[id] = 'loading';
+    fetch(recipeUrl(r)).then((x) => (x.ok ? x.blob() : null)).then((b) => {
+      const name = String(r.name).replace(/^\P{L}+/u, '').replace(/[^\w&' -]+/g, '').trim() || id;
+      S.recipeFiles[id] = b ? new File([b], name + ' recipe card.pdf', { type: 'application/pdf' }) : null;
+      render();
+    }).catch(() => { S.recipeFiles[id] = null; });
+  }
+  function viewRecipeSheet(sh) {
+    const m = mealById(sh.id); const r = recipeOf(sh.id);
+    if (!m || !r) return '<p class="note">That recipe card isn’t here.</p>';
+    const f = S.recipeFiles && S.recipeFiles[sh.id];
+    const v = encodeURIComponent((S.recipes && S.recipes.built) || '');
+    return '<div class="is-head"><div><h2>' + esc(m.name) + '</h2><p class="note">Recipe card · front and back</p></div><button class="x-btn" data-act="recipe-close" aria-label="Back to the meal">✕</button></div>' +
+      '<div class="recipe-bar"><button class="btn btn-primary" data-act="recipe-share"' + (f === 'loading' ? ' disabled' : '') + '>' + (f === 'loading' ? 'Getting the card…' : '🖨 Print or share') + '</button>' +
+      '<button class="btn btn-plain" data-act="recipe-close">‹ Back to the meal</button></div>' +
+      '<p class="note recipe-tip">Print or share opens your phone’s share sheet: pick <b>Print</b>, or AirDrop / Messages.</p>' +
+      (r.img || []).map((src, i) => '<img class="recipe-page" src="' + esc(src) + '?v=' + v + '" alt="' + (i ? 'Back' : 'Front') + ' of the recipe card" loading="lazy">').join('');
+  }
+
 
   function viewMealCard(sh) {
     const m = mealById(sh.id);
@@ -3119,6 +3144,8 @@
         (canIdeas() ? '<button class="link-btn" data-act="feedback-to-meal">Got a meal idea instead? Share it here →</button>' : '');
     }
 
+    if (sh.type === 'recipe') inner = viewRecipeSheet(sh);
+
     if (sh.type === 'meal') {
       // Only items that match every word (no "closest" guesses: Trail Mix used to offer Muffin mix),
       // then always a way out: add it as a new item, or close the list.
@@ -3145,7 +3172,7 @@
         '<div class="sheet-actions"><button class="btn btn-primary" data-act="save-meal"' + (String(sh.name).trim() ? '' : ' disabled') + '>Save</button></div>';
     }
 
-    const hasX = ['item', 'mealcard', 'ideaview', 'day', 'hearth', 'points', 'pushall', 'me'].indexOf(sh.type) >= 0;
+    const hasX = ['item', 'mealcard', 'recipe', 'ideaview', 'day', 'hearth', 'points', 'pushall', 'me'].indexOf(sh.type) >= 0;
     return '<div class="scrim" data-act="close-sheet"><div class="sheet' + (hasX ? ' item-sheet' : '') + '" role="dialog" aria-modal="true">' + inner +
       (hasX ? '' : '<button class="btn btn-plain btn-block" data-act="close-sheet">Cancel</button>') + '</div></div>';
   }
@@ -3305,6 +3332,18 @@
       saveMealIngredients(m, before.filter((x) => x !== el.dataset.id), 'Took ' + (it ? it.name : 'it') + ' off', () => saveMealIngredients(m, before, 'Put back'));
     },
     'mc-ing-clear': () => { S.sheet.iq = ''; render(); },
+    'open-recipe': (el) => { const id = el.dataset.id; if (!recipeOf(id)) return; S.sheet = { type: 'recipe', id: id }; prefetchRecipe(id); render(); },
+    'recipe-close': () => { const id = S.sheet && S.sheet.id; S.sheet = id && mealById(id) ? { type: 'mealcard', id: id } : null; render(); },
+    'recipe-share': async () => {
+      const id = S.sheet && S.sheet.id; const r = recipeOf(id); if (!r) return;
+      const f = S.recipeFiles && S.recipeFiles[id];
+      if (f && f !== 'loading' && navigator.canShare && navigator.canShare({ files: [f] })) {
+        try { await navigator.share({ files: [f], title: f.name }); } catch (e) { if (e && e.name !== 'AbortError') showToast('Couldn’t open the share sheet. Try again.'); }
+        return;
+      }
+      // No file sharing (a computer): open the PDF in a new tab, where the browser can print it.
+      window.open(recipeUrl(r), '_blank', 'noopener');
+    },
     'mc-vote-open': () => { if (S.sheet) { S.sheet.voting = true; render(); } },
     'mc-vote': (el) => {
       const sh = S.sheet; const m = sh && mealById(sh.id); const v = el.dataset.v; if (!m || !VOTE_LABEL[v]) return;
