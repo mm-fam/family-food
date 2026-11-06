@@ -357,3 +357,31 @@ test('catch-up bonus: below the week top score pays 1.5x (at least +1); every po
   b._ss.getSheetByName('Settings')._data.push(['catchup', '1']);
   assert.strictEqual(b.call({ action: 'state', pass: PASS, by: 'Kim' }).state.points.week.Lee, 3);
 });
+
+test('weekly prize: last week winner gets a dessert card; the pick goes on the List as needed (api 59)', () => {
+  const b = fresh();
+  const lastWeek = b.addDays(b.isoDate(new Date()), -7);
+  b._ss.getSheetByName('Settings')._data.find((x) => x[0] === 'points_start')[1] = b.addDays(lastWeek, -7);
+  const rv = rows(b, 'Review'), H = rv[0];
+  const row = (o) => H.map((h) => (o[h] === undefined ? '' : o[h]));
+  rv.push(row({ id: 'r901', created: lastWeek, type: 'check', detail: 'q (i001)', status: 'closed', answer: 'Out (Kim)', audience: 'Kim', answered_at: lastWeek + 'T09:00:00', points: 3, points_to: 'Kim', points_why: 'check' }));
+  let r = b.call({ action: 'state', pass: PASS, by: 'Kim' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.match(r.state.points.prize, /dessert/);
+  const cards = r.state.review.filter((x) => x.type === 'prize');
+  assert.strictEqual(cards.length, 1);
+  assert.strictEqual(cards[0].audience, 'Kim');
+  // Only once a week.
+  b._ss.getSheetByName('Settings')._data.find((x) => x[0] === 'cards_through')[1] = '2000-01-01';
+  r = b.call({ action: 'state', pass: PASS, by: 'Kim' });
+  assert.strictEqual(r.state.review.filter((x) => x.type === 'prize').length, 1);
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: cards[0].id, answer: 'Cookies & cream ice cream (Kim)' });
+  assert.strictEqual(r.ok, true, r.error);
+  const li = r.state.list.find((x) => /cookies & cream/i.test(x.name));
+  assert.ok(li, 'pick is on the List');
+  assert.strictEqual(li.status, 'needed');
+  assert.match(String(li.note), /dessert pick/);
+  // prize off = no line.
+  b._ss.getSheetByName('Settings')._data.push(['prize', 'off']);
+  assert.strictEqual(b.call({ action: 'state', pass: PASS, by: 'Kim' }).state.points.prize, '');
+});

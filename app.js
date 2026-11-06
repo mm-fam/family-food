@@ -2658,6 +2658,7 @@
     if (SECTIONS[sec]) return sec;
     const t = String(r.type || '').toLowerCase(), d = String(r.detail || '');
     if (t === 'helped') return 'helped';
+    if (t === 'prize') return 'due'; // api 59: the winner's dessert pick sits on top
     if (t === 'have_check') return 'decision';
     // For the kids, "Did we get it?" is a mission: go look at home (api 21: their "It's here" goes to a parent).
     if (t === 'settle' && !amParent() && Number(D().api || 0) >= 21) return 'mission';
@@ -2740,6 +2741,7 @@
     if (t === 'have_check') return rulePts('approve');
     if (t === 'helped') return answer === undefined ? rulePts('helped_cooked') : /^cooked/.test(a) ? rulePts('helped_cooked') : /^helped/.test(a) ? rulePts('helped_helped') : 0;
     const sec = sectionOf(r);
+    if (t === 'prize') return rulePts('other');
     if (sec === 'due') return rulePts(r.due_at && new Date() > new Date(String(r.due_at)) ? 'task_late' : 'task');
     if (sec === 'mission') return missionCapped() ? 0 : rulePts('check');
     if (sec === 'settle') return rulePts('settle') || 3;
@@ -2770,7 +2772,7 @@
       '<span class="note">' + (streak ? '🔥 ' + streak + '-day streak' : 'Hit ' + goal + ' today to start a streak') + '</span></div></div>' +
       '<div class="board">' + people.map((p, i) => '<div class="board-p' + (p === me ? ' me' : '') + '"><span class="board-n">' + (winners.indexOf(p) >= 0 ? '👑 ' : '') + esc(p) + '</span><b>' + (P.week[p] || 0) + '</b>' +
         ((P.streak[p] || 0) ? '<span class="board-s">🔥' + P.streak[p] + '</span>' : '') + '</div>').join('') + '</div>' +
-      '<div class="note board-foot">This week’s points (Mon–Sun)' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div>' + catchupLine() + raceLine() +
+      '<div class="note board-foot">This week’s points (Mon–Sun)' + (P.lastWeekWinner ? ' · 👑 last week: ' + esc(P.lastWeekWinner) : '') + '</div>' + (P.prize ? '<div class="note board-foot">🏆 Prize: ' + esc(P.prize) + '</div>' : '') + catchupLine() + raceLine() +
       '<div class="score-links"><button type="button" class="link-btn" data-act="points-open" data-tab="rules">ⓘ How points work</button>' +
       '<button type="button" class="link-btn" data-act="points-open" data-tab="history">📜 Points history</button></div></section>';
   }
@@ -2820,7 +2822,7 @@
       '<h3 class="pr-h">🔥 Streaks</h3>' +
       '<p class="note">Days in a row you hit the daily goal. Today joins your streak once you reach ' + goal + '. Not there yet today? Your streak is safe until midnight. Miss a whole day and it starts over.</p>' +
       '<h3 class="pr-h">🏆 Leaderboard and 👑</h3>' +
-      '<p class="note">The leaderboard adds up points from Monday to Sunday and starts over every Monday. Whoever had the most points last week wears the 👑 all this week; a tie crowns everyone tied. Any prize is up to Mom and Dad.</p>' +
+      '<p class="note">The leaderboard adds up points from Monday to Sunday and starts over every Monday. Whoever had the most points last week wears the 👑 all this week; a tie crowns everyone tied. ' + ((D().points || {}).prize ? '🏆 The prize: <b>' + esc(D().points.prize) + '</b>. On the first open of the week the winner gets a card to make their pick, and it goes straight on the List.' : 'Any prize is up to Mom and Dad.') + '</p>' +
       '<h3 class="pr-h">📜 The record</h3>' +
       '<p class="note">Everything that scores is saved with the time, who got the points, how many, and why. See it in <button type="button" class="link-btn inline" data-act="points-tab" data-tab="history">History</button>. ' + pointsStartLine() + '</p>';
   }

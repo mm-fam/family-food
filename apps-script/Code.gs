@@ -85,6 +85,15 @@ function catchup() {
   const m = settingsMap().catchup === undefined || settingsMap().catchup === '' || isNaN(v) ? CATCHUP : v;
   return m > 1 ? m : 0;
 }
+// Weekly prize (api 59, owner Nov 5): last week's winner picks the family dessert for this week. Settings prize = the
+// line the scoreboard shows ('off' = no prize line and no card). The card (type prize) goes to each winner on the first
+// app open of the week; the answer goes on the List as needed (a kid's pick too: it's the prize, no approval).
+const PRIZE_DEFAULT = 'Winner picks the family dessert for the next week 🍨';
+const PRIZE_EXPIRE_DAYS = 6;
+function prizeText() {
+  const v = String(settingsMap().prize || '').trim();
+  return /^off$/i.test(v) ? '' : v || PRIZE_DEFAULT;
+}
 function boosted(pts, m) { return m && pts > 0 ? Math.max(pts + 1, Math.floor(pts * m)) : pts; }
 function missionCap() {
   const v = settingsMap().mission_cap;
@@ -311,7 +320,12 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      default (QUICK_CAP / MISSION_CAP 0; Settings quick_cap / mission_cap still work). Instead anyone below the
 //      week's top score when they score gets 1.5× (at least +1; Settings catchup, 1 or 0 = off), worked out in time
 //      order in scoredEvents. state.points.catchup / behind; pointsLog entries carry bonus.
-const API_VERSION = 58;
+// 59 = weekly prize (Nov 5, owner: "Winner picks a family dessert for the upcoming week"): Settings prize (default
+//      "Winner picks the family dessert for the next week 🍨", off = none) → state.points.prize; on the first app open
+//      of each week, last week's winner(s) get a type prize card ("pick the family dessert", text answer, closes after
+//      6 days; Settings prize_week guards once a week). The answer goes on the List as needed with note
+//      "🏆 <name>'s dessert pick" (no approval). Scores like any card (1, plus catch-up).
+const API_VERSION = 59;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk'];
@@ -1519,6 +1533,19 @@ function settleOrderAnswer(r, answer, who) {
   return { store: st };
 }
 
+// The winner's dessert pick goes on the List as needed (no approval: it's the prize), noted as the pick.
+function prizeAnswer(r, answer, who) {
+  const pick = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim();
+  if (!pick || /^skip$/i.test(pick)) return null;
+  const res = addToList({ name: pick.slice(0, 80), by: who, note: '🏆 ' + who + '’s dessert pick', group: 'Snacks', _noPoints: true });
+  if (res && res.id) {
+    const row = readTab(TABS.list).find((x) => x.id === res.id);
+    if (row && row.status === 'requested') setFields(TABS.list, row._row, { status: 'needed', updated_at: nowStamp() });
+    if (row && res.merged && !/dessert pick/.test(String(row.note || ''))) setFields(TABS.list, row._row, { note: (row.note ? row.note + ' · ' : '') + '🏆 ' + who + '’s dessert pick' });
+  }
+  return res;
+}
+
 function answerReview(req) {
   const r = readTab(TABS.review).find((x) => x.id === req.id);
   if (!r) throw new Error('Review item not found');
@@ -1532,6 +1559,7 @@ function answerReview(req) {
     points: pts, points_to: r.type === 'helped' ? String(r.points_to || '') : who, points_why: why,
   });
   const mission = r.type === 'check' ? missionAnswer(r, answer, who) : null;
+  if (r.type === 'prize') prizeAnswer(r, answer, who);
   if (r.type === 'have_check') haveCheckAnswer(r, answer, who);
   const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : r.type === 'settle_meal' ? settleMealAnswer(r, answer, who) : null;
   const best = r.type === 'bestprice' ? bestPriceAnswer(r, answer, who) : null;
@@ -1870,7 +1898,7 @@ function pointsSummary(today) {
   const monday = addDays(today, -((dow + 6) % 7));
   const lastMonday = addDays(monday, -7);
   const sum = (m, a, b) => Object.keys(m).reduce((t, d) => t + (d >= a && d <= b ? m[d] : 0), 0);
-  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: pointRulesOut(), start: pointsStart(), quickCap: quickCap(), quickToday: {}, missionCap: missionCap(), missionToday: {}, catchup: catchup(), behind: {} };
+  const out = { goal: goal, today: {}, week: {}, streak: {}, weekStart: monday, lastWeekWinner: '', rules: pointRulesOut(), start: pointsStart(), quickCap: quickCap(), quickToday: {}, missionCap: missionCap(), missionToday: {}, catchup: catchup(), behind: {}, prize: prizeText() };
   let best = 0;
   everyone.forEach((p) => {
     const m = byDay[p];
@@ -2239,10 +2267,23 @@ function dailyCards() {
     review.forEach((r) => {
       const age = r.created ? daysBetween(String(r.created).slice(0, 10), today) : 0;
       if (r.status === 'open' && ((r.type === 'rate' && age > RATE_EXPIRE_DAYS) || (r.type === 'helped' && age > HELPED_EXPIRE_DAYS) ||
-        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || (r.type === 'pick' && age > PICK_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal') && age > SETTLE_EXPIRE_DAYS))) {
+        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || (r.type === 'pick' && age > PICK_EXPIRE_DAYS) || (r.type === 'prize' && age > PRIZE_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal') && age > SETTLE_EXPIRE_DAYS))) {
         setFields(TABS.review, r._row, { status: 'closed' });
       }
     });
+
+    // 🏆 Weekly prize (api 59): last week's winner(s) pick this week's family dessert, once per week.
+    if (prizeText()) {
+      const ps = pointsSummary(today);
+      if (ps.lastWeekWinner && String(st.prize_week || '').slice(0, 10) !== ps.weekStart) {
+        ensureColumn(TABS.review, 'due_at');
+        String(ps.lastWeekWinner).split(' + ').map((x) => x.trim()).filter(String).forEach((w) => add({
+          type: 'prize', audience: w, asked_by: 'Poppy',
+          detail: '🏆 You won last week! Your prize: pick the family dessert for this week. What should it be? (Type it: it goes straight on the List.)',
+        }));
+        setSetting('prize_week', "'" + ps.weekStart);
+      }
+    }
 
     // How was it?
     const meals = readTab(TABS.meals);
