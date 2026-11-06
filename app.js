@@ -905,6 +905,135 @@
     const save = (Number(b.unit_price) - Number(c.unit_price)) * amount;
     return pct >= PRICE_MIN_PCT && save >= PRICE_MIN_SAVE ? { store: c.store, pct: pct, save: save } : null;
   }
+  /* Week price tag + a cheaper week (Mom's 💡 idea, Nov 6: "tell us the price tag of the week and then offer
+     suggestions for a cheaper week, in case we need it"). App only, from Products shelf prices (api 23):
+     every ingredient of the week's planned meals and planned items counted once for the week (garlic in three
+     meals is one buy), one package each (meats × the meal's meat_qty), at the store we usually buy it, else the
+     cheapest like item. Pantry staples, dropped items and delivery boxes (Wildgrain) are left out. A rough
+     guide, not a receipt. Cheaper week = swap a planned dinner for a well-liked dinner that costs $5+ less,
+     counting only what each meal adds to the week. Parents only; a swap is a normal planSet. */
+  const canWeekCost = () => Number(D().api || 0) >= 23;
+  const WEEK_SWAP_MIN = 5;
+  function itemPackPrice(id) {
+    const it = itemById(id);
+    if (!it) return null;
+    const prods = (D().products || {})[id] || {};
+    const ok = (k) => { const p = prods[k]; return p && likeItem(p) && Number(p.price) > 0 ? { v: Number(p.price), store: k } : null; };
+    const usual = it.store && it.store !== 'Either' ? ok(it.store) : null;
+    if (usual) return usual;
+    const all = Object.keys(prods).map(ok).filter(Boolean).sort((a, b) => a.v - b.v);
+    return all[0] || null;
+  }
+  const weekCounts = (id) => { const it = itemById(id); return !!it && it.status !== 'Drop' && !isDelivery(it.store) && !isPantry(id); };
+  // What one meal needs: { id: packages }.
+  function mealNeeds(meal) {
+    const o = {};
+    mealItems(meal).forEach((id) => { if (weekCounts(id)) o[id] = Math.max(o[id] || 0, isMeat(id) ? meatQty(meal) : 1); });
+    return o;
+  }
+  const needsCost = (need, skip) => Object.keys(need).reduce((t, id) => {
+    if (skip && skip[id]) return t;
+    const pr = itemPackPrice(id); return t + (pr ? pr.v * need[id] : 0);
+  }, 0);
+  // The week: { total, entries: [{ date, slot, name, meal, need, cost, own }], priced, unpriced: [names], saveStores }.
+  function weekCost(days) {
+    const entries = [];
+    (D().plan || []).forEach((p) => {
+      const d = planDate(p);
+      if (!d || days.indexOf(d) < 0 || isLeftover(p)) return;
+      const meal = p.meal_id ? mealById(p.meal_id) : null;
+      const pi = !meal ? planItem(p) : null;
+      if (!meal && !pi) return;
+      const need = meal ? mealNeeds(meal) : (weekCounts(pi.id) ? { [pi.id]: 1 } : {});
+      entries.push({ date: d, slot: slotOf(p), name: meal ? meal.name : pi.name, meal: meal, need: need });
+    });
+    entries.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : SLOTS.findIndex((x) => x[0] === a.slot) - SLOTS.findIndex((x) => x[0] === b.slot)));
+    const all = {}; const users = {};
+    entries.forEach((e) => Object.keys(e.need).forEach((id) => { all[id] = Math.max(all[id] || 0, e.need[id]); users[id] = (users[id] || 0) + 1; }));
+    let total = 0, priced = 0, saveStores = 0; const unpriced = [];
+    Object.keys(all).forEach((id) => {
+      const pr = itemPackPrice(id);
+      if (!pr) { unpriced.push(itemById(id).name); return; }
+      total += pr.v * all[id]; priced++;
+      const c = cheaperElsewhere(id, pr.store); if (c) saveStores += c.save * all[id];
+    });
+    entries.forEach((e) => {
+      e.cost = needsCost(e.need);
+      e.own = needsCost(Object.keys(e.need).filter((id) => users[id] === 1).reduce((o, id) => ((o[id] = e.need[id]), o), {}));
+    });
+    return { total: total, entries: entries, priced: priced, count: Object.keys(all).length, unpriced: unpriced.sort(), saveStores: saveStores, all: all };
+  }
+  // A meal we can price: 2+ linked ingredients we count, most of them priced.
+  function mealPriceable(meal) {
+    const ids = Object.keys(mealNeeds(meal));
+    return ids.length >= 2 && ids.filter((id) => itemPackPrice(id)).length * 3 >= ids.length * 2;
+  }
+  // Up to 3 swaps, biggest saving first: { entry, to, save }.
+  function cheaperWeek(wc, days) {
+    const today = D().today;
+    // Not a meal planned within a week either side (the curry Saturday shouldn't come back Thursday).
+    const lo = addDays(days[0], -7), hi = addDays(days[days.length - 1], 7);
+    const inWeek = {}; (D().plan || []).forEach((p) => { const d = planDate(p); if (p.meal_id && d && d >= lo && d <= hi) inWeek[p.meal_id] = 1; });
+    const stats = D().mealStats || {};
+    // Well liked = votes average 🙂 or better, or no votes yet but we've made it before.
+    const liked = (m) => { const st = stats[m.id] || {}; return st.score ? st.score >= 3 : Number(st.made || 0) > 0; };
+    const cands = D().meals.filter((m) => kindOf(m) === 'dinner' && !inWeek[m.id] && liked(m) && mealPriceable(m));
+    const out = []; const used = {};
+    wc.entries.filter((e) => e.meal && e.slot === 'dinner' && e.date >= addDays(today, 2) && mealPriceable(e.meal)) // tonight's and tomorrow's food is bought
+      .map((e) => {
+        let best = null;
+        cands.forEach((m) => {
+          const add = needsCost(mealNeeds(m), wc.all); // what it adds beyond what the week already buys
+          const save = e.own - add;
+          const score = (stats[m.id] && stats[m.id].score) || 0;
+          if (save >= WEEK_SWAP_MIN && (!best || save + score > best.save + best.score)) best = { entry: e, to: m, save: save, score: score };
+        });
+        return best;
+      }).filter(Boolean).sort((a, b) => b.save - a.save)
+      .forEach((x) => { if (out.length < 3 && !used[x.to.id]) { used[x.to.id] = 1; out.push(x); } });
+    return out;
+  }
+  const dollars = (v) => '$' + Math.round(v);
+  function weekCostLine(which, days) {
+    if (!canWeekCost() || !amParent()) return '';
+    const wc = weekCost(days);
+    if (!wc.priced) return '';
+    return '<button class="week-cost" data-act="open-weekcost" data-v="' + which + '"><span class="week-cost-txt">💲 About <b>' + dollars(wc.total) + '</b> ' + (which === 'next' ? 'next week' : 'this week') + '</span>' +
+      '<span class="week-cost-go">Cheaper week ›</span></button>';
+  }
+  function viewWeekCostSheet(sh) {
+    const w = planWeeks();
+    const days = sh.week === 'next' ? w.nextWeek : w.thisWeek;
+    const wc = weekCost(days);
+    const swaps = cheaperWeek(wc, days);
+    let h = '<div class="is-head"><div><h2>💲 Price tag of the week</h2><div class="is-sub">A rough guide from store shelf prices</div></div>' +
+      '<button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      '<div class="seg">' + [['this', 'This week'], ['next', 'Next week · ' + md(w.nextSun)]].map((o) =>
+        '<button type="button" data-act="weekcost-week" data-v="' + o[0] + '" class="' + (sh.week === o[0] ? 'on' : '') + '">' + esc(o[1]) + '</button>').join('') + '</div>';
+    if (!wc.entries.length) return h + '<p class="note">Nothing planned for that week yet.</p>';
+    h += '<div class="wc-total"><span class="wc-big">' + dollars(wc.total) + '</span><span class="muted">' + wc.entries.length + ' meals and snacks · ' + wc.priced + ' of ' + wc.count + ' ingredients priced</span></div>';
+    h += '<p class="note">Each ingredient once for the week, one package each, where we usually buy it. Leaves out pantry staples and Wildgrain.' +
+      (wc.unpriced.length ? ' No price yet: ' + esc(wc.unpriced.slice(0, 8).join(', ')) + (wc.unpriced.length > 8 ? ' and ' + (wc.unpriced.length - 8) + ' more' : '') + '.' : '') + '</p>';
+    h += '<h3 class="wc-h">💡 A cheaper week</h3>';
+    if (swaps.length) {
+      const saveAll = swaps.reduce((t, x) => t + x.save, 0);
+      h += '<p class="note">' + (swaps.length === 1 ? 'Swap this dinner for one' : 'Swap these dinners for ones') + ' the family likes and save about <b>' + dollars(saveAll) + '</b>.</p>';
+      swaps.forEach((x) => {
+        h += '<div class="wc-swap"><div class="wc-swap-txt"><span class="muted">' + esc(shortDay(x.entry.date)) + '</span> ' + esc(x.entry.meal.name) + ' → <b>' + esc(x.to.name) + '</b><span class="wc-save">save ~' + dollars(x.save) + '</span></div>' +
+          '<button class="btn btn-outline btn-sm" data-act="weekcost-swap" data-date="' + x.entry.date + '" data-to="' + x.to.id + '">Swap</button></div>';
+      });
+    } else h += '<p class="note">Nothing to swap: no well-liked dinner would save $' + WEEK_SWAP_MIN + ' or more on the days still ahead.</p>';
+    if (wc.saveStores >= 2) h += '<p class="note">🛒 Getting a few things at the cheaper store would save about ' + dollars(wc.saveStores) + ' more (the $ tags on the List).</p>';
+    h += '<h3 class="wc-h">By meal</h3>';
+    wc.entries.slice().sort((a, b) => b.cost - a.cost).forEach((e) => {
+      // The two priciest ingredients, so a big number explains itself (a jar of vanilla paste for pancakes).
+      const top = Object.keys(e.need).map((id) => ({ id: id, pr: itemPackPrice(id) })).filter((x) => x.pr).sort((a, b) => b.pr.v - a.pr.v).slice(0, 2)
+        .map((x) => itemById(x.id).name + ' ' + dollars(x.pr.v * e.need[x.id]));
+      h += '<div class="wc-row"><span class="muted">' + esc(shortDay(e.date)) + ' ' + slotIcon(e.slot) + '</span><span class="wc-name">' + esc(e.name) +
+        (top.length > 1 && e.cost >= 15 ? '<span class="wc-top">' + esc(top.join(' · ')) + '</span>' : '') + '</span><span class="wc-cost">' + (e.cost ? '~' + dollars(e.cost) : '–') + '</span></div>';
+    });
+    return h + '<p class="note">Shared ingredients count in each meal here but only once in the total. After a swap, send the week to Hearth.</p>';
+  }
   const rowCheaper = (r) => (r && Number(D().api || 0) >= 23 ? cheaperElsewhere(r.item_id, r.store || 'Either') : null);
   function priceTag(r) {
     const c = rowCheaper(r);
@@ -2113,7 +2242,7 @@
     let html = viewMealRequests();
     html += viewHeroMeals(meals);
     html += '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="head-btns"><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + (canSlots() ? ' days' : ' dinners') + '</span>' + hearthBtn + '</span></div>' +
-      weekStrip('this', w.thisWeek, plan, meals) + '</section>';
+      weekStrip('this', w.thisWeek, plan, meals) + weekCostLine('this', w.thisWeek) + '</section>';
 
     if (w.nextWeek.length) {
       const closed = isClosed('w:next');
@@ -2122,7 +2251,7 @@
         '<span>NEXT WEEK · ' + md(w.nextSun) + '–' + md(addDays(w.nextSun, 6)) + '</span><span class="head-btns"><span class="sub">' + pn.length + ' planned</span>' + chev(closed) + '</span></button>';
       html += closed
         ? '<button class="peek" data-act="fold" data-key="w:next">' + (pn.length ? esc(pn.map((d) => dayName(d) + ' ' + (mealById(plan[d] || '') ? mealById(plan[d]).name : SLOTS.map((x) => planText(planDay(d)[x[0]])).filter(String)[0])).join(', ')) : 'Nothing planned yet. Tap to plan.') + '</button>'
-        : weekStrip('next', w.nextWeek, plan, meals);
+        : weekStrip('next', w.nextWeek, plan, meals) + weekCostLine('next', w.nextWeek);
       html += '</section>';
     }
 
@@ -3277,6 +3406,7 @@
     if (sh.type === 'ideaview') inner = viewIdeaView(sh);
     if (sh.type === 'day') inner = viewDaySheet(sh);
     if (sh.type === 'hearth') inner = viewHearthSheet(sh);
+    if (sh.type === 'weekcost') inner = viewWeekCostSheet(sh);
     if (sh.type === 'points') inner = viewPointsSheet(sh);
     if (sh.type === 'pushall') inner = viewPushSheet(sh);
     if (sh.type === 'mealgaps') inner = viewMealGaps();
@@ -3468,6 +3598,9 @@
     'points-reload': () => { loadPointsLog(); render(); },
     'open-hearth': () => { S.sheet = { type: 'hearth', week: 'this' }; render(); },
     'hearth-week': (el) => { S.sheet.week = el.dataset.v; render(); },
+    'open-weekcost': (el) => { S.sheet = { type: 'weekcost', week: el.dataset.v || 'this' }; render(); },
+    'weekcost-week': (el) => { S.sheet.week = el.dataset.v; render(); },
+    'weekcost-swap': (el) => { if (amParent()) planMeal(el.dataset.date, el.dataset.to); },
     'hearth-copy': async () => {
       const text = hearthText(hearthDays(S.sheet.week));
       try { await navigator.clipboard.writeText(text); showToast('Copied. Paste it to Hearth Helper.'); }
