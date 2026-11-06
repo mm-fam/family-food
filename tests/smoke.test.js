@@ -411,3 +411,33 @@ test('who planned it and who is cooking (api 60)', () => {
   assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: '2026-11-13', name: 'Pat' }).error, 'nothing planned');
   assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: '2026-11-12', name: 'Zed' }).error);
 });
+
+test('"Not what we had" marks the night not made and clears its other cards (api 61)', () => {
+  const t = tabs();
+  const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const today = iso(new Date());
+  const yest = iso(new Date(Date.now() - 86400000));
+  t.Plan.push(['2026-11-01', '', 'm01', yest, 'dinner', '', '']);
+  const opts = 'Options: 😍; 🙂; 😐; 👎';
+  t.Review.push(
+    ['r960', today, 'rate', 'How was Pancakes yesterday? (m01) ' + opts, 'open', '', 'Kim', '', '', '', '', '', '', '', '', '', ''], // old card, no date
+    ['r961', today, 'rate', 'How was Pancakes yesterday? (m01) (' + yest + ') ' + opts, 'open', '', 'Pat', '', '', '', '', '', '', '', '', '', ''],
+    ['r962', today, 'helped', 'Did Kim help cook Pancakes yesterday? (m01) (' + yest + ') Options: Cooked it; Helped; Not this time', 'open', '', 'parents', '', '', '', '', '', '', '', 'Kim', '', ''],
+    ['r963', today, 'rate', 'How was Pancakes on Mon? (m01) (2026-01-05) ' + opts, 'open', '', 'Lee', '', '', '', '', '', '', '', '', '', '']); // another night: stays
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  const before = b.call({ action: 'state', pass: PASS, by: 'Pat' }).state.mealStats.m01.made;
+  const r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: 'r960', answer: 'Not what we had (Kim)' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.result.notHad.date, yest);
+  const closed = r.result.notHad.closed;
+  assert.ok(closed.includes('r961') && closed.includes('r962') && !closed.includes('r963'), closed.join());
+  // Today's automatic cards for that dinner (made by the state call) are cleared too.
+  assert.ok(!rows(b, 'Review').some((x) => /Pancakes/.test(x[3]) && x[4] === 'open' && x[0] !== 'r963'));
+  const st = (id) => r.state.review.find((x) => x.id === id);
+  assert.ok(!st('r961') || st('r961').status !== 'open');
+  assert.strictEqual(rows(b, 'Review').find((x) => x[0] === 'r963')[4], 'open');
+  const plan = rows(b, 'Plan');
+  const col = plan[0].indexOf('not_had');
+  assert.match(String(plan.find((x) => x[3] === yest)[col]), /^Kim, /);
+  assert.strictEqual(r.state.mealStats.m01.made, before - 1);
+});

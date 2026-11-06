@@ -3173,6 +3173,12 @@
         '<button class="btn btn-primary" type="submit">Save</button></form>';
     }
 
+    // api 61 (Nov 6, owner): plans change on the fly. Cards about a meal we just had get "Not what we had": it marks
+    // that night as not made and clears the rest of that night's cards for everyone.
+    const aboutLastNight = Number(D().api || 0) >= 61 && /\(m\d{2,}\)/.test(String(r.detail || '')) &&
+      (r.type === 'rate' || r.type === 'helped' || (r.type === 'vote' && voteTiming(r) === 'after'));
+    if (aboutLastNight) control += '<button type="button" class="link-btn not-had" data-act="ask-nothad" data-id="' + r.id + '">🔄 Not what we had</button>';
+
     const textBox = '<form class="ask-text" data-form="ask-text" data-id="' + r.id + '"><label class="sr" for="ask-in">Answer</label>' +
       '<input id="ask-in" class="field" data-input="ask-draft" value="' + esc(S.askDraft || '') + '" placeholder="' + (kind === 'text' ? 'Type an answer…' : 'Type your answer…') + '">' +
       '<button class="btn btn-primary" type="submit">Save</button></form>';
@@ -3469,6 +3475,7 @@
     'switch-me': () => { S.me = ''; S.toast = null; S.query = ''; S.sheet = null; store.del('ff_me'); render(); },
     tab: (el) => { if (el.dataset.tab === 'ask' && S.tab !== 'ask') { S.askAnswered = 0; resetAskCard(); } S.tab = el.dataset.tab; store.set('ff_tab', S.tab); S.query = ''; S.sheet = null; render(); window.scrollTo(0, 0); },
     'ask-section': (el) => { S.askSection = el.dataset.sec || ''; S.askAnswered = 0; resetAskCard(); render(); },
+    'ask-nothad': (el) => answerQuestion(el.dataset.id, 'Not what we had', 'left', 'Got it. Poppy won’t count that meal, and the other cards about it are cleared'),
     'ask-pick': (el) => answerQuestion(el.dataset.id, el.dataset.v, el.dataset.v === 'Yes' || /^yes/i.test(el.dataset.v) ? 'right' : 'left'),
     'ask-type': (el) => { S.askTyping = el.dataset.id; render(); const f = document.getElementById('ask-in'); if (f) f.focus(); },
     'ask-sel-save': (el) => { if (S.askSel) answerQuestion(el.dataset.id, S.askSel); },

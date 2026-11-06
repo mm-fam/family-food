@@ -330,7 +330,12 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      planned_at when the meal or item in a slot changes (a swap clears cook); asked_by = req.asked_by, else whoever
 //      has an open meal_request for that meal. planCook {date, slot?, name, on} adds or takes one name off `cook`
 //      (names joined "; "); anyone can sign themselves up, kids only themselves, parents anyone. Needs a planned meal.
-const API_VERSION = 60;
+// 61 = "Not what we had" (Nov 6, owner: "more often than not we're flexing and changing up meals on the fly"): on a
+//      How was it? (rate), Kitchen help (helped) or after-the-meal vote card, the answer "Not what we had" marks that
+//      night's Plan row `not_had` = "<name>, <yyyy-MM-dd>" (column added at the end on first use) and closes every
+//      other open rate / helped / vote card about that meal that night, for everyone (outcome "not what we had (<name>)").
+//      not_had rows don't count as made (meal stats, How was it?, Kitchen help). New rate cards carry the date "(d)".
+const API_VERSION = 61;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk', 'planCook'];
@@ -821,6 +826,10 @@ function planSlot(p) {
 // Leftover rows (note starts with "Leftover") don't count as made and add no ingredients.
 function isLeftover(p) {
   return /^leftover/i.test(String(p.note || ''));
+}
+// api 61: a planned meal the family didn't actually have ("Not what we had") counts as not made, like leftovers.
+function notMade(p) {
+  return isLeftover(p) || !!String(p.not_had || '').trim();
 }
 
 /* ---------------------------------------------------------------- writes */
@@ -1599,7 +1608,8 @@ function answerReview(req) {
   if (!r) throw new Error('Review item not found');
   const answer = String(req.answer || '');
   const who = (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || String(req.by || '');
-  const why = pointsWhy(r, answer);
+  const notHad = /^not what we had\b/i.test(answer) && ['rate', 'helped', 'vote'].indexOf(String(r.type)) >= 0 ? notHadAnswer(r, who) : null;
+  const why = pointsWhy(r, answer); // a "Not what we had" still scores like any answer (helped: nothing)
   const pts = why ? ruleByKey(why).pts : 0;
   ['answered_at', 'points', 'points_to', 'points_why'].forEach((c) => ensureColumn(TABS.review, c));
   setFields(TABS.review, r._row, {
@@ -1614,7 +1624,49 @@ function answerReview(req) {
   const voice = r.type === 'voice' ? voiceAnswer(r, answer, who) : null;
   const subbed = r.type === 'subbed' ? subbedAnswer(r, answer, who) : null;
   const which = r.type === 'which' ? whichAnswer(r, answer, who) : null;
-  return { id: r.id, points: pts, why: why, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which };
+  return { id: r.id, points: pts, why: why, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which };
+}
+
+// api 61: "Not what we had" on a card about a meal we just had. Finds that night's Plan row (the card's date if it
+// carries one; otherwise the latest non-leftover row for that meal in the few days before the card was made, or
+// before today for a vote), marks it not_had, and closes the other open rate / helped / vote cards about that night.
+// The tapped card itself is saved as answered "Not what we had (<name>)"; meal stats ignore it (not an emoji).
+function notHadAnswer(r, who) {
+  const detail = String(r.detail || '');
+  const mealId = (detail.match(/\((m\d{2,})\)/) || [])[1];
+  if (!mealId) return null;
+  const cardDate = (detail.match(/\((\d{4}-\d\d-\d\d)\)/) || [])[1];
+  const today = isoDate(new Date());
+  const made = r.created ? String(r.created).slice(0, 10) : today;
+  const before = r.type === 'vote' ? today : (made > today ? today : made);
+  const earliest = addDays(before, -(RATE_BACK_DAYS + 2));
+  const plan = readTab(TABS.plan);
+  const rows = plan.filter((p) => p.meal_id === mealId && !isLeftover(p) && planDate(p) && (cardDate ? planDate(p) === cardDate : planDate(p) < before && planDate(p) >= earliest))
+    .sort((a, b) => (planDate(a) < planDate(b) ? 1 : -1));
+  const p = rows[0];
+  const d = p ? planDate(p) : cardDate;
+  if (p && !String(p.not_had || '').trim()) {
+    ensureColumn(TABS.plan, 'not_had');
+    setFields(TABS.plan, p._row, { not_had: who + ', ' + today });
+  }
+  // Close the rest of that night's cards for everyone.
+  ensureColumn(TABS.review, 'outcome');
+  const closed = [];
+  readTab(TABS.review).forEach((x) => {
+    if (x.id === r.id || x.status !== 'open' || ['rate', 'helped', 'vote'].indexOf(String(x.type)) < 0) return;
+    const xd = String(x.detail || '');
+    if (xd.indexOf('(' + mealId + ')') < 0) return;
+    const xDate = (xd.match(/\((\d{4}-\d\d-\d\d)\)/) || [])[1];
+    const xMade = x.created ? String(x.created).slice(0, 10) : '';
+    let same;
+    if (xDate) same = xDate === d;
+    else if (x.type === 'vote') same = !!d && d >= addDays(today, -2); // the after-the-meal vote (app: last made in 2 days)
+    else same = !!d && xMade > d && xMade <= addDays(d, RATE_BACK_DAYS + 1);
+    if (!same) return;
+    setFields(TABS.review, x._row, { status: 'closed', outcome: 'not what we had (' + who + ')' });
+    closed.push(x.id);
+  });
+  return { meal: mealId, date: d || '', plan: !!p, closed: closed };
 }
 
 // api 51: store options. Every Products row we know for one item, for the item screen's "Options at the store":
@@ -2134,7 +2186,7 @@ function mealStats(meals, today) {
   if (tab('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
   plan.forEach((p) => {
     const st = out[p.meal_id]; const d = planDate(p);
-    if (!st || !d || isLeftover(p)) return;
+    if (!st || !d || notMade(p)) return;
     if (d < today) { st.made++; if (d > st.last) st.last = d; }
     else if (!st.next || d < st.next) st.next = d;
   });
@@ -2338,18 +2390,18 @@ function dailyCards() {
     const mealOf = {}; meals.forEach((m) => (mealOf[m.id] = m));
     let plan = readTab(TABS.plan);
     if (tab('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
-    const madeBefore = (id, d) => plan.filter((p) => p.meal_id === id && !isLeftover(p) && planDate(p) && planDate(p) < d).length;
+    const madeBefore = (id, d) => plan.filter((p) => p.meal_id === id && !notMade(p) && planDate(p) && planDate(p) < d).length;
     const from = st.cards_through ? addDays(String(st.cards_through).slice(0, 10), 1) : addDays(today, -1);
     const start = from < addDays(today, -RATE_BACK_DAYS) ? addDays(today, -RATE_BACK_DAYS) : from;
     // Dinners first, then breakfast; at most RATE_PER_DAY cards per person per day so the deck stays fun.
     for (let d = start; d < today; d = addDays(d, 1)) {
       const when = d === addDays(today, -1) ? 'yesterday' : 'on ' + DAY_NAMES[new Date(d + 'T12:00:00').getDay()];
-      const rows = plan.filter((p) => planDate(p) === d && p.meal_id && mealOf[p.meal_id] && !isLeftover(p) && RATE_SLOTS.indexOf(planSlot(p)) >= 0)
+      const rows = plan.filter((p) => planDate(p) === d && p.meal_id && mealOf[p.meal_id] && !notMade(p) && RATE_SLOTS.indexOf(planSlot(p)) >= 0)
         .filter((p) => madeBefore(p.meal_id, d) <= RATE_NEW_TIMES) // only meals still new to us
         .sort((a, b) => RATE_SLOTS.indexOf(planSlot(a)) - RATE_SLOTS.indexOf(planSlot(b)));
       // Did <kid> help with dinner? One card per kid for each planned (non-leftover) dinner, to the parents.
       // The answer records what they did and gives the kid points (cooked 10, helped 5).
-      plan.filter((p) => planDate(p) === d && planSlot(p) === 'dinner' && p.meal_id && mealOf[p.meal_id] && !isLeftover(p)).slice(0, 1).forEach((p) => {
+      plan.filter((p) => planDate(p) === d && planSlot(p) === 'dinner' && p.meal_id && mealOf[p.meal_id] && !notMade(p)).slice(0, 1).forEach((p) => {
         kids.forEach((kid) => {
           const asked = review.some((r) => r.type === 'helped' && String(r.points_to) === kid && String(r.detail).indexOf('(' + d + ')') >= 0);
           if (asked) return;
@@ -2366,7 +2418,7 @@ function dailyCards() {
           const open = review.some((r) => (r.type === 'rate' || r.type === 'vote') && r.status === 'open' && String(r.audience) === who && String(r.detail).indexOf('(' + p.meal_id + ')') >= 0);
           if (open) return;
           const slot = planSlot(p);
-          add({ type: 'rate', audience: who, detail: 'How was ' + mealOf[p.meal_id].name + ' ' + when + (slot === 'dinner' ? '' : ' (' + slot + ')') + '? (' + p.meal_id + ') Options: ' + RATE_OPTIONS });
+          add({ type: 'rate', audience: who, detail: 'How was ' + mealOf[p.meal_id].name + ' ' + when + (slot === 'dinner' ? '' : ' (' + slot + ')') + '? (' + p.meal_id + ') (' + d + ') Options: ' + RATE_OPTIONS });
           review.push({ type: 'rate', status: 'open', audience: who, detail: '(' + p.meal_id + ')' });
           given++;
         });

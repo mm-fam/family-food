@@ -1034,3 +1034,5 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 .week-cost-txt { white-space: nowrap; }
 .wc-name { flex: 1; }
 .wc-cost { flex: none; font-variant-numeric: tabular-nums; }
+/* api 61: "Not what we had" on cards about last night's meal */
+.qcard .not-had { align-self: stretch; margin-top: 10px; padding: 10px 14px; border: 1px dashed var(--line, #ccc); border-radius: 12px; text-decoration: none; text-align: center; font-size: 15px; }
