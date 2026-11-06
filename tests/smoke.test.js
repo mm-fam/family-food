@@ -441,3 +441,47 @@ test('"Not what we had" marks the night not made and clears its other cards (api
   assert.match(String(plan.find((x) => x[3] === yest)[col]), /^Kim, /);
   assert.strictEqual(r.state.mealStats.m01.made, before - 1);
 });
+
+test('same kind: one cheddar covers the meals; a second is asked about, not added (api 62)', () => {
+  const t = tabs();
+  const { H } = require('./fixture');
+  const it = (id, name) => H.Items.map((h) => ({ id: id, name: name, store: 'GE', group: 'Cheese & deli', status: 'Sometimes' })[h] || '');
+  t.Items.push(it('i010', 'Shredded cheddar'), it('i011', 'Cheddar chunk'), it('i012', 'Mozzarella'));
+  t.Meals.push(['m02', 'Chili', 'i011;i012', '', 'dinner', '', ''], ['m03', 'Omelets', 'i010', '', 'breakfast', '', '']);
+  t.Review.push(['r900', '2026-11-06', 'kind', 'Are these the same thing when a meal needs it? Shredded cheddar, Cheddar chunk (kind cheddar) (i010) (i011) Options: Yes, one covers it; No, keep them apart', 'open', '', 'Sam', '', '', '', '', '', '', '', '', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  // Before the kind is set, both go on the List.
+  let r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Sam', id: 'r900', answer: 'Yes, one covers it (Sam)' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(r.result.sameKind.items, ['i010', 'i011']);
+  assert.strictEqual(r.state.items.find((x) => x.id === 'i011').kind, 'cheddar');
+  r = b.call({ action: 'addMeal', pass: PASS, by: 'Sam', meal_id: 'm03' });
+  r = b.call({ action: 'addMeal', pass: PASS, by: 'Pat', meal_id: 'm02' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.result.same_kind.length, 1);
+  assert.strictEqual(r.result.same_kind[0].used, 'Shredded cheddar');
+  const ched = r.state.list.filter((x) => /cheddar/i.test(x.name));
+  assert.strictEqual(ched.length, 1, ched.map((x) => x.name).join());
+  assert.match(String(ched[0].note), /also covers Cheddar chunk for Chili/);
+  assert.match(String(ched[0].wanted_by), /Sam;Pat/);
+  assert.ok(r.state.list.some((x) => x.item_id === 'i012'), 'mozzarella still added');
+  // Add anyway really adds it; then the daily card asks which one.
+  r = b.call({ action: 'add', pass: PASS, by: 'Pat', item_id: 'i011', anyway: true });
+  assert.strictEqual(r.result.merged, false);
+  const rv = rows(b, 'Review');
+  const h = rv[0];
+  const card = b.makeSameKind(new Date().toISOString().slice(0, 10), []);
+  assert.strictEqual(card.length, 1);
+  assert.match(card[0].detail, /Options: Keep both; Just Shredded cheddar; Just Cheddar chunk/);
+  rv.push(['r901', '2026-11-06', 'same_kind', card[0].detail, 'open', '', 'parents'].concat(new Array(h.length - 7).fill('')));
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: 'r901', answer: 'Just Shredded cheddar (Pat)' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.result.sameKind.dropped.length, 1);
+  assert.strictEqual(r.state.list.filter((x) => /cheddar/i.test(x.name)).length, 1);
+  // Missions skip a cheddar while one is on the List.
+  const items = rows(b, 'Items');
+  const kids = ['Kim'];
+  const ms = b.makeMissions(new Date().toISOString().slice(0, 10), kids, [], [{ meal_id: 'm02', date: new Date().toISOString().slice(0, 10), slot: 'dinner' }], { m02: { name: 'Chili', item_ids: 'i011;i012' } });
+  assert.ok(!ms.some((m) => /\(i011\)/.test(m.detail)), 'chunk not checked');
+  assert.ok(items.length > 1);
+});

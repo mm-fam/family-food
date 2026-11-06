@@ -171,7 +171,14 @@
     render();
     // Something is already waiting to send: keep the order, queue this one behind it.
     if (outbox().length) { const q = outbox(); q.push({ action: action, payload: payload || {}, by: S.me, at: Date.now() }); setOutbox(q); render(); flushOutbox(); return; }
-    try { await api(action, payload); render(); }
+    try {
+      const j = await api(action, payload);
+      // api 62: the backend used an item of the same kind that was already on the List instead of adding another.
+      const sk = j && j.result && j.result.same_kind ? [].concat(j.result.same_kind) : [];
+      if (sk.length) showToast(sk.map((x) => x.used + ' is already on the List: it covers ' + x.asked).join(' · '));
+      render();
+      return j;
+    }
     catch (e) {
       if (isOffline(e)) {
         const q = outbox(); q.push({ action: action, payload: payload || {}, by: S.me, at: Date.now() }); setOutbox(q);
@@ -192,6 +199,15 @@
   const meatQty = (m) => { const n = parseInt(m && m.meat_qty, 10); return n >= 2 && n <= 3 ? n : 1; };
   const isMeat = (id) => { const it = itemById(id); return !!(it && String(it.group) === 'Meat'); };
   const listRowFor = (itemId) => D().list.find((r) => r.item_id === itemId);
+  // Same kind (api 62): Items `kind` groups things one of which covers the others for a meal (shredded cheddar,
+  // a cheddar chunk). Set from a parent's Yes on a kind card.
+  const canV62 = () => Number(D().api || 0) >= 62;
+  const kindKey = (it) => String((it && it.kind) || '').trim().toLowerCase();
+  const sameKindRow = (item) => {
+    const k = kindKey(item);
+    if (!k) return null;
+    return D().list.concat(D().held || []).find((r) => r.item_id && r.item_id !== item.id && kindKey(itemById(r.item_id)) === k) || null;
+  };
   const isKid = (name) => D().settings.kids.map((k) => k.toLowerCase()).indexOf(String(name || '').toLowerCase()) >= 0;
   const amParent = () => !isKid(S.me);
   // Admin screen (cart requests, behind-the-scenes): Settings "admins", else the first parent.
@@ -399,9 +415,14 @@
       }, isHeld ? item.name + ' is back on the list' : others.join(' + ') + ' already asked. Added you too.' + (amParent() ? ptsTag('list_add') : ''));
       return;
     }
+    // api 62: something of the same kind is already on the List → ask before adding a second one.
+    const anyway = !!(extra && extra._anyway);
+    const peer = canV62() && !anyway ? sameKindRow(item) : null;
+    if (peer) { S.sheet = { type: 'samekind', item_id: item.id, row_id: peer.id, meal_id: (extra && extra.meal_id) || '' }; render(); return; }
+    extra = Object.assign({}, extra || {}); delete extra._anyway;
     const status = isKid(S.me) ? 'requested' : 'needed';
-    const row = Object.assign({ id: tmpId(), item_id: item.id, name: item.name, store: item.store || 'Either', qty: 1, note: '', added_by: S.me, wanted_by: S.me, status: status }, extra || {});
-    act('add', { item_id: item.id, qty: row.qty, meal_id: row.meal_id || '' }, () => { D().list.push(row); },
+    const row = Object.assign({ id: tmpId(), item_id: item.id, name: item.name, store: item.store || 'Either', qty: 1, note: '', added_by: S.me, wanted_by: S.me, status: status }, extra);
+    act('add', Object.assign({ item_id: item.id, qty: row.qty, meal_id: row.meal_id || '' }, anyway ? { anyway: true } : {}), () => { D().list.push(row); },
       status === 'requested' ? 'Asked for ' + item.name + (ptsTag('list_add') ? ' · +1 when a parent approves' : '') : 'Added ' + item.name + ptsTag('list_add'));
   }
 
@@ -1149,6 +1170,10 @@
     const onList = {};
     D().list.concat(D().held || []).forEach((r) => r.item_id && (onList[r.item_id] = 1));
     (D().recent || []).forEach((r) => { if (r.item_id && (r.status === 'bought' || r.status === 'have') && addDays(String(r.updated_at || '').slice(0, 10) || '2000-01-01', 3) >= today) onList[r.item_id] = 1; });
+    // api 62: shredded cheddar on the List (or just bought) covers a meal that links the cheddar chunk.
+    const kindsOn = {};
+    Object.keys(onList).forEach((id) => { const k = kindKey(itemById(id)); if (k) kindsOn[k] = 1; });
+    D().items.forEach((it) => { const k = kindKey(it); if (k && kindsOn[k]) onList[it.id] = 1; });
     const stock = D().stock || {};
     const lowNow = (id) => { const s = stock[id]; return !!(s && (s.level === 'low' || s.level === 'out') && addDays(String(s.at).slice(0, 10), 14) >= today); };
     const seen = (id) => { if (isPantry(id)) return !lowNow(id); const s = stock[id]; return s && s.level !== 'low' && s.level !== 'out' && s.level !== 'waste' && addDays(String(s.at).slice(0, 10), 7) >= today; };
@@ -1221,6 +1246,18 @@
       (canPantry() ? '<p class="note">🫙 Always have = a pantry staple. Poppy stops asking about it for meals unless someone marks it low or out.</p>' : '') +
       '<div class="sheet-actions"><button class="btn btn-primary" data-act="mh-save">' +
         (have && need ? 'Have ' + have + ' · add ' + need : need ? 'Add ' + need + ' to the List' : 'We have ' + (have > 1 ? 'all ' + have : 'it')) + '</button></div>';
+  }
+  // api 62: "Shredded cheddar is already on the List. Use that?" before a second item of the same kind goes on.
+  function viewSameKind(sh) {
+    const it = itemById(sh.item_id);
+    const row = D().list.concat(D().held || []).find((r) => r.id === sh.row_id);
+    if (!it || !row) return '<div class="is-head"><div><h2>All set</h2></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
+    const meal = row.meal_id && mealById(row.meal_id);
+    const where = row.status === 'carted' && row.cart ? ' It’s in the ' + storeOf(row.cart).name + ' cart.' : '';
+    return '<div class="is-head"><div><h2>Already on the List</h2><div class="is-sub">' + esc(row.name) + ' and ' + esc(it.name) + ' are the same kind</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      '<p class="note">' + esc(row.name) + ' is on the List' + (meal ? ' for ' + esc(meal.name) : '') + '.' + esc(where) + ' One should cover both, so we don’t end up with two.</p>' +
+      '<div class="sheet-actions"><button class="btn btn-primary" data-act="sk-use">Use ' + esc(row.name) + '</button>' +
+      '<button class="btn btn-plain" data-act="sk-anyway">Add ' + esc(it.name) + ' anyway</button></div>';
   }
   function viewMealGaps() {
     const m = missingForMeals();
@@ -2811,6 +2848,10 @@
         const x = m && D().list.find((y) => y.id === m[1]);
         if (m && (!x || x.status !== 'needed' || x.cart_want)) return false;
       }
+      if (r.type === 'same_kind') { // api 62: gone once fewer than two of its rows are still on the List
+        const ids = (String(r.detail).match(/\(L\d{4,}\)/g) || []).map((x) => x.slice(1, -1));
+        if (ids.length && ids.filter((id) => D().list.concat(D().held || []).some((x) => x.id === id)).length < 2) return false;
+      }
       if (r.type === 'settle_meal') { // gone once no List row is tied to that meal anymore
         const m = String(r.detail).match(/\(meal (m\d+)\)/);
         if (m && !D().list.concat(D().held || []).some((x) => x.meal_id === m[1])) return false;
@@ -2874,7 +2915,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still' || (t === 'vote' && voteTiming(r) === 'after')) return 'rate'; // api 35: a vote right after the meal
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed', 'which'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed', 'which', 'same_kind', 'kind'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }
@@ -3440,6 +3481,7 @@
     if (sh.type === 'points') inner = viewPointsSheet(sh);
     if (sh.type === 'pushall') inner = viewPushSheet(sh);
     if (sh.type === 'mealgaps') inner = viewMealGaps();
+    if (sh.type === 'samekind') inner = viewSameKind(sh);
     if (sh.type === 'misshave') inner = viewMissHave(sh);
     if (sh.type === 'me') inner = viewMeSheet();
     if (sh.type === 'feedback') {
@@ -3815,6 +3857,20 @@
     'have-count': (el) => { S.sheet.count = Math.max(1, Math.min(999, S.sheet.count + Number(el.dataset.d))); render(); },
     'have-count-save': () => haveDone(String(S.sheet.count)),
     'meal-gaps': () => { S.sheet = { type: 'mealgaps' }; render(); },
+    'sk-use': () => {
+      const sh = S.sheet; if (!sh || sh.type !== 'samekind') return;
+      const it = itemById(sh.item_id), row = D().list.concat(D().held || []).find((r) => r.id === sh.row_id);
+      S.sheet = null;
+      if (!it || !row) { render(); return; }
+      // The backend sees the same-kind row and adds us to it with a note, instead of a new row.
+      act('add', { item_id: it.id, qty: 1, meal_id: sh.meal_id || '' }, () => { if (!iWant(row)) row.wanted_by = wantedBy(row).concat([S.me]).join(';'); });
+    },
+    'sk-anyway': () => {
+      const sh = S.sheet; if (!sh || sh.type !== 'samekind') return;
+      const it = itemById(sh.item_id);
+      S.sheet = null;
+      if (it) addItem(it, Object.assign({ _anyway: true }, sh.meal_id ? { meal_id: sh.meal_id } : {})); else render();
+    },
     'row-later': () => { if (S.sheet) S.sheet.laterOpen = true; render(); },
     'row-hold': (el) => { const r = sheetRow(); S.sheet = null; if (r) holdRow(r, '', el.dataset.until || ''); else render(); },
     'miss-add': (el) => {

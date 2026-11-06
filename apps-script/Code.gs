@@ -335,7 +335,15 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      night's Plan row `not_had` = "<name>, <yyyy-MM-dd>" (column added at the end on first use) and closes every
 //      other open rate / helped / vote card about that meal that night, for everyone (outcome "not what we had (<name>)").
 //      not_had rows don't count as made (meal stats, How was it?, Kitchen help). New rate cards carry the date "(d)".
-const API_VERSION = 61;
+// 62 = same-kind guardrail (Nov 6, owner: three cheddars on the List because each meal linked a different one).
+//      Items `kind` (e.g. "cheddar"; added at the end on first use) groups items one of which covers the others for
+//      a meal; set by a parent's Yes on a `kind` card ("(kind cheddar) (i188) (i072)…") or itemSave. add / addMeal /
+//      a mission's Out / Siri: when another item of the same kind is already on the List, nothing new is added; that
+//      row gets the asker and a note "also covers <item> for <meal>" (result.same_kind). The app asks first and sends
+//      anyway: true for "Add anyway". Missions and missionsAsk skip an item whose kind is already on the List. Daily
+//      `same_kind` parents' cards for 2+ active rows of one kind: "Keep both" / "Just <name>" (the others are
+//      skipped and come out of their store cart). Not re-asked for 5 days.
+const API_VERSION = 62;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk', 'planCook'];
@@ -956,7 +964,7 @@ function voiceAdd(req) {
     const sure = voiceSure(cands);
     if (sure) {
       const res = addToList({ by: who, item_id: sure.item.id, qty: p.qty, note: 'by Siri' });
-      const label = (p.qty > 1 ? p.qty + ' ' : '') + String(sure.item.name);
+      const label = (p.qty > 1 ? p.qty + ' ' : '') + String(sure.item.name) + (res.same_kind ? ' (' + res.same_kind.used + ' covers it)' : '');
       if (res.merged) already.push(label); else added.push(label);
       return;
     }
@@ -1079,6 +1087,20 @@ function addToList(req) {
     return { id: existing.id, merged: true, already: already };
   }
 
+  // api 62: another item of the same kind (shredded cheddar vs a cheddar chunk) is already on the List → use that
+  // row instead of adding a second one. The app asks first and sends anyway: true when a parent wants both.
+  const peer = req.anyway ? null : sameKindRow(items, list, item);
+  if (peer) {
+    const meal = req.meal_id ? readTab(TABS.meals).find((m) => m.id === req.meal_id) : null;
+    const bit = 'also covers ' + item.name + (meal ? ' for ' + meal.name : '');
+    const f = { updated_at: nowStamp() };
+    const wanted = wantedList(peer);
+    if (wanted.map((w) => w.toLowerCase()).indexOf(String(req.by).toLowerCase()) < 0) f.wanted_by = wanted.concat([req.by]).join(';');
+    if (String(peer.note || '').indexOf(bit) < 0) f.note = listNote(peer, bit);
+    setFields(TABS.list, peer._row, f);
+    return { id: peer.id, merged: true, same_kind: { asked: item.name, item_id: item.id, used: peer.name, used_id: peer.item_id, row: peer.id } };
+  }
+
   const id = nextId(list, 'id', 'L', 5);
   appendObj(TABS.list, {
     id: id,
@@ -1137,12 +1159,104 @@ function addMealToList(req) {
   const meatQty = mealMeatQty(meal);
   const meat = {};
   if (meatQty > 1) readTab(TABS.items).forEach((it) => { if (String(it.group) === 'Meat') meat[it.id] = true; });
+  const sameKind = [];
   ids.forEach((itemId) => {
     const o = { item_id: itemId, by: req.by, meal_id: meal.id, bump: false, _noPoints: true };
     if (meat[itemId]) { o.qty = meatQty; o.min_qty = meatQty; }
-    addToList(o);
+    const res = addToList(o);
+    if (res && res.same_kind) sameKind.push(res.same_kind);
   });
-  return { added: ids.length };
+  return { added: ids.length, same_kind: sameKind };
+}
+
+/* ---------------------------------------------------------------- same kind (api 62) */
+
+function kindKey(it) { return String((it && it.kind) || '').trim().toLowerCase(); }
+
+// The active List row (held ones count) for a different item of the same kind, if any.
+function sameKindRow(items, list, item) {
+  const k = kindKey(item);
+  if (!k) return null;
+  const kindOf = {};
+  items.forEach((i) => (kindOf[i.id] = kindKey(i)));
+  return list.find((r) => r.item_id && r.item_id !== item.id && ACTIVE.indexOf(r.status) >= 0 && kindOf[r.item_id] === k) || null;
+}
+
+// item_id → true for every item whose kind is already on the List (the item itself or a same-kind one).
+function kindOnList(items, list) {
+  const kinds = {};
+  const kindOf = {};
+  items.forEach((i) => (kindOf[i.id] = kindKey(i)));
+  list.forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0 && kindOf[r.item_id]) kinds[kindOf[r.item_id]] = true; });
+  const out = {};
+  items.forEach((i) => { if (kindOf[i.id] && kinds[kindOf[i.id]]) out[i.id] = true; });
+  return out;
+}
+
+const SAME_KIND_REASK_DAYS = 5;
+const SAME_KIND_PER_DAY = 2;
+// Daily: 2+ active rows of one kind → one parents' card. Keep both / Just <name>.
+function makeSameKind(today, review) {
+  const items = readTab(TABS.items);
+  if (!items.some((i) => kindKey(i))) return [];
+  const byId = {}; items.forEach((i) => (byId[i.id] = i));
+  const groups = {};
+  readTab(TABS.list).forEach((r) => {
+    if (!r.item_id || ACTIVE.indexOf(r.status) < 0 || r.status === 'requested') return;
+    const k = kindKey(byId[r.item_id]);
+    if (!k) return;
+    groups[k] = groups[k] || [];
+    if (!groups[k].some((x) => x.item_id === r.item_id)) groups[k].push(r);
+  });
+  const recent = (ids) => review.some((r) => r.type === 'same_kind' && (r.status === 'open' || (r.created && daysBetween(String(r.created).slice(0, 10), today) < SAME_KIND_REASK_DAYS)) &&
+    ids.every((id) => String(r.detail).indexOf('(' + id + ')') >= 0));
+  return Object.keys(groups).map((k) => groups[k])
+    .filter((rows) => rows.length >= 2 && !recent(rows.map((r) => r.id)))
+    .slice(0, SAME_KIND_PER_DAY)
+    .map((rows) => ({ type: 'same_kind', audience: 'parents', asked_by: 'Poppy', detail: sameKindText(rows) }));
+}
+function sameKindText(rows) {
+  const what = (r) => r.name + (r.cart ? ' (in the ' + (r.cart === 'GE' ? 'Giant Eagle' : r.cart === 'WF' ? 'Whole Foods' : r.cart) + ' cart)' : '');
+  return '⚠ ' + rows.length + ' of the same kind on the List: ' + rows.map(what).join(' and ') + '. Does one cover it? ' +
+    rows.map((r) => '(' + r.id + ')').join(' ') + ' Options: Keep ' + (rows.length === 2 ? 'both' : 'all') + '; ' + rows.map((r) => 'Just ' + optionName(r.name)).join('; ');
+}
+
+// "Just <name>" → the other rows on the card are skipped (and come out of their store cart); the kept row notes
+// what it now covers. "Keep both" → nothing changes.
+function sameKindAnswer(r, answer, who) {
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim();
+  const m = a.match(/^just (.+)$/i);
+  if (!m) return null;
+  const ids = (String(r.detail).match(/\(L\d{4,}\)/g) || []).map((x) => x.slice(1, -1));
+  const list = readTab(TABS.list);
+  const rows = ids.map((id) => list.find((x) => x.id === id)).filter((x) => x && ACTIVE.indexOf(x.status) >= 0);
+  const keep = rows.find((x) => optionName(x.name).toLowerCase() === m[1].trim().toLowerCase());
+  if (!keep) return null;
+  const stamp = nowStamp();
+  const dropped = [];
+  rows.filter((x) => x !== keep).forEach((x) => {
+    const f = { status: 'skipped', hold_until: '', updated_at: stamp, note: listNote(x, keep.name + ' covers it (' + who + ')') };
+    if (x.status === 'carted') Object.assign(f, cartOutFields(x, who));
+    setFields(TABS.list, x._row, f);
+    dropped.push(x.id);
+  });
+  const bit = 'also covers ' + rows.filter((x) => x !== keep).map((x) => x.name).join(', ');
+  if (dropped.length && String(keep.note || '').indexOf(bit) < 0) setFields(TABS.list, keep._row, { note: listNote(keep, bit), updated_at: stamp });
+  return { kept: keep.id, dropped: dropped };
+}
+
+// A `kind` card ("Are these the same thing for our meals? … (kind cheddar) (i188) (i072) Options: Yes, one covers it;
+// No, keep them apart"): Yes sets Items kind on every item named. No changes nothing.
+function kindAnswer(r, answer, who) {
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim().toLowerCase();
+  if (!/^yes/.test(a)) return null;
+  const k = (String(r.detail).match(/\(kind ([^()]+)\)/) || [])[1];
+  const ids = (String(r.detail).match(/\(i\d{3,}\)/g) || []).map((x) => x.slice(1, -1));
+  if (!k || ids.length < 2) return null;
+  ensureColumn(TABS.items, 'kind');
+  const items = readTab(TABS.items);
+  ids.forEach((id) => { const it = items.find((i) => i.id === id); if (it) setFields(TABS.items, it._row, { kind: k.trim().toLowerCase() }); });
+  return { kind: k.trim().toLowerCase(), items: ids };
 }
 
 // One meal per date and slot (slot defaults to dinner). Older apps send week_of + day instead of date.
@@ -1266,7 +1380,7 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by', 'mini_fridge', 'pantry'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by', 'mini_fridge', 'pantry', 'kind'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
   // api 45: sold by the pound (List qty in lb, ½ lb steps) or each (blank).
@@ -1282,6 +1396,8 @@ function saveItem(req) {
   if (f.mini_fridge !== undefined) { f.mini_fridge = /^y/i.test(String(f.mini_fridge)) ? 'Y' : ''; ensureColumn(TABS.items, 'mini_fridge'); }
   // api 54: pantry staple (Y / blank): assumed on hand for Missing for meals and meal missions.
   if (f.pantry !== undefined) { f.pantry = /^y/i.test(String(f.pantry)) ? 'Y' : ''; ensureColumn(TABS.items, 'pantry'); }
+  // api 62: same kind (a short word like "cheddar"); blank takes the item out of its group.
+  if (f.kind !== undefined) { f.kind = String(f.kind || '').trim().toLowerCase().replace(/[()]/g, '').slice(0, 30); ensureColumn(TABS.items, 'kind'); }
   if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
   if (f.open_to_try !== undefined) { f.open_to_try = /^y/i.test(String(f.open_to_try)) ? 'Y' : ''; ensureColumn(TABS.items, 'open_to_try'); }
   if (f.shelf_days !== undefined) {
@@ -1316,8 +1432,9 @@ function makeMissions(today, kids, review, plan, mealOf) {
   if (!kids.length) return [];
   const items = readTab(TABS.items).filter((i) => i.status !== 'Drop');
   const byId = {}; items.forEach((i) => (byId[i.id] = i));
-  const onList = {};
-  readTab(TABS.list).forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0) onList[r.item_id] = true; });
+  const listRows = readTab(TABS.list);
+  const onList = kindOnList(items, listRows); // api 62: a same-kind item on the List covers it too
+  listRows.forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0) onList[r.item_id] = true; });
   const seen = {};
   if (tab(TABS.stock)) {
     readTab(TABS.stock).forEach((x) => {
@@ -1624,7 +1741,8 @@ function answerReview(req) {
   const voice = r.type === 'voice' ? voiceAnswer(r, answer, who) : null;
   const subbed = r.type === 'subbed' ? subbedAnswer(r, answer, who) : null;
   const which = r.type === 'which' ? whichAnswer(r, answer, who) : null;
-  return { id: r.id, points: pts, why: why, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which };
+  const sameKind = r.type === 'same_kind' ? sameKindAnswer(r, answer, who) : r.type === 'kind' ? kindAnswer(r, answer, who) : null;
+  return { id: r.id, points: pts, why: why, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which, sameKind: sameKind };
 }
 
 // api 61: "Not what we had" on a card about a meal we just had. Finds that night's Plan row (the card's date if it
@@ -2106,8 +2224,11 @@ function missionsAsk(req) {
   if (isKid(who)) throw new Error('Ask a parent to send missions');
   const kids = String(settingsMap().kids || '').split(',').map((x) => x.trim()).filter(String);
   if (!kids.length) throw new Error('No kids set up in Settings');
-  const byId = {}; readTab(TABS.items).forEach((i) => (byId[i.id] = i));
-  const onList = {}; readTab(TABS.list).forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0) onList[r.item_id] = true; });
+  const allItems = readTab(TABS.items);
+  const byId = {}; allItems.forEach((i) => (byId[i.id] = i));
+  const listRows = readTab(TABS.list);
+  const onList = kindOnList(allItems, listRows); // api 62: a same-kind item on the List covers it too
+  listRows.forEach((r) => { if (r.item_id && ACTIVE.indexOf(r.status) >= 0) onList[r.item_id] = true; });
   const review = readTab(TABS.review);
   const open = {};
   review.forEach((r) => {
@@ -2431,6 +2552,9 @@ function dailyCards() {
     // Did we get it? Settle List rows that no receipt will close (see makeSettle).
     makeSettle(today, kids, review).forEach((m) => add(m));
     makeMealSettle(today, review, plan, mealOf).forEach((m) => add(m));
+
+    // Same kind (api 62): two cheddars on the List → ask the parents whether one covers it.
+    makeSameKind(today, review).forEach((m) => add(m));
 
     // Best price: best_price items on the List that another store sells cheaper (prices arrive from the price pass).
     makeBestPrice(review).forEach((m) => add(m));
