@@ -918,24 +918,49 @@
     const it = itemById(id);
     if (!it) return null;
     const prods = (D().products || {})[id] || {};
-    const ok = (k) => { const p = prods[k]; return p && likeItem(p) && Number(p.price) > 0 ? { v: Number(p.price), store: k } : null; };
+    const ok = (k) => { const p = prods[k]; return p && likeItem(p) && Number(p.price) > 0 ? { v: Number(p.price), store: k, size: String(p.size || '') } : null; };
     const usual = it.store && it.store !== 'Either' ? ok(it.store) : null;
     if (usual) return usual;
     const all = Object.keys(prods).map(ok).filter(Boolean).sort((a, b) => a.v - b.v);
     return all[0] || null;
   }
   const weekCounts = (id) => { const it = itemById(id); return !!it && it.status !== 'Drop' && !isDelivery(it.store) && !isPantry(id); };
-  // What one meal needs: { id: packages }.
+  /* How much of one package a meal uses (owner, Nov 6 evening: "we aren't using a full dozen eggs for one of those
+     meals"; the first version charged a whole package of everything). A rough rule by kind of thing, not a recipe:
+     meat = the whole pack (× meat_qty); eggs ⅓ of a dozen; sauces, dressings, oils, spices, spreads, peanut butter ⅛;
+     big milk / juice jugs ¼; cans, boxes of pasta, puff pastry 1; produce, cheese, bread, frozen ½ (cheap loose produce
+     priced each, like bananas or limes: 2–3 of them); other pantry ¼. A planned item (a snack we buy) = ½ a package. */
+  const CONDIMENT = /sauce|dressing|ranch|\boil\b|vinegar|mustard|ketchup|mayo|paste|seasoning|spice|\bsalt\b|black pepper|honey|jelly|fruit spread|preserves|peanut butter|syrup|redhot|cholula|soy|sesame|vanilla|cornstarch|sugar|bisquick|panko|bread crumbs|croutons|cooking spray/i;
+  const WHOLE_CAN = /beans?\b|tomatoes \(canned\)|contadina|coconut milk|broth|pasta|rotini|fusilli|gnocchi|puff pastry|pizza dough|pizza crust|tortellini|ravioli/i;
+  function useShare(id, meal) {
+    const it = itemById(id); if (!it) return 0;
+    if (!meal) return 0.5;
+    if (isMeat(id)) return meatQty(meal);
+    const nm = String(it.name || '') + ' ' + String(it.brand_size || '');
+    const g = String(it.group || '');
+    if (/egg white/i.test(nm)) return 0.5;
+    if (/\beggs?\b/i.test(it.name)) return 1 / 3;
+    if (CONDIMENT.test(nm)) return 0.125;
+    if (/salsa|guacamole|\bdip\b/i.test(nm)) return 1 / 3;
+    if (WHOLE_CAN.test(nm)) return 1;
+    if (g === 'Dairy') return /milk|juice|creamer/i.test(nm) ? 0.25 : /butter/i.test(nm) ? 0.25 : 0.5;
+    if (g === 'Produce') { const pr = itemPackPrice(id); return pr && pr.v < 0.5 ? 3 : pr && pr.v < 1.5 ? 2 : 0.5; }
+    if (g === 'Pantry' || g === 'Breakfast' || g === 'Snacks') return 0.25;
+    return 0.5;
+  }
+  const SHARE_TXT = { 0.125: '⅛', 0.25: '¼', 0.5: '½', 2: '×2', 3: '×3' };
+  const shareText = (v) => SHARE_TXT[v] || (Math.abs(v - 1 / 3) < 0.01 ? '⅓' : v === 1 ? '' : '×' + v);
+  // What one meal uses: { id: share of a package }.
   function mealNeeds(meal) {
     const o = {};
-    mealItems(meal).forEach((id) => { if (weekCounts(id)) o[id] = Math.max(o[id] || 0, isMeat(id) ? meatQty(meal) : 1); });
+    mealItems(meal).forEach((id) => { if (weekCounts(id)) o[id] = useShare(id, meal); });
     return o;
   }
-  const needsCost = (need, skip) => Object.keys(need).reduce((t, id) => {
-    if (skip && skip[id]) return t;
+  const needsCost = (need) => Object.keys(need).reduce((t, id) => {
     const pr = itemPackPrice(id); return t + (pr ? pr.v * need[id] : 0);
   }, 0);
-  // The week: { total, entries: [{ date, slot, name, meal, need, cost, own }], priced, unpriced: [names], saveStores }.
+  // The week: { total, entries: [{ date, slot, name, meal, need, cost }], priced, count, unpriced: [names], saveStores }.
+  // Total = the sum of each meal's share, i.e. what the week's food uses, not a shopping bill.
   function weekCost(days) {
     const entries = [];
     (D().plan || []).forEach((p) => {
@@ -944,24 +969,24 @@
       const meal = p.meal_id ? mealById(p.meal_id) : null;
       const pi = !meal ? planItem(p) : null;
       if (!meal && !pi) return;
-      const need = meal ? mealNeeds(meal) : (weekCounts(pi.id) ? { [pi.id]: 1 } : {});
-      entries.push({ date: d, slot: slotOf(p), name: meal ? meal.name : pi.name, meal: meal, need: need });
+      // The same meal at lunch or breakfast the day after (or the day of) its dinner is leftovers, even
+      // without a "Leftover" note (Thu lunch = Wed's chili): it costs nothing more.
+      const left = meal && slotOf(p) !== 'dinner' && [d, addDays(d, -1)].some((x) => planByDate('dinner')[x] === meal.id);
+      const need = left ? {} : meal ? mealNeeds(meal) : (weekCounts(pi.id) ? { [pi.id]: useShare(pi.id, null) } : {});
+      entries.push({ date: d, slot: slotOf(p), name: (left ? 'Leftover ' : '') + (meal ? meal.name : pi.name), meal: left ? null : meal, need: need, cost: needsCost(need), left: left });
     });
     entries.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : SLOTS.findIndex((x) => x[0] === a.slot) - SLOTS.findIndex((x) => x[0] === b.slot)));
-    const all = {}; const users = {};
-    entries.forEach((e) => Object.keys(e.need).forEach((id) => { all[id] = Math.max(all[id] || 0, e.need[id]); users[id] = (users[id] || 0) + 1; }));
-    let total = 0, priced = 0, saveStores = 0; const unpriced = [];
+    const all = {};
+    entries.forEach((e) => Object.keys(e.need).forEach((id) => (all[id] = (all[id] || 0) + e.need[id])));
+    let priced = 0, saveStores = 0; const unpriced = [];
     Object.keys(all).forEach((id) => {
       const pr = itemPackPrice(id);
       if (!pr) { unpriced.push(itemById(id).name); return; }
-      total += pr.v * all[id]; priced++;
-      const c = cheaperElsewhere(id, pr.store); if (c) saveStores += c.save * all[id];
+      priced++;
+      const c = cheaperElsewhere(id, pr.store); if (c) saveStores += c.save * Math.max(1, Math.ceil(all[id] - 0.01));
     });
-    entries.forEach((e) => {
-      e.cost = needsCost(e.need);
-      e.own = needsCost(Object.keys(e.need).filter((id) => users[id] === 1).reduce((o, id) => ((o[id] = e.need[id]), o), {}));
-    });
-    return { total: total, entries: entries, priced: priced, count: Object.keys(all).length, unpriced: unpriced.sort(), saveStores: saveStores, all: all };
+    const total = entries.reduce((t, e) => t + e.cost, 0);
+    return { total: total, entries: entries, priced: priced, count: Object.keys(all).length, unpriced: unpriced.sort(), saveStores: saveStores };
   }
   // A meal we can price: 2+ linked ingredients we count, most of them priced.
   function mealPriceable(meal) {
@@ -983,8 +1008,7 @@
       .map((e) => {
         let best = null;
         cands.forEach((m) => {
-          const add = needsCost(mealNeeds(m), wc.all); // what it adds beyond what the week already buys
-          const save = e.own - add;
+          const save = e.cost - needsCost(mealNeeds(m));
           const score = (stats[m.id] && stats[m.id].score) || 0;
           if (save >= WEEK_SWAP_MIN && (!best || save + score > best.save + best.score)) best = { entry: e, to: m, save: save, score: score };
         });
@@ -1012,7 +1036,7 @@
         '<button type="button" data-act="weekcost-week" data-v="' + o[0] + '" class="' + (sh.week === o[0] ? 'on' : '') + '">' + esc(o[1]) + '</button>').join('') + '</div>';
     if (!wc.entries.length) return h + '<p class="note">Nothing planned for that week yet.</p>';
     h += '<div class="wc-total"><span class="wc-big">' + dollars(wc.total) + '</span><span class="muted">' + wc.entries.length + ' meals and snacks · ' + wc.priced + ' of ' + wc.count + ' ingredients priced</span></div>';
-    h += '<p class="note">Each ingredient once for the week, one package each, where we usually buy it. Leaves out pantry staples and Wildgrain.' +
+    h += '<p class="note">What the week\'s food uses: each meal pays its share of each package (a whole pack of meat, about ⅓ of a dozen eggs, ⅛ of a bottle of sauce) at the store we usually buy it. Leaves out pantry staples and Wildgrain.' +
       (wc.unpriced.length ? ' No price yet: ' + esc(wc.unpriced.slice(0, 8).join(', ')) + (wc.unpriced.length > 8 ? ' and ' + (wc.unpriced.length - 8) + ' more' : '') + '.' : '') + '</p>';
     h += '<h3 class="wc-h">💡 A cheaper week</h3>';
     if (swaps.length) {
@@ -1027,12 +1051,12 @@
     h += '<h3 class="wc-h">By meal</h3>';
     wc.entries.slice().sort((a, b) => b.cost - a.cost).forEach((e) => {
       // The two priciest ingredients, so a big number explains itself (a jar of vanilla paste for pancakes).
-      const top = Object.keys(e.need).map((id) => ({ id: id, pr: itemPackPrice(id) })).filter((x) => x.pr).sort((a, b) => b.pr.v - a.pr.v).slice(0, 2)
-        .map((x) => itemById(x.id).name + ' ' + dollars(x.pr.v * e.need[x.id]));
+      const top = Object.keys(e.need).map((id) => ({ id: id, pr: itemPackPrice(id) })).filter((x) => x.pr).sort((a, b) => b.pr.v * e.need[b.id] - a.pr.v * e.need[a.id]).slice(0, 2)
+        .map((x) => itemById(x.id).name + (shareText(e.need[x.id]) ? ' ' + shareText(e.need[x.id]) : '') + ' ' + dollars(x.pr.v * e.need[x.id]));
       h += '<div class="wc-row"><span class="muted">' + esc(shortDay(e.date)) + ' ' + slotIcon(e.slot) + '</span><span class="wc-name">' + esc(e.name) +
-        (top.length > 1 && e.cost >= 15 ? '<span class="wc-top">' + esc(top.join(' · ')) + '</span>' : '') + '</span><span class="wc-cost">' + (e.cost ? '~' + dollars(e.cost) : '–') + '</span></div>';
+        (top.length > 1 && e.cost >= 8 ? '<span class="wc-top">' + esc(top.join(' · ')) + '</span>' : '') + '</span><span class="wc-cost">' + (e.left ? '$0' : e.cost ? '~' + dollars(e.cost) : '–') + '</span></div>';
     });
-    return h + '<p class="note">Shared ingredients count in each meal here but only once in the total. After a swap, send the week to Hearth.</p>';
+    return h + '<p class="note">⅓, ¼, ⅛ = the share of a package that meal uses (a rough rule, not the recipe). After a swap, send the week to Hearth.</p>';
   }
   const rowCheaper = (r) => (r && Number(D().api || 0) >= 23 ? cheaperElsewhere(r.item_id, r.store || 'Either') : null);
   function priceTag(r) {
