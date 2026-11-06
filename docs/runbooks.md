@@ -153,7 +153,7 @@ The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it on
 
 **When:** the daily morning check, or when someone says an idea came in. Read Meal Ideas rows with status `new`.
 
-1. Read the text (a recipe, a link, or just an idea). Name it in the house style (owner, Nov 4): one emoji, then a short, catchy name that keeps the main food words the family would say ("🍝 Tuscan Chicken Linguine", "🌯 Crunchy Burrito Roll-Ups"). A name the person gave ("Dad's …") stays in it. Vote cards use the full new name plus `(mNN)`.
+1. Read the text (a recipe, a link, or just an idea). Name it in the house style (owner, Nov 4): one emoji, then a short, catchy name that keeps the main food words the family would say ("🍝 Tuscan Chicken Linguine", "🌯 Crunchy Burrito Roll-Ups"). A name the person gave ("Dad's …") stays in it. **Never use the 🌶️ pepper emoji** anywhere (a parent asked, Nov 6). Vote cards use the full new name plus `(mNN)`.
 2. If a meal with that name (or clearly the same dish) already exists, don't duplicate it: set the idea `done`, `meal_id` = that meal, notes "Already in Our meals".
 3. **Idea from a parent:** add a Meals row (next free `mNN`): `item_ids` = only catalog items that clearly match an ingredient (prefer what the family already buys); `notes` = "From <who>'s idea <date>." + "Not in the catalog yet: …" for unmatched ingredients + the link if there was one. Never create Items from an idea; unmatched ingredients wait for receipts or a parent. Then set the idea `done` and `meal_id`.
 4. **Idea from a kid:** add one Ask card to the parents: `<who> suggested <name>. Add it to Our meals? (xNNN) Options: Yes; No`. Set the idea `asked`. On Yes, do step 3; on No, set it `declined` with notes "A parent said not now".
