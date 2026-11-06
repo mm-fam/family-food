@@ -325,10 +325,15 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      of each week, last week's winner(s) get a type prize card ("pick the family dessert", text answer, closes after
 //      6 days; Settings prize_week guards once a week). The answer goes on the List as needed with note
 //      "🏆 <name>'s dessert pick" (no approval). Scores like any card (1, plus catch-up).
-const API_VERSION = 59;
+// 60 = who planned it and who's cooking (Nov 6, owner: "who's on the hook for cooking it… and who suggested it"):
+//      Plan `planned_by`, `planned_at`, `asked_by`, `cook` (added at the end on first use). planSet stamps planned_by /
+//      planned_at when the meal or item in a slot changes (a swap clears cook); asked_by = req.asked_by, else whoever
+//      has an open meal_request for that meal. planCook {date, slot?, name, on} adds or takes one name off `cook`
+//      (names joined "; "); anyone can sign themselves up, kids only themselves, parents anyone. Needs a planned meal.
+const API_VERSION = 60;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
-  'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk'];
+  'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk', 'planCook'];
 const BEST_MIN_PCT = 0.10, BEST_MIN_SAVE = 0.50, BEST_FRESH_DAYS = 30;
 const MEAT_QTY_MAX = 3; // api 35: Meals meat_qty, 1-3 of each meat per meal
 const RHYTHM_DAYS = 365; // buying rhythm (avg_days) uses purchases from the last year
@@ -381,6 +386,7 @@ function handle(req) {
     update: () => withLock(() => updateListRow(req)),
     addMeal: () => withLock(() => addMealToList(req)),
     planSet: () => withLock(() => setPlan(req)),
+    planCook: () => withLock(() => setPlanCook(req)),
     mealSave: () => withLock(() => saveMeal(req)),
     itemSave: () => withLock(() => saveItem(req)),
     reviewAnswer: () => withLock(() => answerReview(req)),
@@ -1155,6 +1161,15 @@ function setPlan(req) {
   const keep = req.meal_id || itemId || (note !== null ? note : existing && existing.note);
   const what = { meal_id: req.meal_id || '' };
   if (itemId || headers(TABS.plan).indexOf('item_id') >= 0) what.item_id = itemId;
+  // api 60: who planned it (and who asked for it) whenever what's in the slot changes. A swap clears the cook.
+  const changed = !existing || String(existing.meal_id || '') !== what.meal_id || String(existing.item_id || '') !== itemId;
+  if (keep && changed && (what.meal_id || itemId)) {
+    ['planned_by', 'planned_at', 'asked_by', 'cook'].forEach((c) => ensureColumn(TABS.plan, c));
+    what.planned_by = String(req.by || '');
+    what.planned_at = "'" + nowStamp();
+    what.asked_by = what.meal_id ? planAskedBy(req, what.meal_id) : '';
+    what.cook = '';
+  }
   if (existing) {
     if (!keep) sheet(TABS.plan).deleteRow(existing._row);
     else setFields(TABS.plan, existing._row, Object.assign(fields, what));
@@ -1162,6 +1177,39 @@ function setPlan(req) {
     appendObj(TABS.plan, Object.assign(fields, what));
   }
   return { date: date, day: fields.day, slot: slot };
+}
+
+// Who asked for this meal: the app sends asked_by when a parent plans from a request; otherwise any open
+// meal_request for the meal (a parent planned it from the day sheet instead).
+function planAskedBy(req, mealId) {
+  if (req.asked_by) return String(req.asked_by);
+  const who = [];
+  readTab(TABS.review).forEach((r) => {
+    if (r.type !== 'meal_request' || r.status !== 'open' || String(r.detail).indexOf('(' + mealId + ')') < 0) return;
+    const n = String(r.asked_by || (String(r.detail).match(/^(\S+) wants/) || [])[1] || '').trim();
+    if (n && who.indexOf(n) < 0) who.push(n);
+  });
+  return who.join('; ');
+}
+
+// api 60: sign up to cook (or step off). One name per call so two phones tapping at once don't overwrite each other.
+function setPlanCook(req) {
+  const date = String(req.date || '').slice(0, 10);
+  const slot = SLOTS.indexOf(String(req.slot || '').toLowerCase()) >= 0 ? String(req.slot).toLowerCase() : 'dinner';
+  const fam = people();
+  const name = fam.find((p) => p.toLowerCase() === String(req.name || '').trim().toLowerCase());
+  if (!name) throw new Error('Pick someone in the family');
+  const by = String(req.by || '').trim().toLowerCase();
+  if (isKid(req.by) && name.toLowerCase() !== by) throw new Error('You can sign yourself up');
+  const row = readTab(TABS.plan).find((p) => planDate(p) === date && planSlot(p) === slot);
+  if (!row || !row.meal_id) throw new Error('Plan a meal there first');
+  ensureColumn(TABS.plan, 'cook');
+  const cooks = String(row.cook || '').split(';').map((x) => x.trim()).filter(String).filter((x) => x.toLowerCase() !== name.toLowerCase());
+  if (req.on !== false && String(req.on) !== 'false') cooks.push(name);
+  const order = fam.map((p) => p.toLowerCase());
+  cooks.sort((a, b) => order.indexOf(a.toLowerCase()) - order.indexOf(b.toLowerCase()));
+  setFields(TABS.plan, row._row, { cook: cooks.join('; ') });
+  return { date: date, slot: slot, cook: cooks.join('; ') };
 }
 
 // Blank = 1 (the default), so the column stays empty for most meals.

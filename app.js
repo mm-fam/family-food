@@ -328,6 +328,41 @@
     return m ? m.name : it ? it.name : String(p.note || '');
   }
 
+  // Who's cooking + who planned it (Nov 6, owner, api 60): Plan cook ("Mike; Gianna"), planned_by, planned_at, asked_by.
+  const canCook = () => Number(D().api || 0) >= 60;
+  const cooksOf = (p) => String((p && p.cook) || '').split(';').map((x) => x.trim()).filter(String);
+  const nameList = (a) => a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' & ' + a[a.length - 1];
+  function cookShort(p) {
+    const c = cooksOf(p);
+    return c.length ? nameList(c) : '';
+  }
+  // "Planned by Joni · Nov 6 · Cecilia asked for it"
+  function plannedLine(p) {
+    if (!p) return '';
+    const bits = [];
+    if (p.planned_by) bits.push('Planned by ' + p.planned_by + (p.planned_at ? ' · ' + fmtLong(p.planned_at) : ''));
+    if (p.asked_by) bits.push(nameList(String(p.asked_by).split(';').map((x) => x.trim()).filter(String)) + ' asked for it');
+    return bits.join(' · ');
+  }
+  // One row of name chips. Tap your own to sign up or step off; parents can tap anyone.
+  function cookBlock(date, slot, p) {
+    if (!canCook() || !p || !mealById(p.meal_id || '') || isLeftover(p)) return '';
+    const fam = (D().settings.parents || []).concat(D().settings.kids || []);
+    const on = cooksOf(p).map((x) => x.toLowerCase());
+    const me = String(S.me).toLowerCase();
+    const mineOn = on.indexOf(me) >= 0;
+    const chips = fam.map((n) => {
+      const isOn = on.indexOf(n.toLowerCase()) >= 0;
+      const can = amParent() || n.toLowerCase() === me;
+      return '<button type="button" class="cook-chip' + (isOn ? ' on' : '') + '" data-act="cook-toggle" data-day="' + date + '" data-slot="' + slot + '" data-name="' + esc(n) + '" aria-pressed="' + isOn + '"' + (can ? '' : ' disabled') + '>' +
+        (isOn ? '🧑‍🍳 ' : '') + esc(n) + '</button>';
+    }).join('');
+    const line = plannedLine(p);
+    return '<div class="cook-block"><div class="cook-label">' + (on.length ? 'Cooking' : 'Who’s cooking?') + '</div><div class="cook-chips">' + chips + '</div>' +
+      (!amParent() && !mineOn ? '<div class="cook-hint">Tap your name to cook it.</div>' : '') +
+      (line ? '<div class="cook-by">' + esc(line) + '</div>' : '') + '</div>';
+  }
+
   function shortDay(iso) {
     const d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
     return isNaN(d) ? '' : DAYS[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.getDate();
@@ -1902,7 +1937,8 @@
       const any = SLOTS.some((x) => planText(rows[x[0]]));
       const lines = SLOTS.map((x) => {
         const t = planText(rows[x[0]]);
-        return '<span class="dt-line' + (t ? '' : ' none') + '"><span class="dt-k"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</span><span class="dt-v">' + esc(t || '—') + '</span></span>';
+        const ck = canCook() && x[0] === 'dinner' && t ? cookShort(rows[x[0]]) : '';
+        return '<span class="dt-line' + (t ? '' : ' none') + '"><span class="dt-k"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</span><span class="dt-v">' + esc(t || '—') + (ck ? '<small class="dt-cook">🧑‍🍳 ' + esc(ck) + '</small>' : '') + '</span></span>';
       }).join('');
       return '<div class="day-tile slots4' + (any ? ' set' : '') + (isToday ? ' today' : '') + (open ? ' open' : '') + '">' +
         '<button class="dt-all" data-act="open-day" data-day="' + day + '" aria-label="' + esc((isToday ? 'Today, ' : '') + dayName(day) + ' ' + md(day)) + '">' +
@@ -1961,14 +1997,15 @@
         const t = planText(p);
         const open = m ? '<button class="btn btn-plain slot-open" data-act="open-meal" data-id="' + m.id + '" aria-label="Open ' + esc(m.name) + '">↗</button>'
           : pi ? '<button class="btn btn-plain slot-open" data-act="open-item" data-id="' + pi.id + '" aria-label="Open ' + esc(pi.name) + '">↗</button>' : '<span class="slot-open"></span>';
+        const cb = x[0] === 'dinner' ? cookBlock(sh.day, 'dinner', p) : '';
         if (readOnly) {
           return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
-            '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '—') + '</span></div>' + open + '</div>';
+            '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '—') + '</span></div>' + open + '</div>' + cb;
         }
         return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
           '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '+ Pick ' + x[1].toLowerCase()) + '</span>' +
           '<label class="sr" for="slot-' + x[0] + '">' + x[1] + '</label><select id="slot-' + x[0] + '" data-input="slot-plan" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
-          slotOptions(meals, x[0], p) + '</select></div>' + open + '</div>' +
+          slotOptions(meals, x[0], p) + '</select></div>' + open + '</div>' + cb +
           (sh.find === x[0] ? slotFind(sh, x[0]) : '');
       }).join('') +
       '<p class="note">' + (readOnly ? 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.' : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.') + '</p>';
@@ -1999,14 +2036,18 @@
     const out = [];
     days.forEach((d) => {
       const rows = planDay(d);
-      const lines = SLOTS.map((x) => (planText(rows[x[0]]) ? x[1] + ': ' + planText(rows[x[0]]) : '')).filter(String);
+      const lines = SLOTS.map((x) => {
+        const t = planText(rows[x[0]]);
+        const ck = canCook() && x[0] === 'dinner' && t ? cookShort(rows[x[0]]) : '';
+        return t ? x[1] + ': ' + t + (ck ? ' (' + ck + ' cooking)' : '') : '';
+      }).filter(String);
       if (lines.length) out.push(dayName(d) + ' ' + fmtLong(d) + '\n' + lines.join('\n'));
     });
     if (!out.length) return '';
     const first = days[0]; const last = days[days.length - 1];
     return 'Please update our Hearth Meal Plan for ' + fmtLong(first) + ' – ' + fmtLong(last) + ', ' + first.slice(0, 4) + '.\n' +
       'Use these exact meal names in the Breakfast, Lunch, Snack and Dinner rows, for the whole family. ' +
-      'Replace whatever is already in those spots. Leave any spot I don\'t list as it is. Meal plan only: no calendar events or reminders.\n\n' +
+      'Keep any \"(… cooking)\" note as part of that dinner\'s name. Replace whatever is already in those spots. Leave any spot I don\'t list as it is. Meal plan only: no calendar events or reminders.\n\n' +
       out.join('\n\n');
   }
   function fmtLong(iso) {
@@ -2430,6 +2471,7 @@
       }).join('') + '</div></div>').join('') +
       '<p class="note">Tap a ' + (slot === 'dinner' ? 'night' : 'day') + ' to plan it, tap again to take it off. One with something else on it gets swapped.</p></div>';
 
+    h += mealCookBlock(m, slot);
     h += mealVotesBlock(m, sh);
 
     const ids = mealItems(m).filter((id) => itemById(id));
@@ -2449,6 +2491,18 @@
     return h;
   }
 
+  // On the meal card: each upcoming day it's planned, who planned it and who's cooking (api 60).
+  function mealCookBlock(m, slot) {
+    if (!canCook() || slot !== 'dinner') return '';
+    const days = D().plan.filter((p) => p.meal_id === m.id && slotOf(p) === 'dinner' && !isLeftover(p) && planDate(p) >= D().today)
+      .sort((a, b) => planDate(a).localeCompare(planDate(b))).slice(0, 3);
+    if (!days.length) return '';
+    return '<div class="is-block"><div class="is-label">Coming up</div>' + days.map((p) => {
+      const d = planDate(p);
+      return '<div class="cook-day"><b>' + esc(d === D().today ? 'Tonight' : dayName(d) + ' ' + md(d)) + '</b>' + cookBlock(d, 'dinner', p) + '</div>';
+    }).join('') + '</div>';
+  }
+
   function viewIdeaSheet(sh) {
     const kid = isKid(S.me);
     return '<h2>Share a meal idea</h2>' +
@@ -2466,16 +2520,16 @@
       (x.notes ? '<p class="note">' + esc(x.notes) + '</p>' : '<p class="note">Poppy turns it into a meal on the next morning check.</p>');
   }
 
-  function planMeal(date, mealId) {
+  function planMeal(date, mealId, askedBy) {
     const slot = canSlots() ? kindOf(mealById(mealId)) : 'dinner';
     const before = planByDate(slot)[date] || '';
     const to = before === mealId ? '' : mealId;
     const wk = addDays(date, -DAYS.indexOf(dayName(date)));
     const m = mealById(mealId); const prev = before && before !== mealId ? mealById(before) : null;
     const msg = to ? m.name + ' on ' + (date === D().today ? 'tonight' : shortDay(date)) + (prev ? ' (instead of ' + prev.name + ')' : '') : 'Took ' + m.name + ' off ' + shortDay(date);
-    const send = (meal) => act('planSet', { date: date, day: dayName(date), week_of: wk, meal_id: meal, slot: slot, note: '' }, () => {
+    const send = (meal) => act('planSet', Object.assign({ date: date, day: dayName(date), week_of: wk, meal_id: meal, slot: slot, note: '' }, askedBy && meal === to ? { asked_by: askedBy } : {}), () => {
       D().plan = D().plan.filter((p) => !(planDate(p) === date && slotOf(p) === slot));
-      if (meal) D().plan.push({ date: date, week_of: wk, day: dayName(date), meal_id: meal, slot: slot });
+      if (meal) D().plan.push({ date: date, week_of: wk, day: dayName(date), meal_id: meal, slot: slot, planned_by: S.me, planned_at: D().today, asked_by: meal === to ? askedBy || '' : '' });
     }, meal === to ? msg : null, meal === to ? () => send(before) : null);
     send(to);
   }
@@ -3339,10 +3393,26 @@
         ids.forEach((id) => { const it = itemById(id); D().list.push({ id: tmpId(), item_id: id, name: it.name, store: it.store, qty: 1, added_by: S.me, status: status, meal_id: meal.id }); });
       }, 'Added ' + ids.length + ' for ' + meal.name);
     },
+    'cook-toggle': (el) => {
+      const date = el.dataset.day; const slot = el.dataset.slot || 'dinner'; const name = el.dataset.name;
+      const p = planDay(date)[slot]; if (!p) return;
+      const on = cooksOf(p).map((x) => x.toLowerCase()).indexOf(name.toLowerCase()) < 0;
+      const fam = (D().settings.parents || []).concat(D().settings.kids || []).map((x) => x.toLowerCase());
+      const mine = name.toLowerCase() === String(S.me).toLowerCase();
+      const m = mealById(p.meal_id || '');
+      act('planCook', { date: date, slot: slot, name: name, on: on }, () => {
+        const c = cooksOf(p).filter((x) => x.toLowerCase() !== name.toLowerCase());
+        if (on) c.push(name);
+        c.sort((a, b) => fam.indexOf(a.toLowerCase()) - fam.indexOf(b.toLowerCase()));
+        p.cook = c.join('; ');
+      }, on ? (mine ? 'You’re cooking ' : name + ' is cooking ') + (m ? m.name : 'dinner') + ' ' + (date === D().today ? 'tonight' : shortDay(date))
+        : (mine ? 'You’re off ' : name + ' is off ') + (m ? m.name : 'dinner'));
+    },
     'open-meal': (el) => { if (mealById(el.dataset.id)) { S.sheet = { type: 'mealcard', id: el.dataset.id, req: el.dataset.req || '' }; render(); } },
     'plan-meal': (el) => {
       const sh = S.sheet; if (!sh || sh.type !== 'mealcard') return;
-      planMeal(el.dataset.day, sh.id);
+      const rq = sh.req ? mealRequests().find((x) => x.r.id === sh.req) : null;
+      planMeal(el.dataset.day, sh.id, rq ? rq.who : '');
       // Planning it from a kid's request answers the request.
       if (sh.req) { const id = sh.req; sh.req = ''; act('reviewAnswer', { id: id, answer: 'Yes, ' + shortDay(el.dataset.day) + ' (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }); }
     },

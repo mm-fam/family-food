@@ -385,3 +385,29 @@ test('weekly prize: last week winner gets a dessert card; the pick goes on the L
   b._ss.getSheetByName('Settings')._data.push(['prize', 'off']);
   assert.strictEqual(b.call({ action: 'state', pass: PASS, by: 'Kim' }).state.points.prize, '');
 });
+
+test('who planned it and who is cooking (api 60)', () => {
+  const t = tabs();
+  t.Review.push(['r950', '2026-11-05', 'meal_request', 'Kim wants Pancakes for dinner, next week. (m01) Options: Plan it; Not now', 'open', '', 'parents', '', 'Kim', '', '', '', '', '', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  let r = b.call({ action: 'planSet', pass: PASS, by: 'Sam', date: '2026-11-12', meal_id: 'm01', slot: 'dinner' });
+  assert.strictEqual(r.ok, true, r.error);
+  let p = r.state.plan.find((x) => String(x.date).slice(0, 10) === '2026-11-12');
+  assert.strictEqual(p.planned_by, 'Sam');
+  assert.strictEqual(p.asked_by, 'Kim');
+  assert.match(String(p.planned_at), /^2026|^\d{4}-/);
+  // Anyone signs up; a kid only for herself; a parent for anyone.
+  r = b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: '2026-11-12', name: 'Lee' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: '2026-11-12', name: 'Kim' }).error);
+  r = b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: '2026-11-12', name: 'pat' });
+  p = r.state.plan.find((x) => String(x.date).slice(0, 10) === '2026-11-12');
+  assert.strictEqual(p.cook, 'Pat; Lee');
+  r = b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: '2026-11-12', name: 'Lee', on: false });
+  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === '2026-11-12').cook, 'Pat');
+  // Re-saving the same meal keeps the cook; a swap clears it and records the new planner.
+  r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: '2026-11-12', meal_id: 'm01', slot: 'dinner', note: '' });
+  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === '2026-11-12').cook, 'Pat');
+  assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: '2026-11-13', name: 'Pat' }).error, 'nothing planned');
+  assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: '2026-11-12', name: 'Zed' }).error);
+});

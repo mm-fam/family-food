@@ -39,6 +39,7 @@ _(the owner's findings from private testing go here)_
 | Date | Decision |
 |---|---|
 | Oct 2026 | Build baseline from order history, not a pantry walk. No exact pantry counts. |
+| Nov 6 2026 | Dinners carry who's cooking and who planned / asked for them (api 60). Anyone signs themselves up to cook (kids included); parents can assign anyone. Breakfast/lunch/snack don't get a cook. Older plan rows stay blank. |
 | Oct 2026 | Custom phone app (GitHub Pages) over a spreadsheet UI; no Claude accounts needed for family. |
 | Oct 2026 | Backend = Google Sheet + Apps Script web app, guarded by one family passcode. |
 | Oct 2026 | Kids' adds are requests needing parent approval. |
