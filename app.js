@@ -27,7 +27,7 @@
   const isDelivery = (code) => !!(STORES[code] && STORES[code].delivery);
   const DELIVERY_OPTS = [['WG', 'Wildgrain'], ['BB', 'Bleu Box']];
   const GROUPS = ['Produce', 'Dairy', 'Cheese & deli', 'Meat', 'Bakery', 'Breakfast', 'Snacks', 'Pantry', 'Frozen',
-    'Personal care', 'Household', 'Paper & cleaning', 'Other'];
+    'Mini fridge', 'Personal care', 'Household', 'Paper & cleaning', 'Other'];
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const POLL_MS = 20000;
 
@@ -682,7 +682,8 @@
   const isClosed = (key) => (key in S.closed ? !!S.closed[key] : true);
   function setClosed(key, v) { S.closed[key] = v; }
 
-  const groupOf = (r) => { const it = itemById(r.item_id); return (it && it.group) || 'Other'; };
+  // Mini fridge drinks (Items.mini_fridge = Y) get their own List section, whatever their aisle (Mike, Nov 6).
+  const groupOf = (r) => { const it = itemById(r.item_id); if (it && /^y/i.test(String(it.mini_fridge || ''))) return 'Mini fridge'; return (it && it.group) || 'Other'; };
   const groupsIn = (rows) => GROUPS.concat(Array.from(new Set(rows.map(groupOf))).filter((g) => GROUPS.indexOf(g) < 0))
     .filter((g) => rows.some((r) => groupOf(r) === g));
 

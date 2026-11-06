@@ -98,7 +98,7 @@ phones (GitHub Pages, PWA)  --POST-->  Apps Script web app  -->  Google Sheet "P
 - **Settings:** parents, kids, ge_order_day, wf_order_day, order_requested, admins, cards_through, still_through (the last two are written by the backend), prices_through, runner_seen, ge_orders_through (the cart runner's daily Giant Eagle order-history pass)
 - **App Feedback** (api 9, created on first use): id (f001…) | at | who | tab | text | status (`new` → `seen`) | notes. Never delete rows.
 
-Groups used by the app: Produce, Dairy, Cheese & deli, Meat, Bakery, Breakfast, Snacks, Pantry, Frozen, Personal care, Household, Paper & cleaning, Other.
+Groups used by the app: Produce, Dairy, Cheese & deli, Meat, Bakery, Breakfast, Snacks, Pantry, Frozen, Mini fridge, Personal care, Household, Paper & cleaning, Other.
 
 ## Claude's jobs (details in runbooks)
 1. **Receipt ingest:** new GE/WF receipts → Receipts rows → match by aliases → active List rows to `bought` → unknowns to Review.
@@ -116,7 +116,7 @@ Seeded from 3 orders (1 GE, 2 WF): 91 items, 107 receipt lines. Open GE codes as
 
 **Pantry staples (api 54):** Items `pantry` (Y / blank; the backend adds the column the first time it's set). Shelf-stable things we always keep (garlic, soy sauce, ketchup, oils, rice). Parents set it on the item screen → Details → "Pantry staple?" or with 🫙 Always have in Missing for meals → Have. Missing for meals and the kids' meal missions skip them unless someone has marked them low / out in the last 14 days.
 
-**Mini fridge tag (api 53):** Items `mini_fridge` (Y / blank; the backend adds the column the first time it's set). Drinks we stock in the two under-shelf mini fridges. Parents set it on the item screen → Details → "Goes in the mini fridge?"; the app shows a small 🥤 Mini fridge tag next to the name on List rows, kids' requests, In store, In the cart, Shop and the item screen. Beer is parents-only: never offered to the kids in cards.
+**Mini fridge tag (api 53):** Items `mini_fridge` (Y / blank; the backend adds the column the first time it's set). Drinks we stock in the two under-shelf mini fridges. Parents set it on the item screen → Details → "Goes in the mini fridge?"; the app shows a small 🥤 Mini fridge tag next to the name on List rows, kids' requests, In store, In the cart, Shop and the item screen. Beer is parents-only: never offered to the kids in cards. **Since Nov 6 the List groups every mini_fridge item under its own MINI FRIDGE section** (whatever its aisle), and "Mini fridge" is an aisle choice in Details (Shop shows it as an aisle too).
 
 **Open to trying something else (api 29):** Items `open_to_try` (Y / blank; the backend adds the column the first time it's set). Parents set it on the item screen → Details → "Open to trying something else?". The cart runner's daily price pass then looks up 2–3 alternatives (other brands, then a store brand) at our stores as Products rows `alt` / source `try <date>` / notes `try option`; the morning check offers them to the parents as ⚖ Decisions cards (type `try`: Try it next order / Not this one / Stop suggesting). "Try it next order" puts a `Try: <product>` note on the List row, and the next cart build buys that product once. Nothing changes without a parent's yes; `declined` alternatives are never offered again (runbooks §2, §11 B1/B4, §13 step 9).
 
