@@ -76,9 +76,10 @@ try {
   Log ('Starting Claude for ' + (($jobs | ForEach-Object { "$($_.id) $($_.store) $($_.kind) ($($_.status))" }) -join ', '))
   Push-Location $repo
   try { git pull -q 2>&1 | Out-Null } catch { Log 'git pull failed; using the copy on disk' }
-  $prompt = (Get-Content (Join-Path $here 'cart-runner-prompt.md') -Raw).Replace('{{SHEET_ID}}', $cfg.sheetId)
+  $prompt = (Get-Content (Join-Path $here 'cart-runner-prompt.md') -Raw).Replace('{{SHEET_ID}}', $cfg.sheetId).Replace('{{NOW}}', (Get-Date -Format 'yyyy-MM-ddTHH:mm:ss'))
   $claude = if ($cfg.claudePath) { $cfg.claudePath } else { 'claude' }
-  $tools = @($cfg.allowedTools) -join ','
+  # Bash(date) lets the run read the local clock (Nov 6: a run guessed and wrote UTC times).
+  $tools = (@($cfg.allowedTools) + @('Bash(date:*)')) -join ','
   $out = $prompt | & $claude -p --chrome --allowedTools $tools --max-turns 400 2>&1
   Add-Content -Path $log -Value ($out | Out-String)
   Log 'Claude finished'
