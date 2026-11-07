@@ -1,0 +1,63 @@
+{
+ "id": "m48",
+ "name": "🧀 Cheesy Quesadillas",
+ "kind": "dinner",
+ "tagline": "Golden, crispy, extra-cheesy quesadillas: the 20-minute no-meat dinner everyone builds their own way.",
+ "serves": "4",
+ "prep": 10,
+ "cook": 15,
+ "level": "Easy weeknight",
+ "ingredients": [
+  {
+   "group": "From the store",
+   "items": [
+    { "qty": "10", "name": "Mission soft taco tortillas", "item": "i075" },
+    { "qty": "3 cups", "name": "Mexican blend shredded cheese", "item": "i039" },
+    { "qty": "to serve", "name": "Sour cream", "item": "i159" },
+    { "qty": "to serve", "name": "Chunky salsa, mild", "item": "i113" },
+    { "qty": "1", "name": "Avocado (optional)", "item": "i042" }
+   ]
+  },
+  {
+   "group": "From the pantry",
+   "items": [
+    { "qty": "", "name": "Butter for the pan" },
+    { "qty": "", "name": "Pinch of salt (for the guac)" }
+   ]
+  }
+ ],
+ "steps": [
+  { "text": "Oven to 250°F to keep the finished ones warm. Put a sheet pan inside." },
+  { "text": "Lay out the tortillas. Sprinkle cheese over half of each, edge to edge, then fold over.", "kid": true },
+  { "text": "Melt a little butter in a big skillet over medium.", "time": "2 min" },
+  { "text": "Cook 2–3 at a time, pressing down with a spatula, until golden and the cheese is melted.", "time": "3 min a side" },
+  { "text": "Move finished ones to the warm oven while you cook the rest.", "time": "10 min" },
+  { "text": "Mash the avocado with salt (and lime if you have it) for a quick guac.", "kid": true },
+  { "text": "Cut each one into 3 wedges with a pizza cutter and serve with sour cream, salsa and guac.", "kid": true }
+ ],
+ "kid_jobs": [
+  { "job": "Fill and fold the quesadillas" },
+  { "job": "Mash the avocado for guac" },
+  { "job": "Cut wedges with a pizza cutter (cooled a bit)" },
+  { "job": "Set out the dips and the table" }
+ ],
+ "chef_tip": "Medium heat, not high: the cheese needs time to melt before the tortilla burns. A light press with the spatula makes them crispy all over.",
+ "make_ahead": "Fold them up to a day ahead and keep them covered in the fridge; cook just before dinner.",
+ "leftovers": "Re-crisp in a dry skillet or the air fryer for 3–4 minutes. Good in a lunch box cold, too.",
+ "swaps": [
+  "Add black beans or corn inside",
+  "Pepper jack for heat",
+  "Add shredded chicken for meat eaters"
+ ],
+ "serve_with": "Salsa, sour cream, guac, and cut-up peppers or a simple salad",
+ "gear": [ "Big skillet", "Spatula", "Sheet pan", "Pizza cutter" ],
+ "heads_up": "",
+ "draft": true,
+ "game_plan": [
+  { "when": "25 min out", "what": "Oven to 250°F with a sheet pan inside." },
+  { "when": "20 min", "what": "Kids fill and fold the tortillas." },
+  { "when": "15 min", "what": "Cook in batches; finished ones into the warm oven." },
+  { "when": "5 min", "what": "Kids mash the guac and set out the dips." },
+  { "when": "Dinner", "what": "Cut into wedges and serve hot." }
+ ]
+}

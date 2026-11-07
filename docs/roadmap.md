@@ -39,6 +39,7 @@ _(the owner's findings from private testing go here)_
 | Date | Decision |
 |---|---|
 | Oct 2026 | Build baseline from order history, not a pantry walk. No exact pantry counts. |
+| Nov 7 2026 | **No meal without a recipe card, and a parent checks each new one** (owner: Ratatouille showed up with no card). New meals get their card in the same pass; the morning check catches any meal missing one; each new card goes to a parent as a `recipe_check` Inbox card with a See the recipe card button (app only). No emails or texts. Cards for m48 Cheesy Quesadillas and m49 Ratatouille; m03's card renamed to 🥘 (no 🌶️). |
 | Nov 6 2026 | **Mini fridge section on the List** (Mike): items tagged mini_fridge show under MINI FRIDGE instead of their aisle; "Mini fridge" added as an aisle. App only. First item: the GE Brisk iced tea, renamed "Lipton Brisk lemon iced tea" (it was still the generic "Iced tea" from the Nov 1 Reorder import). |
 | Nov 6 2026 | Dinners carry who's cooking and who planned / asked for them (api 60). Anyone signs themselves up to cook (kids included); parents can assign anyone. Breakfast/lunch/snack don't get a cook. Older plan rows stay blank. |
 | Nov 6 2026 | **"Not what we had"** on last night's meal cards (owner: we flex and change meals on the fly, so the How was it? / Kitchen help cards are often wrong). One tap clears that night's cards for everyone and the meal doesn't count as made (Plan `not_had`, api 61). We don't ask what we had instead (the card's "Something else? Type it" still works). |

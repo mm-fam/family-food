@@ -1,5 +1,5 @@
 {
- "built": "2026-11-05",
+ "built": "2026-11-07",
  "recipes": {
   "m01": {
    "name": "🌮 Taco Fiesta",
@@ -26,7 +26,7 @@
    "early": "1 hr out: Dough out of the fridge to warm up."
   },
   "m03": {
-   "name": "🌶️ Cozy Cabin Chili",
+   "name": "🥘 Cozy Cabin Chili",
    "pdf": "recipes/m03.pdf",
    "img": [
     "recipes/img/m03-1.jpg",
@@ -540,6 +540,30 @@
    "minutes": 55,
    "draft": true,
    "early": ""
+  },
+  "m48": {
+   "name": "🧀 Cheesy Quesadillas",
+   "pdf": "recipes/m48.pdf",
+   "img": [
+    "recipes/img/m48-1.jpg",
+    "recipes/img/m48-2.jpg"
+   ],
+   "serves": "4",
+   "minutes": 25,
+   "draft": true,
+   "early": ""
+  },
+  "m49": {
+   "name": "🍅 Ratatouille",
+   "pdf": "recipes/m49.pdf",
+   "img": [
+    "recipes/img/m49-1.jpg",
+    "recipes/img/m49-2.jpg"
+   ],
+   "serves": "4, plus a lunch",
+   "minutes": 60,
+   "draft": true,
+   "early": "60 min out: Oven to 425°F. Kids wash the vegetables."
   }
  }
 }

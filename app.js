@@ -2646,7 +2646,7 @@
     const v = encodeURIComponent((S.recipes && S.recipes.built) || '');
     return '<div class="is-head"><div><h2>' + esc(m.name) + '</h2><p class="note">Recipe card · front and back</p></div><button class="x-btn" data-act="recipe-close" aria-label="Back to the meal">✕</button></div>' +
       '<div class="recipe-bar"><button class="btn btn-primary" data-act="recipe-share"' + (f === 'loading' ? ' disabled' : '') + '>' + (f === 'loading' ? 'Getting the card…' : '🖨 Print or share') + '</button>' +
-      '<button class="btn btn-plain" data-act="recipe-close">‹ Back to the meal</button></div>' +
+      '<button class="btn btn-plain" data-act="recipe-close">‹ ' + (sh.from === 'inbox' ? 'Back to the Inbox' : 'Back to the meal') + '</button></div>' +
       '<p class="note recipe-tip">Print or share opens your phone’s share sheet: pick <b>Print</b>, or AirDrop / Messages.</p>' +
       (r.img || []).map((src, i) => '<img class="recipe-page" src="' + esc(src) + '?v=' + v + '" alt="' + (i ? 'Back' : 'Front') + ' of the recipe card" loading="lazy">').join('');
   }
@@ -2945,7 +2945,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still' || (t === 'vote' && voteTiming(r) === 'after')) return 'rate'; // api 35: a vote right after the meal
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed', 'which', 'same_kind', 'kind'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed', 'which', 'same_kind', 'kind', 'recipe_check'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }
@@ -3272,6 +3272,9 @@
     // that night as not made and clears the rest of that night's cards for everyone.
     const aboutLastNight = Number(D().api || 0) >= 61 && /\(m\d{2,}\)/.test(String(r.detail || '')) &&
       (r.type === 'rate' || r.type === 'helped' || (r.type === 'vote' && voteTiming(r) === 'after'));
+    // Nov 7 (owner): a new recipe card goes to a parent to check. The card opens it right here; ✕ comes back to the Inbox.
+    const cardMeal = r.type === 'recipe_check' ? (String(r.detail || '').match(/\((m\d{2,})\)/) || [])[1] : '';
+    if (cardMeal && recipeOf(cardMeal)) control = '<button type="button" class="btn btn-outline btn-block recipe-btn" data-act="open-recipe" data-from="inbox" data-id="' + esc(cardMeal) + '">🖨 See the recipe card<small>' + esc((mealById(cardMeal) || {}).name || '') + '</small></button>' + control;
     if (aboutLastNight) control += '<button type="button" class="link-btn not-had" data-act="ask-nothad" data-id="' + r.id + '">🔄 Not what we had</button>';
 
     const textBox = '<form class="ask-text" data-form="ask-text" data-id="' + r.id + '"><label class="sr" for="ask-in">Answer</label>' +
@@ -3731,8 +3734,8 @@
       saveMealIngredients(m, before.filter((x) => x !== el.dataset.id), 'Took ' + (it ? it.name : 'it') + ' off', () => saveMealIngredients(m, before, 'Put back'));
     },
     'mc-ing-clear': () => { S.sheet.iq = ''; render(); },
-    'open-recipe': (el) => { const id = el.dataset.id; if (!recipeOf(id)) return; S.sheet = { type: 'recipe', id: id }; prefetchRecipe(id); render(); },
-    'recipe-close': () => { const id = S.sheet && S.sheet.id; S.sheet = id && mealById(id) ? { type: 'mealcard', id: id } : null; render(); },
+    'open-recipe': (el) => { const id = el.dataset.id; if (!recipeOf(id)) return; S.sheet = { type: 'recipe', id: id, from: el.dataset.from || '' }; prefetchRecipe(id); render(); },
+    'recipe-close': () => { const sh = S.sheet || {}; const id = sh.id; S.sheet = sh.from !== 'inbox' && id && mealById(id) ? { type: 'mealcard', id: id } : null; render(); },
     'recipe-share': async () => {
       const id = S.sheet && S.sheet.id; const r = recipeOf(id); if (!r) return;
       const f = S.recipeFiles && S.recipeFiles[id];
