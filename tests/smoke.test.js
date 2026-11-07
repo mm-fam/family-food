@@ -487,3 +487,25 @@ test('same kind: one cheddar covers the meals; a second is asked about, not adde
   assert.ok(!ms.some((m) => /\(i011\)/.test(m.detail)), 'chunk not checked');
   assert.ok(items.length > 1);
 });
+
+test('staples get checked: pantry items go out as weekly missions; a before-the-order sweep (api 63)', () => {
+  const b = loadBackend(tabs(), { FAMILY_PASSCODE: PASS });
+  let r = b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i002', fields: { pantry: 'Y' } });
+  assert.strictEqual(r.ok, true, r.error);
+  b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i004', fields: { pantry: 'Y' } });
+  b.call({ action: 'stockLog', pass: PASS, by: 'Pat', item_id: 'i004', level: 'plenty' }); // just seen: not due
+  // Make today's cards again so the missions see the staples.
+  const st = b._ss.getSheetByName('Settings')._data;
+  st.forEach((x) => { if (x[0] === 'cards_through') x[1] = ''; });
+  r = b.call({ action: 'state', pass: PASS, by: 'Pat' });
+  assert.strictEqual(r.ok, true, r.error);
+  const s2 = r.state.staples.find((x) => x.id === 'i002'), s4 = r.state.staples.find((x) => x.id === 'i004');
+  assert.ok(s2 && s2.due && !s2.last, JSON.stringify(r.state.staples));
+  assert.ok(s4 && !s4.due && s4.level === 'plenty');
+  const kidCard = (b2) => rows(b2, 'Review').slice(1).map((x) => x.join('|')).find((x) => /Staples check: go check the .*\(i002\)/.test(x));
+  assert.ok(kidCard(b), 'a staples mission for i002');
+  // The parents' sweep before an order says so on the card.
+  r = b.call({ action: 'missionsAsk', pass: PASS, by: 'Pat', kind: 'staples', items: [{ id: 'i005' }] });
+  assert.strictEqual(r.result.sent, 1);
+  assert.ok(r.state.review.some((x) => /Staples check before the order: go check the .*\(i005\)/.test(x.detail)));
+});

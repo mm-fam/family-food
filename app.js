@@ -1240,11 +1240,58 @@
         const h = !!sh.have[id], p = !!sh.pantry[id];
         return '<div class="row mh-row"><button class="row-main" data-act="mh-toggle" data-id="' + esc(id) + '" aria-pressed="' + h + '">' +
           '<span class="row-name">' + (h ? '✅ ' : '🛒 ') + esc(it.name) + '</span><span class="row-meta">' + (h ? 'We have it' : 'Need it: goes on the List') + '</span></button>' +
-          (canPantry() ? '<button class="chip mh-pantry' + (p ? ' on' : '') + '" data-act="mh-pantry" data-id="' + esc(id) + '" aria-pressed="' + p + '">🫙 Always have</button>' : '') + '</div>';
+          (canPantry() ? '<button class="chip mh-pantry' + (p ? ' on' : '') + '" data-act="mh-pantry" data-id="' + esc(id) + '" aria-pressed="' + p + '">' + (canStaples() ? '🧺 Staple' : '🫙 Always have') + '</button>' : '') + '</div>';
       }).join('') +
-      (canPantry() ? '<p class="note">🫙 Always have = a pantry staple. Poppy stops asking about it for meals unless someone marks it low or out.</p>' : '') +
+      (canPantry() ? '<p class="note">' + (canStaples() ? '🧺 Staple = we never want to run out. Poppy stops asking about it for meals; the girls check it every week instead.' : '🫙 Always have = a pantry staple. Poppy stops asking about it for meals unless someone marks it low or out.') + '</p>' : '') +
       '<div class="sheet-actions"><button class="btn btn-primary" data-act="mh-save">' +
         (have && need ? 'Have ' + have + ' · add ' + need : need ? 'Add ' + need + ' to the List' : 'We have ' + (have > 1 ? 'all ' + have : 'it')) + '</button></div>';
+  }
+  // api 63: staples (Items pantry = Y) are things we never want to run out of. The girls check each one weekly
+  // (slow ones every 3 weeks) through their missions; before an order a parent sends a sweep of anything not looked
+  // at in STAPLE_SWEEP days. Parents see one quiet line on the List; tapping it opens the full list.
+  const STAPLE_SWEEP = 4;
+  function staplesInfo() {
+    const today = D().today;
+    const onList = {};
+    D().list.concat(D().held || []).forEach((r) => r.item_id && (onList[r.item_id] = 1));
+    const checking = {};
+    (D().review || []).forEach((r) => { if (r.type === 'check' && r.status === 'open') { const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) checking[m[1]] = r.audience; } });
+    const rows = (D().staples || []).filter((x) => itemById(x.id)).map((x) => {
+      const age = x.last ? Math.round((new Date(today + 'T12:00:00') - new Date(x.last + 'T12:00:00')) / 86400000) : 9999;
+      return Object.assign({}, x, { age: age, low: (x.level === 'low' || x.level === 'out' || x.level === '0') && age <= 14, onList: !!onList[x.id], checking: checking[x.id] || '' });
+    });
+    const sweep = rows.filter((x) => x.age >= STAPLE_SWEEP && !x.onList && !x.checking).map((x) => ({ id: x.id }));
+    return { rows: rows, sweep: sweep, low: rows.filter((x) => x.low && !x.onList), due: rows.filter((x) => x.due && !x.checking && !x.onList), checking: rows.filter((x) => x.checking) };
+  }
+  function viewStaplesLine() {
+    if (!canStaples() || isKid(S.me)) return '';
+    const st = staplesInfo();
+    if (!st.rows.length) return '';
+    const bits = [];
+    if (st.low.length) bits.push('<b>' + st.low.length + ' low</b>');
+    if (st.checking.length) bits.push('🔎 ' + st.checking.length + ' out for checking');
+    if (st.due.length) bits.push(st.due.length + ' due for a look');
+    if (!bits.length) bits.push('all checked');
+    return '<div class="miss-line">🧺 Staples · ' + bits.join(' · ') + ' · <button class="link-btn miss-link" data-act="staples">See all ›</button></div>';
+  }
+  function viewStaplesSheet() {
+    const st = staplesInfo();
+    const kids = (D().settings.kids || []).length;
+    const order = st.rows.slice().sort((a, b) => (b.low - a.low) || (b.age - a.age));
+    const send = canMissionsAsk() && kids && !isKid(S.me)
+      ? (st.sweep.length ? '<div class="sheet-actions"><button class="btn btn-primary" data-act="staples-send" data-items="' + esc(JSON.stringify(st.sweep)) + '">🔎 Have the girls check ' + st.sweep.length + '</button></div>' +
+          '<p class="note">Before an order: sends every staple nobody has looked at in ' + STAPLE_SWEEP + '+ days. Low or out goes on the List for you to OK.</p>'
+        : '<p class="note">Everything has had a look in the last ' + STAPLE_SWEEP + ' days.</p>')
+      : '';
+    return '<div class="is-head"><div><h2>🧺 Staples</h2><div class="is-sub">Never run out of these · ' + st.rows.length + ' items</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      send +
+      order.map((x) => {
+        const it = itemById(x.id);
+        const lv = { plenty: 'Plenty', some: 'Some', low: 'A little', out: 'Out', waste: 'Tossed' }[x.level] || (x.level ? x.level + ' left' : '');
+        const meta = x.onList ? '🛒 On the List' : x.checking ? '🔎 ' + x.checking + ' is checking' : x.last ? lv + ' · ' + daysAgo(x.last) : 'Never checked';
+        return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + esc(x.id) + '"><span class="row-name">' + (x.low && !x.onList ? '⚠️ ' : '') + esc(it.name) + '</span><span class="row-meta">' + esc(meta) + '</span></button></div>';
+      }).join('') +
+      '<p class="note">The girls check each staple about once a week (things we buy rarely, every 3 weeks). Add or remove one on its item screen → Details → Staple?</p>';
   }
   // api 62: "Shredded cheddar is already on the List. Use that?" before a second item of the same kind goes on.
   function viewSameKind(sh) {
@@ -1316,6 +1363,7 @@
     }
 
     html += viewMissing();
+    html += viewStaplesLine();
 
     // One List by aisle (owner, Nov 2): in-cart rows sit with the rest and show their 🛒 tag.
     // Pills: All · 🛒 Needs a cart · 🍽 Meals · 🧺 Stock.
@@ -1617,6 +1665,7 @@
   const canFridge = () => Number(D().api || 0) >= 53;
   const canPantry = () => Number(D().api || 0) >= 54;
   const canMissionsAsk = () => Number(D().api || 0) >= 55;
+  const canStaples = () => Number(D().api || 0) >= 63;
 
   function openItemSheet(itemId, rowId, name) {
     const it = itemById(itemId);
@@ -1809,13 +1858,15 @@
     if (it && sh.d) {
       const swap = canV46() ? ({ Y: 'store may substitute', N: 'don’t substitute' }[sh.d.ok_swap] || 'ask about substitutes') : ({ Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping');
       const keep = { Always: 'always keep it', Sometimes: 'now and then', Drop: 'stopped buying' }[sh.d.status] || '';
-      more += acc('details', 'Details', esc([keep, swap, sh.d.pantry === 'Y' ? 'pantry staple' : '', sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
+      more += acc('details', 'Details', esc([keep, swap, sh.d.pantry === 'Y' ? (canStaples() ? 'staple' : 'pantry staple') : '', sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg' + (opts.length > 4 ? ' seg-grid' : '') + '">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         return '<div class="is-details">' + (sh.fresh && !kid ? '<p class="note fresh-note">✨ New to Poppy. Fill in the brand and size, the aisle, where we get it and how it’s sold, so search, Siri and the carts get it right.</p>' : '') +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
           (canV9() ? '<div><label>Can other stores get it?</label>' + seg('store_only', [['', 'Yes, any store'], ['Y', 'Only this store']]) + '</div>' : '') +
           (canFridge() ? '<div><label>Goes in the mini fridge?</label>' + seg('mini_fridge', [['', 'No'], ['Y', '🥤 Yes']]) + '</div>' : '') +
-          (canPantry() ? '<div><label>Pantry staple?</label>' + seg('pantry', [['', 'No'], ['Y', '🫙 We always have it']]) + '<p class="note">Yes = Missing for meals assumes we have it, unless someone marks it low or out.</p></div>' : '') +
+          (canPantry() ? (canStaples()
+            ? '<div><label>Staple?</label>' + seg('pantry', [['', 'No'], ['Y', '🧺 Never run out']]) + '<p class="note">Yes = Missing for meals assumes we have it, and the girls check it every week (things we buy rarely, every 3 weeks) and before orders.</p></div>'
+            : '<div><label>Pantry staple?</label>' + seg('pantry', [['', 'No'], ['Y', '🫙 We always have it']]) + '<p class="note">Yes = Missing for meals assumes we have it, unless someone marks it low or out.</p></div>') : '') +
           (canV46() ? '<div><label>If the store is out of it</label>' + seg('ok_swap', [['Y', 'Let the store pick'], ['N', 'Don’t substitute'], ['', 'Ask me']]) + '<p class="note">Claude sets this on each line of the online cart. A backup we picked (shown under What we buy) comes first. Ask me = the store’s default, and you get a ⚖ Decisions card if it swaps something.</p></div>'
             : '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>') +
           (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +
@@ -3519,6 +3570,7 @@
     if (sh.type === 'mealgaps') inner = viewMealGaps();
     if (sh.type === 'samekind') inner = viewSameKind(sh);
     if (sh.type === 'misshave') inner = viewMissHave(sh);
+    if (sh.type === 'staples') inner = viewStaplesSheet();
     if (sh.type === 'me') inner = viewMeSheet();
     if (sh.type === 'feedback') {
       inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
@@ -3894,6 +3946,16 @@
     'have-count': (el) => { S.sheet.count = Math.max(1, Math.min(999, S.sheet.count + Number(el.dataset.d))); render(); },
     'have-count-save': () => haveDone(String(S.sheet.count)),
     'meal-gaps': () => { S.sheet = { type: 'mealgaps' }; render(); },
+    'staples': () => { S.sheet = { type: 'staples' }; render(); },
+    'staples-send': (el) => {
+      if (isKid(S.me)) return;
+      let items = []; try { items = JSON.parse(el.dataset.items || '[]'); } catch (e) { items = []; }
+      if (!items.length) return;
+      const kids = D().settings.kids || [];
+      act('missionsAsk', { items: items, kind: 'staples' }, () => {
+        items.forEach((x, i) => (D().review = D().review || []).push({ id: tmpId(), type: 'check', status: 'open', audience: kids[i % kids.length], detail: '(' + x.id + ')' }));
+      }, '🧺 Sent ' + items.length + ' staples checks to the girls');
+    },
     'sk-use': () => {
       const sh = S.sheet; if (!sh || sh.type !== 'samekind') return;
       const it = itemById(sh.item_id), row = D().list.concat(D().held || []).find((r) => r.id === sh.row_id);

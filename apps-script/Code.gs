@@ -132,7 +132,10 @@ const MISSIONS_PER_KID = 3;      // fallback when there's only one kid
 const KID_MISSIONS = { lead: 3, tied: 4, behind: 5 };
 const MISSION_EXPIRE_DAYS = 2;     // a check goes stale fast; unanswered ones close
 const MISSION_RECHECK_DAYS = 3;    // skip items someone already looked at this recently
-const MISSION_PLAN_DAYS = 3;       // ingredients for meals planned today + the next 2 days
+const MISSION_PLAN_DAYS = 3;
+const STAPLE_DAYS = 7;             // api 63: a staple gets a look at least weekly
+const STAPLE_SLOW_DAYS = 21;       // … or every 3 weeks when we buy it slowly
+const STAPLE_SLOW_AVG = 60;        // "slowly" = avg_days over this, or no buying history       // ingredients for meals planned today + the next 2 days
 const MISSION_OPTIONS = 'Plenty; Some; A little; Out';
 const MISSION_LEVEL = { plenty: 'plenty', some: 'some', 'a little': 'low', low: 'low', out: 'out', none: 'out' };
 const NON_FOOD = ['Personal care', 'Household', 'Paper & cleaning', 'Other'];
@@ -343,7 +346,14 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      anyway: true for "Add anyway". Missions and missionsAsk skip an item whose kind is already on the List. Daily
 //      `same_kind` parents' cards for 2+ active rows of one kind: "Keep both" / "Just <name>" (the others are
 //      skipped and come out of their store cart). Not re-asked for 5 days.
-const API_VERSION = 62;
+// 63 = staples get checked (Nov 7, owner: "confirming we have staple items throughout the house, mainly the pantry";
+//      chicken broth ran out unnoticed). Items `pantry` = Y is now a **staple**: still assumed on hand for Missing for
+//      meals, but the kids' daily missions check each one on a rotation (every STAPLE_DAYS; every STAPLE_SLOW_DAYS when
+//      we buy it less than every STAPLE_SLOW_AVG days or have no history), oldest first, after meal ingredients and
+//      before overdue usuals; card "🧺 Staples check: go check the …". state.staples = [{id, last, level, due}] for
+//      every staple (last sighting, its level, due = needs a look). missionsAsk {kind: 'staples'} = the parents'
+//      before-the-order sweep ("🧺 Staples check before the order: …").
+const API_VERSION = 63;
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk', 'planCook'];
@@ -698,6 +708,7 @@ function buildState() {
     due: due,
     freshness: buys.freshness,
     useSoon: useSoonList(today, items, list, stockRows, onList),
+    staples: staplesList(today, items, stockRows).map((x) => ({ id: x.id, last: x.last, level: x.level, due: x.due })),
     stock: stockLatest,
     products: productsMap(),
     cartJobs: recentCartJobs(today),
@@ -1428,6 +1439,26 @@ function kidRace(today, kids) {
 // Today's missions: things worth a look right now, split between the kids so each gets different ones.
 // Ingredients of meals planned in the next MISSION_PLAN_DAYS first, then the most overdue "probably due"
 // items. Skips anything on the List, sighted in the last MISSION_RECHECK_DAYS, or already on an open check.
+// api 63: every staple (Items pantry = Y, not Drop) with its latest Stock sighting and whether it's due a look.
+const isStaple = (it) => !!it && it.status !== 'Drop' && /^y/i.test(String(it.pantry || ''));
+function stapleEvery(it) {
+  const avg = Number(it.avg_days || 0);
+  return !avg || avg > STAPLE_SLOW_AVG ? STAPLE_SLOW_DAYS : STAPLE_DAYS;
+}
+function staplesList(today, items, stockRows) {
+  const last = {};
+  (stockRows || []).forEach((x) => {
+    if (!x.item_id || !x.at) return;
+    const d = stampOf(x.at).slice(0, 10) || String(x.at).slice(0, 10);
+    if (!last[x.item_id] || d >= last[x.item_id].d) last[x.item_id] = { d: d, level: String(x.level || '') };
+  });
+  return items.filter(isStaple).map((it) => {
+    const l = last[it.id];
+    const age = l ? daysBetween(l.d, today) : 9999;
+    return { id: it.id, last: l ? l.d : '', level: l ? l.level : '', age: age, due: age >= stapleEvery(it) };
+  }).sort((a, b) => b.age - a.age);
+}
+
 function makeMissions(today, kids, review, plan, mealOf) {
   if (!kids.length) return [];
   const items = readTab(TABS.items).filter((i) => i.status !== 'Drop');
@@ -1455,6 +1486,8 @@ function makeMissions(today, kids, review, plan, mealOf) {
         .forEach((id) => take(id, mealOf[p.meal_id].name));
       else take(p.item_id, byId[p.item_id].name); // a planned item (api 30)
     });
+  const staple = {};
+  staplesList(today, items, tab(TABS.stock) ? readTab(TABS.stock) : []).filter((x) => x.due).forEach((x) => { staple[x.id] = true; take(x.id, ''); });
   items.filter((i) => i.avg_days && i.last_bought)
     .map((i) => ({ id: i.id, r: daysBetween(String(i.last_bought).slice(0, 10), today) / Number(i.avg_days), late: daysBetween(String(i.last_bought).slice(0, 10), today) >= Number(i.avg_days) - 2 }))
     .filter((x) => x.late).sort((a, b) => b.r - a.r).forEach((x) => take(x.id, ''));
@@ -1474,7 +1507,7 @@ function makeMissions(today, kids, review, plan, mealOf) {
       given[kid] = (given[kid] || 0) + 1;
       const extra = race.behind.indexOf(kid) >= 0 && given[kid] > KID_MISSIONS.lead;
       out.push({ type: 'check', audience: kid,
-        detail: (extra ? '⚡ Catch-up mission! ' : '') + 'Go check the ' + byId[p.id].name + ': how much do we have?' + (p.why ? ' It\'s for ' + p.why + '.' : '') + ' (' + p.id + ') Options: ' + MISSION_OPTIONS });
+        detail: (extra ? '⚡ Catch-up mission! ' : '') + (staple[p.id] && !p.why ? '🧺 Staples check: go check the ' : 'Go check the ') + byId[p.id].name + ': how much do we have?' + (p.why ? ' It\'s for ' + p.why + '.' : '') + ' (' + p.id + ') Options: ' + MISSION_OPTIONS });
     });
   }
   return out;
@@ -2249,7 +2282,7 @@ function missionsAsk(req) {
     const kid = order[turn++ % order.length];
     const why = String((x && x.why) || '').replace(/[()]/g, '').slice(0, 80);
     appendObj(TABS.review, { id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), type: 'check', status: 'open', answer: '', audience: kid, asked_by: who,
-      detail: '🍽 For the meal plan: go check the ' + it.name + ': how much do we have?' + (why ? ' It\'s for ' + why + '.' : '') + ' (' + id + ') Options: ' + MISSION_OPTIONS });
+      detail: (req.kind === 'staples' ? '🧺 Staples check before the order: go check the ' : '🍽 For the meal plan: go check the ') + it.name + ': how much do we have?' + (why ? ' It\'s for ' + why + '.' : '') + ' (' + id + ') Options: ' + MISSION_OPTIONS });
     sent.push({ id: id, to: kid });
   });
   return { sent: sent.length, to: kids.map((k) => ({ kid: k, n: sent.filter((s) => s.to === k).length })) };
