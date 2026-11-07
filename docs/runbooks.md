@@ -168,7 +168,7 @@ The `CLASPRC_JSON` login can manage the owner's Apps Script projects: keep it on
 Design and the full steps: `docs/hearth.md`.
 
 - **Hearth → Poppy** (a screenshot of the Hearth Meal Plan): read every day × Breakfast / Lunch / Snack / Dinner cell; match to Meals (by name, ignoring the leading emoji, or by Meals `old_names`) or add new ones (named in the §8 house style) (kind = the row; link only catalog items the name clearly names; never complete cut-off names or create Items); write Plan rows with slot (and note `Leftovers` for leftover cells). Hearth wins for that date + slot. Back up first above ~20 rows.
-- **Poppy → Hearth:** Meals → THIS WEEK → **→ Hearth** → week → Copy → paste into Hearth Helper → approve its preview.
+- **Poppy → Hearth:** Meals → NEXT WEEK (open it) → **→ Hearth** under the strip → week → Copy → paste into Hearth Helper → approve its preview.
 
 ## 10. Family feedback and automatic cards (api 9)
 

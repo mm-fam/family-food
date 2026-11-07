@@ -16,11 +16,11 @@ A **meal** has 2+ ingredients and a recipe. A breakfast, lunch or snack that's j
 - **Plan** rows have a `slot` (breakfast / lunch / snack / dinner; blank = dinner) and a `note`. One meal per date + slot.
 - **Leftovers:** a row whose note starts with "Leftover" (e.g. Wed lunch = Tue's sheet-pan chicken, note `Leftovers`). It shows as "Leftover <meal>", adds no ingredients and doesn't count as "made". A note with no meal (Mon "Leftover wraps") shows the note as is.
 - **Meals** have a `kind` (the slot it's usually for). The library has kind pills (All · Dinners · Breakfasts · Lunches · Snacks), a small icon on non-dinners, and the Edit meal sheet has "Usually for".
-- **Meals tab:** each day tile shows dinner big, with 🥣 breakfast / 🥪 lunch / 🍎 snack lines under it. Tapping the day (or those lines) opens a **day sheet** with all four slots; each slot has a picker (that kind's meals first, the rest under "Other meals") and ↗ to open the meal card. A meal card plans into the meal's own slot ("Put it on a day · Breakfast").
+- **Meals tab:** each day tile shows dinner big, with breakfast / lunch / snack lines under it (plain labels since Nov 7; the meal's own emoji is the only one). Tapping the day (or those lines) opens a **day sheet** with all four slots; each slot has a picker (that kind's meals first, the rest under "Other meals") and ↗ to open the meal card. A meal card plans into the meal's own slot ("Put it on a day · Breakfast").
 - **Shop:** "For dinners" is now **For meals**: ingredients of everything planned in the 14 days, leftovers skipped.
 
 ## The → Hearth button (parents only)
-Meals tab → THIS WEEK → **→ Hearth** → pick This week / Next week → **Copy** (or Share…) → in the Hearth app open **Hearth Helper**, paste, send, and check its preview before approving.
+Meals tab → open NEXT WEEK → **→ Hearth** under the strip ("Week filled in?"; Nov 7: you fill next week during this week, then send it) → Next week is picked; This week is one tap away → **Copy** (or Share…) → in the Hearth app open **Hearth Helper**, paste, send, and check its preview before approving.
 
 The message it builds:
 ```

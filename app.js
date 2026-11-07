@@ -316,7 +316,6 @@
   const slotOf = (p) => { const v = String(p.slot || '').toLowerCase(); return SLOTS.some((x) => x[0] === v) ? v : 'dinner'; };
   const kindOf = (m) => { const v = String((m && m.kind) || '').toLowerCase(); return SLOTS.some((x) => x[0] === v) ? v : 'dinner'; };
   const slotLabel = (k) => (SLOTS.find((x) => x[0] === k) || SLOTS[3])[1];
-  const slotIcon = (k) => (SLOTS.find((x) => x[0] === k) || SLOTS[3])[2];
   const isLeftover = (p) => /^leftover/i.test(String(p.note || ''));
   // date -> meal_id for one slot (dinner by default).
   function planByDate(slot) {
@@ -1074,7 +1073,7 @@
       // The two priciest ingredients, so a big number explains itself (a jar of vanilla paste for pancakes).
       const top = Object.keys(e.need).map((id) => ({ id: id, pr: itemPackPrice(id) })).filter((x) => x.pr).sort((a, b) => b.pr.v * e.need[b.id] - a.pr.v * e.need[a.id]).slice(0, 2)
         .map((x) => itemById(x.id).name + (shareText(e.need[x.id]) ? ' ' + shareText(e.need[x.id]) : '') + ' ' + dollars(x.pr.v * e.need[x.id]));
-      h += '<div class="wc-row"><span class="muted">' + esc(shortDay(e.date)) + ' ' + slotIcon(e.slot) + '</span><span class="wc-name">' + esc(e.name) +
+      h += '<div class="wc-row"><span class="muted">' + esc(shortDay(e.date) + ' · ' + slotLabel(e.slot)) + '</span><span class="wc-name">' + esc(e.name) +
         (top.length > 1 && e.cost >= 8 ? '<span class="wc-top">' + esc(top.join(' · ')) + '</span>' : '') + '</span><span class="wc-cost">' + (e.left ? '$0' : e.cost ? '~' + dollars(e.cost) : '–') + '</span></div>';
     });
     return h + '<p class="note">⅓, ¼, ⅛ = the share of a package that meal uses (a rough rule, not the recipe). After a swap, send the week to Hearth.</p>';
@@ -2132,7 +2131,7 @@
       const lines = SLOTS.map((x) => {
         const t = planText(rows[x[0]]);
         const ck = canCook() && x[0] === 'dinner' && t ? cookShort(rows[x[0]]) : '';
-        return '<span class="dt-line' + (t ? '' : ' none') + '"><span class="dt-k"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</span><span class="dt-v">' + esc(t || '—') + (ck ? '<small class="dt-cook">🧑‍🍳 ' + esc(ck) + '</small>' : '') + '</span></span>';
+        return '<span class="dt-line' + (t ? '' : ' none') + '"><span class="dt-k">' + x[1] + '</span><span class="dt-v">' + esc(t || '—') + (ck ? '<small class="dt-cook">🧑‍🍳 ' + esc(ck) + '</small>' : '') + '</span></span>';
       }).join('');
       return '<div class="day-tile slots4' + (any ? ' set' : '') + (isToday ? ' today' : '') + (open ? ' open' : '') + '">' +
         '<button class="dt-all" data-act="open-day" data-day="' + day + '" aria-label="' + esc((isToday ? 'Today, ' : '') + dayName(day) + ' ' + md(day)) + '">' +
@@ -2193,10 +2192,10 @@
           : pi ? '<button class="btn btn-plain slot-open" data-act="open-item" data-id="' + pi.id + '" aria-label="Open ' + esc(pi.name) + '">↗</button>' : '<span class="slot-open"></span>';
         const cb = x[0] === 'dinner' ? cookBlock(sh.day, 'dinner', p) : '';
         if (readOnly) {
-          return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
+          return '<div class="slot-row"><div class="slot-label">' + x[1] + '</div>' +
             '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '—') + '</span></div>' + open + '</div>' + cb;
         }
-        return '<div class="slot-row"><div class="slot-label"><i aria-hidden="true">' + x[2] + '</i>' + x[1] + '</div>' +
+        return '<div class="slot-row"><div class="slot-label">' + x[1] + '</div>' +
           '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '+ Pick ' + x[1].toLowerCase()) + '</span>' +
           '<label class="sr" for="slot-' + x[0] + '">' + x[1] + '</label><select id="slot-' + x[0] + '" data-input="slot-plan" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
           slotOptions(meals, x[0], p) + '</select></div>' + open + '</div>' + cb +
@@ -2302,10 +2301,12 @@
     const meals = D().meals.slice().sort((a, b) => String(a.name).localeCompare(b.name));
     const w = planWeeks();
     const planned = (days) => days.filter((d) => (canSlots() ? SLOTS.some((x) => planText(planDay(d)[x[0]])) : mealById(plan[d] || '')));
-    const hearthBtn = canSlots() && amParent() ? '<button class="btn btn-outline btn-sm" data-act="open-hearth">→ Hearth</button>' : '';
+    // → Hearth sits on Next week (owner, Nov 7): you fill next week during this week, then send it.
+    const canHearth = canSlots() && amParent();
+    const hearthBtn = (week) => '<button class="btn btn-outline btn-sm" data-act="open-hearth" data-v="' + week + '">→ Hearth</button>';
     let html = viewMealRequests();
     html += viewHeroMeals(meals);
-    html += '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="head-btns"><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + (canSlots() ? ' days' : ' dinners') + '</span>' + hearthBtn + '</span></div>' +
+    html += '<section class="card"><div class="card-head"><span>THIS WEEK</span><span class="head-btns"><span class="sub">' + planned(w.thisWeek).length + ' of ' + w.thisWeek.length + (canSlots() ? ' days' : ' dinners') + '</span>' + (canHearth && !w.nextWeek.length ? hearthBtn('this') : '') + '</span></div>' +
       weekStrip('this', w.thisWeek, plan, meals) + weekCostLine('this', w.thisWeek) + '</section>';
 
     if (w.nextWeek.length) {
@@ -2315,7 +2316,8 @@
         '<span>NEXT WEEK · ' + md(w.nextSun) + '–' + md(addDays(w.nextSun, 6)) + '</span><span class="head-btns"><span class="sub">' + pn.length + ' planned</span>' + chev(closed) + '</span></button>';
       html += closed
         ? '<button class="peek" data-act="fold" data-key="w:next">' + (pn.length ? esc(pn.map((d) => dayName(d) + ' ' + (mealById(plan[d] || '') ? mealById(plan[d]).name : SLOTS.map((x) => planText(planDay(d)[x[0]])).filter(String)[0])).join(', ')) : 'Nothing planned yet. Tap to plan.') + '</button>'
-        : weekStrip('next', w.nextWeek, plan, meals) + weekCostLine('next', w.nextWeek);
+        : weekStrip('next', w.nextWeek, plan, meals) + weekCostLine('next', w.nextWeek) +
+          (canHearth ? '<div class="week-foot"><span class="sub">Week filled in?</span>' + hearthBtn('next') + '</div>' : '');
       html += '</section>';
     }
 
@@ -2413,20 +2415,17 @@
     return h;
   }
 
-  // A name that starts with its own emoji (Nov 4: catchy emoji names) doesn't get the 🥣 / 🥪 / 🍎 kind icon too;
-  // its kind shows as a small tag instead.
-  const startsWithEmoji = (t) => /^\p{Extended_Pictographic}/u.test(String(t || '').trim());
+  // Kind shows as a small tag; no 🥣 / 🥪 / 🍎 icons, the meal's own emoji does the talking (owner, Nov 7).
   function mealRow(m) {
     const showKind = canSlots() && kindOf(m) !== 'dinner';
-    const ownEmoji = startsWithEmoji(m.name);
-    const tags = (showKind && ownEmoji ? ['<span class="stat-tag kind">' + esc(slotLabel(kindOf(m))) + '</span>'] : []).concat(mealTags(m));
-    return '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (featureOf(m) ? '<span class="hero-star" title="' + esc(featureOf(m).badge) + '">🌟</span>' : '') + (showKind && !ownEmoji ? '<span class="kind-dot" title="' + slotLabel(kindOf(m)) + '">' + slotIcon(kindOf(m)) + '</span>' : '') + esc(m.name) + '</span>' +
+    const tags = (showKind ? ['<span class="stat-tag kind">' + esc(slotLabel(kindOf(m))) + '</span>'] : []).concat(mealTags(m));
+    return '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + m.id + '"><span class="row-name">' + (featureOf(m) ? '<span class="hero-star" title="' + esc(featureOf(m).badge) + '">🌟</span>' : '') + esc(m.name) + '</span>' +
       '<span class="row-meta">' + mealItems(m).map((id) => itemById(id)).filter(Boolean).map((i) => esc(i.name)).join(', ') + '</span>' +
       (tags.length ? '<span class="tags">' + tags.join('') + '</span>' : '') + '</button></div>';
   }
 
   // Favorites view (owner, Nov 4: "not all meals are created equal"): the list in sections by the family's rating,
-  // best first. Favorites and liked meals are open; not-rated-yet and not-loved start folded with a peek.
+  // best first. Every section starts folded with a peek (owner, Nov 7).
   const MEAL_TIERS = [
     ['fav', '⭐ FAMILY FAVORITES', 'Rated 3.5+ by 2 or more of us', false],
     ['good', '👍 WE LIKE THESE', '', false],
@@ -2445,7 +2444,6 @@
       const rows = sorted.filter((m) => mealTier(m) === t[0]);
       if (!rows.length) return '';
       const key = 'mt:' + t[0];
-      if (!t[3] && !(key in S.closed)) setClosed(key, false); // favorites and liked start open
       const closed = isClosed(key);
       return '<div class="meal-tier"><button class="meal-tier-head" data-act="fold" data-key="' + key + '" aria-expanded="' + !closed + '"><span>' + t[1] + ' · ' + rows.length + '</span>' + chev(closed) + '</button>' +
         (t[2] && !closed ? '<p class="meal-tier-note">' + esc(t[2]) + '</p>' : '') +
@@ -3674,7 +3672,7 @@
     'points-tab': (el) => { const sh = S.sheet; if (!sh || sh.type !== 'points') return; sh.tab = el.dataset.tab; if (sh.tab === 'history' && !sh.log) loadPointsLog(); render(); const b = document.querySelector('.sheet'); if (b) b.scrollTop = 0; },
     'points-who': (el) => { if (S.sheet && S.sheet.type === 'points') { S.sheet.who = el.dataset.v; render(); } },
     'points-reload': () => { loadPointsLog(); render(); },
-    'open-hearth': () => { S.sheet = { type: 'hearth', week: 'this' }; render(); },
+    'open-hearth': (el) => { S.sheet = { type: 'hearth', week: (el && el.dataset.v) || 'next' }; render(); },
     'hearth-week': (el) => { S.sheet.week = el.dataset.v; render(); },
     'open-weekcost': (el) => { S.sheet = { type: 'weekcost', week: el.dataset.v || 'this' }; render(); },
     'weekcost-week': (el) => { S.sheet.week = el.dataset.v; render(); },

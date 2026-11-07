@@ -543,13 +543,11 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .dt-slot.none { color: var(--muted); opacity: .7; }
 .slot-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line, rgba(0,0,0,.08)); }
 .slot-label { font-size: 14px; font-weight: 600; }
-.slot-label i { font-style: normal; margin-right: 6px; }
 .slot-pick { min-width: 0; position: relative; min-height: 44px; display: flex; align-items: center; padding: 0 12px; border-radius: 10px; border: 1px solid var(--field); font-size: 15px; color: var(--muted); }
 .slot-pick.set { color: var(--ink); font-weight: 600; background: var(--accent-soft); border-color: transparent; }
 .slot-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slot-pick select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
 .slot-open { min-height: 40px; min-width: 0; width: 40px; padding: 0; }
-.kind-dot { margin-right: 6px; }
 .pill-n { opacity: .65; font-weight: 500; }
 .btn-sm { min-height: 32px; padding: 0 10px; font-size: 13px; }
 .hearth-text { width: 100%; font-size: 14px; line-height: 1.4; margin-top: 10px; resize: vertical; }
@@ -561,7 +559,6 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .dt-all .dt-head { margin-bottom: 4px; }
 .dt-line { display: block; font-size: 13px; line-height: 1.3; }
 .dt-k { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
-.dt-k i { font-style: normal; margin-right: 4px; }
 .dt-v { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dt-line.none .dt-v { color: var(--muted); opacity: .7; }
 .day-tile.slots4.set { background: var(--card); border-color: var(--field); }
@@ -1040,3 +1037,7 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 /* api 61: "Not what we had" on cards about last night's meal */
 .qcard .not-had { align-self: stretch; margin-top: 10px; padding: 10px 14px; border: 1px dashed var(--line, #ccc); border-radius: 12px; text-decoration: none; text-align: center; font-size: 15px; }
 .card.flash { animation: is-flash 1.6s ease-out; }
+
+/* → Hearth under Next week (Nov 7) */
+.week-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 8px 12px 12px; }
+.week-foot .sub { color: var(--muted); font-size: 13px; }
