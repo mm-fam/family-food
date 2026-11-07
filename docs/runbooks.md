@@ -233,10 +233,12 @@ Rules: one Review row per person (one row = one answer); next free `rNNN`; `crea
    - A cart line with no List row → add one: status `carted`, `cart` = store, added_by `Cart`, note "Added on the store site".
    - Except: a cart line whose item has a List row with `cart_want` = `out` (or moving away) is waiting to come out; leave it for the build job, don't add a row.
    - And: a List row with `cart_want` = this same store is a qty change waiting for the build (api 34); keep the row's qty, don't copy the cart's.
-   - A List row `carted` for that store whose item is no longer in the cart → back to `needed`, clear `cart` / `cart_at`.
+   - **The store cart is the gold source (Nov 7).** A List row `carted` for that store (no `cart_want` waiting) whose item is no longer in the cart was taken out on the store site by a parent on purpose → `skipped`, clear `cart` / `cart_at`, note "taken out of the <store> cart on the store site (<date>)". Never back to `needed`: the next build would put it right back. Shop then shows it as "Taken off the List", so it's one tap to add again.
+   - **Guard:** if the cart is empty or more than half the carted rows vanished at once, an order was probably placed. Check the store's order history for an order since those rows' `cart_at`; if found, leave them `carted` for the receipt / Did we get it? to close.
+   - In a build's reconcile, a row the build itself carted in this run that's missing is a failed add (retry once, then `needed`), not a removal.
 4. Receipts still close the loop: when the order's receipt is ingested (§1), `carted` rows become `bought`.
 
-**Report:** "<store> cart: N lines, N matched, N added to the List, N back to needed, $total."
+**Report:** "<store> cart: N lines, N matched, N added to the List, N taken out on the site, $total."
 
 **Heartbeat (api 27):** every cart-runner run first sets Settings `runner_seen` (text 'yyyy-MM-ddTHH:mm:ss). The Carts screen says "Cart helper checked in at …" (green) or "hasn't checked in since …" (red, after 75 minutes during 8 am–9 pm).
 
