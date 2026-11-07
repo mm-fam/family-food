@@ -1038,6 +1038,8 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 .qcard .not-had { align-self: stretch; margin-top: 10px; padding: 10px 14px; border: 1px dashed var(--line, #ccc); border-radius: 12px; text-decoration: none; text-align: center; font-size: 15px; }
 .card.flash { animation: is-flash 1.6s ease-out; }
 
-/* → Hearth under Next week (Nov 7) */
-.week-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 8px 12px 12px; }
-.week-foot .sub { color: var(--muted); font-size: 13px; }
+/* Next week header: dates, → Hearth, then count + chevron (Nov 7) */
+.wk-head { gap: 8px; }
+.wk-fold { border: 0; background: transparent; padding: 4px 0; font: inherit; color: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; white-space: nowrap; }
+.wk-fold.rest { flex: 1; display: flex; align-items: center; justify-content: flex-end; }
+.wk-head .btn-sm { flex: none; }

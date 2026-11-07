@@ -20,7 +20,7 @@ A **meal** has 2+ ingredients and a recipe. A breakfast, lunch or snack that's j
 - **Shop:** "For dinners" is now **For meals**: ingredients of everything planned in the 14 days, leftovers skipped.
 
 ## The → Hearth button (parents only)
-Meals tab → open NEXT WEEK → **→ Hearth** under the strip ("Week filled in?"; Nov 7: you fill next week during this week, then send it) → Next week is picked; This week is one tap away → **Copy** (or Share…) → in the Hearth app open **Hearth Helper**, paste, send, and check its preview before approving.
+Meals tab → **→ Hearth** right after the NEXT WEEK dates, open or folded (Nov 7: you fill next week during this week, then send it) → Next week is picked; This week is one tap away → **Copy** (or Share…) → in the Hearth app open **Hearth Helper**, paste, send, and check its preview before approving.
 
 The message it builds:
 ```

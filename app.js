@@ -2312,12 +2312,15 @@
     if (w.nextWeek.length) {
       const closed = isClosed('w:next');
       const pn = planned(w.nextWeek);
-      html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="w:next" aria-expanded="' + !closed + '">' +
-        '<span>NEXT WEEK · ' + md(w.nextSun) + '–' + md(addDays(w.nextSun, 6)) + '</span><span class="head-btns"><span class="sub">' + pn.length + ' planned</span>' + chev(closed) + '</span></button>';
+      // → Hearth right after the dates, open or folded (owner, Nov 7). Two fold buttons around it, since a button
+      // can't sit inside the fold button.
+      const fold = (cls, inner) => '<button class="wk-fold' + cls + '" data-act="fold" data-key="w:next" aria-expanded="' + !closed + '">' + inner + '</button>';
+      html += '<section class="card acc"><div class="card-head wk-head">' +
+        fold('', 'NEXT WEEK · ' + md(w.nextSun) + '–' + md(addDays(w.nextSun, 6))) + (canHearth ? hearthBtn('next') : '') +
+        fold(' rest', '<span class="sub">' + pn.length + ' planned</span>' + chev(closed)) + '</div>';
       html += closed
         ? '<button class="peek" data-act="fold" data-key="w:next">' + (pn.length ? esc(pn.map((d) => dayName(d) + ' ' + (mealById(plan[d] || '') ? mealById(plan[d]).name : SLOTS.map((x) => planText(planDay(d)[x[0]])).filter(String)[0])).join(', ')) : 'Nothing planned yet. Tap to plan.') + '</button>'
-        : weekStrip('next', w.nextWeek, plan, meals) + weekCostLine('next', w.nextWeek) +
-          (canHearth ? '<div class="week-foot"><span class="sub">Week filled in?</span>' + hearthBtn('next') + '</div>' : '');
+        : weekStrip('next', w.nextWeek, plan, meals) + weekCostLine('next', w.nextWeek);
       html += '</section>';
     }
 
