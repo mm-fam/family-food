@@ -353,7 +353,26 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      before overdue usuals; card "🧺 Staples check: go check the …". state.staples = [{id, last, level, due}] for
 //      every staple (last sighting, its level, due = needs a look). missionsAsk {kind: 'staples'} = the parents'
 //      before-the-order sweep ("🧺 Staples check before the order: …").
-const API_VERSION = 63;
+// 64 = calmer Inbox (Nov 7, owner: "everyone is overwhelmed by the inbox count"). state.answeredToday = {person: cards
+//      answered today}; settings.inbox_daily (default INBOX_DAILY; 0 = no daily batch) and settings.item_parent (the
+//      parent who gets the shared item-detail cards: which product, store brand, same kind, best price, try…). The app
+//      shows each person a daily batch, most important first; the rest wait for tomorrow or "Keep going". Every
+//      answer still scores the same (no rule makes an answer worth 0).
+const API_VERSION = 64;
+const INBOX_DAILY = 6;
+// Cards answered today per person: the "(Name)" at the end of the answer, else the card's audience.
+function answeredToday(review, today) {
+  const out = {};
+  review.forEach((r) => {
+    if (!r.answered_at || String(stampOf(r.answered_at)).slice(0, 10) !== today) return;
+    // Time-sensitive cards always show in the app, so they don't use up the daily batch either.
+    if (['prize', 'task', 'settle_order', 'have_check'].indexOf(String(r.type)) >= 0 || r.due_at || /\btoday\b/i.test(String(r.detail || ''))) return;
+    const who = (String(r.answer || '').match(/\(([^)]+)\)\s*$/) || [])[1] || String(r.audience || '');
+    if (!who || who === 'parents' || who === 'all') return;
+    out[who] = (out[who] || 0) + 1;
+  });
+  return out;
+}
 const WRITE_ACTIONS = ['add', 'update', 'addMeal', 'planSet', 'mealSave', 'itemSave', 'reviewAnswer', 'reviewPass', 'reviewLater',
   'listHave', 'listHold', 'requestOrder', 'cartJob', 'cartJobCancel', 'cartPush', 'cartRemove', 'stockLog', 'mealIdea',
   'mealRequest', 'useSoon', 'feedback', 'voiceAdd', 'productPick', 'mealVote', 'missionsAsk', 'planCook'];
@@ -688,6 +707,7 @@ function buildState() {
     .slice(-80); // a week back: In store's cart (bought today) and Shop's "why it left the List" line
 
   const meals = readTab(TABS.meals);
+  const reviewAll = readTab(TABS.review);
 
   return {
     api: API_VERSION,
@@ -704,7 +724,8 @@ function buildState() {
       .filter((p) => p.date && daysBetween(today, p.date) >= 0 && daysBetween(today, p.date) < PLAN_DAYS),
     planDays: PLAN_DAYS,
     weekOf: weekOf(today),
-    review: readTab(TABS.review).filter((r) => r.status === 'open').map(stripRow),
+    review: reviewAll.filter((r) => r.status === 'open').map(stripRow),
+    answeredToday: answeredToday(reviewAll, today),
     due: due,
     freshness: buys.freshness,
     useSoon: useSoonList(today, items, list, stockRows, onList),
@@ -724,6 +745,8 @@ function buildState() {
       stores_ok: storesOk(settings.stores_ok),
       watcher_seen: scriptProp('watcher_seen'),
       watcher_chrome: scriptProp('watcher_chrome'),
+      inbox_daily: settings.inbox_daily === '' || settings.inbox_daily == null ? INBOX_DAILY : Number(settings.inbox_daily) || 0,
+      item_parent: String(settings.item_parent || '').trim(),
       stores_checked: settings.stores_checked instanceof Date ? Utilities.formatDate(settings.stores_checked, scriptTz(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.stores_checked || ''),
     },
   };
@@ -1879,6 +1902,10 @@ function productPick(req) {
 // The person to ask "Which one?": the parent who put it on the List (or added the item), else both parents.
 function whichAudience(item, list) {
   const parents = people().filter((p) => !isKid(p));
+  // api 64: the parent named in Settings item_parent takes the item-detail cards (owner, Nov 7: split the parent load).
+  const ip = String(settingsMap().item_parent || '').trim();
+  const ipFound = ip && parents.find((p) => p.toLowerCase() === ip.toLowerCase());
+  if (ipFound) return ipFound;
   const isParent = (n) => parents.map((x) => x.toLowerCase()).indexOf(String(n || '').toLowerCase()) >= 0;
   const rows = list.filter((r) => r.item_id === item.id && r.added_by).sort((a, b) => (String(a.added_at) < String(b.added_at) ? 1 : -1));
   const adder = (rows[0] && rows[0].added_by) || (String(item.notes || '').match(/Added in app by (\w+)/) || [])[1];

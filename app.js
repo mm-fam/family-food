@@ -2919,7 +2919,36 @@
   }
   function myQuestions(withSnoozed) {
     const school = atSchool();
-    return myQuestionsAll().filter((r) => (withSnoozed || !snoozed(r)) && !(school && homeOnly(r)));
+    const qs = myQuestionsAll().filter((r) => (withSnoozed || !snoozed(r)) && !(school && homeOnly(r)));
+    return withSnoozed ? qs : todaysBatch(qs);
+  }
+  /* Calmer Inbox (Nov 7, owner: "everyone is overwhelmed by the inbox count", api 64). Each person gets a daily batch:
+     settings.inbox_daily cards a day (default 6), most important first (section order). Time-sensitive cards (⏰ Due
+     soon, the prize pick, "Did the order come?", a kid's "we have it", anything that says "today") always show.
+     The rest wait: the badge counts only the batch, and once it's done the deck offers "Keep going" (every answer
+     still scores the same). state.answeredToday comes from the backend, so the batch holds across phones. */
+  const inboxDaily = () => { const v = (D().settings || {}).inbox_daily; return Number(D().api || 0) >= 64 && v != null ? Number(v) || 0 : 0; };
+  const moreKey = () => 'ff_more_' + String(S.me).toLowerCase();
+  const keepGoing = () => store.get(moreKey()) === new Date().toDateString();
+  function urgentCard(r) {
+    const t = String(r.type || '').toLowerCase();
+    return sectionOf(r) === 'due' || ['prize', 'settle_order', 'have_check'].indexOf(t) >= 0 || /\btoday\b/i.test(String(r.detail || ''));
+  }
+  function batchSplit(qs) {
+    const cap = inboxDaily();
+    if (!cap || keepGoing()) return { show: qs, wait: [] };
+    const done = Number((D().answeredToday || {})[S.me] || 0);
+    let left = Math.max(0, cap - done);
+    const order = sectionOrder();
+    const ranked = qs.map((q, i) => ({ q: q, i: i, s: order.indexOf(sectionOf(q)) })).sort((a, b) => (a.s - b.s) || (a.i - b.i)).map((x) => x.q);
+    const show = [], wait = [];
+    ranked.forEach((q) => { if (urgentCard(q)) show.push(q); else if (left > 0) { show.push(q); left--; } else wait.push(q); });
+    return { show: show, wait: wait };
+  }
+  function todaysBatch(qs) { const keep = batchSplit(qs).show; return qs.filter((q) => keep.indexOf(q) >= 0); }
+  function waitingTomorrow() {
+    const school = atSchool();
+    return batchSplit(myQuestionsAll().filter((r) => !snoozed(r) && !(school && homeOnly(r)))).wait.length;
   }
   /* School hours (Nov 4, a kid's feedback via owner): on a school day (Mon–Fri) the girls are out from 7:30 am to
      4:30 pm, so cards that mean "go look at home" (🔎 Missions, which for kids includes "Did we get the …? Go look")
@@ -2966,6 +2995,7 @@
   }
   const voteHeld = (r) => voteTiming(r) === 'held';
   function heldVotes() { return myQuestionsAll(true).filter(voteHeld); }
+  const ITEM_CARD_TYPES = ['which', 'storebrand', 'same_kind', 'kind', 'bestprice', 'try', 'tidy', 'unknown_code'];
   function myQuestionsAll(withHeld) {
     const review = D().review || [];
     return review.filter((r) => {
@@ -2994,6 +3024,10 @@
       }
       const aud = String(r.audience || 'parents').trim();
       if (aud === 'all') return true;
+      // api 64: shared item-detail cards (which product, store brand, same kind…) go to settings.item_parent only.
+      const ip = String((D().settings || {}).item_parent || '').trim();
+      if (aud === 'parents' && ip && ITEM_CARD_TYPES.indexOf(String(r.type || '').toLowerCase()) >= 0 &&
+        (D().settings.parents || []).some((p) => p.toLowerCase() === ip.toLowerCase())) return String(S.me).toLowerCase() === ip.toLowerCase();
       if (aud === 'parents') return amParent();
       return aud.toLowerCase() === String(S.me).toLowerCase();
     });
@@ -3072,7 +3106,8 @@
   function askDeck(all) {
     const later = S.askLater || [];
     const order = sectionOrder();
-    let qs = myQuestions().map((q, i) => ({ q: q, i: i, s: order.indexOf(sectionOf(q)), lt: later.indexOf(q.id) })).sort((a, b) => {
+    let qs = myQuestions().map((q, i) => ({ q: q, i: i, s: order.indexOf(sectionOf(q)), lt: later.indexOf(q.id), u: urgentCard(q) && sectionOf(q) !== 'due' ? 0 : 1 })).sort((a, b) => {
+      if (a.u !== b.u) return a.u - b.u; // api 64: a card that says "today" goes on top
       if (a.s !== b.s) return a.s - b.s;
       if ((a.lt >= 0) !== (b.lt >= 0)) return a.lt >= 0 ? 1 : -1;
       if (a.lt >= 0) return a.lt - b.lt;
@@ -3332,6 +3367,10 @@
     if (!deck.length) {
       const napping = myQuestions(true).length, nb = nextBack();
       const when = nb ? (nb.toDateString() === new Date().toDateString() ? 'at ' + nb.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'tomorrow') : '';
+      const waiting = waitingTomorrow();
+      if (waiting) return top + '<div class="ask-done"><div class="ask-done-mark">✓</div><b>That’s it for today</b><span class="note">' +
+        'Nice work. ' + waiting + (waiting === 1 ? ' card can' : ' cards can') + ' wait for tomorrow. Want to keep going? They score the same.</span>' +
+        '<button type="button" class="btn btn-plain" data-act="inbox-more">Keep going</button></div>';
       return top + '<div class="ask-done"><div class="ask-done-mark">✓</div><b>All caught up</b><span class="note">' +
         (napping ? napping + (napping === 1 ? ' card' : ' cards') + ' put off; the next one is back ' + when + '. ' : '') +
         (heldVotes().length ? heldVotes().length + (heldVotes().length === 1 ? ' meal vote waits' : ' meal votes wait') + ' until the morning after that meal. ' : '') + 'Lunch picks, How was it?, missions and questions show up here.</span></div>' +
@@ -3698,6 +3737,7 @@
         }, 'Passed to ' + to);
       });
     },
+    'inbox-more': () => { store.set(moreKey(), new Date().toDateString()); S.askSection = ''; render(); },
     'im-home': () => { store.set(homeKey(), new Date().toDateString()); S.askSection = ''; showToast('🏠 Welcome home! Missions are open'); render(); },
     'ask-later': (el) => { const id = el.dataset.id; S.askPassing = null; S.askSnoozing = S.askSnoozing === id ? null : id; render(); },
     'ask-snooze': (el) => {

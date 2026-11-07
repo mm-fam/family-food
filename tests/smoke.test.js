@@ -509,3 +509,20 @@ test('staples get checked: pantry items go out as weekly missions; a before-the-
   assert.strictEqual(r.result.sent, 1);
   assert.ok(r.state.review.some((x) => /Staples check before the order: go check the .*\(i005\)/.test(x.detail)));
 });
+
+test('calmer Inbox: answeredToday, inbox_daily and item_parent in state (api 64)', () => {
+  const t = tabs();
+  t.Review.push(['r951', '2026-11-01', 'clarify', 'Which bread? Options: White; Wheat', 'open', '', 'Pat', '', '', '', '', '', '', '', '', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  let s = b.call({ action: 'state', pass: PASS, by: 'Pat' }).state;
+  assert.strictEqual(s.settings.inbox_daily, 6, 'default daily batch');
+  assert.strictEqual(s.settings.item_parent, '');
+  assert.strictEqual((s.answeredToday || {}).Pat || 0, 0);
+  const r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: 'r951', answer: 'Wheat (Pat)' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.state.answeredToday.Pat, 1);
+  b._ss.getSheetByName('Settings')._data.push(['inbox_daily', '0'], ['item_parent', 'Sam']);
+  s = b.call({ action: 'state', pass: PASS, by: 'Pat' }).state;
+  assert.strictEqual(s.settings.inbox_daily, 0, '0 turns the batch off');
+  assert.strictEqual(s.settings.item_parent, 'Sam');
+});
