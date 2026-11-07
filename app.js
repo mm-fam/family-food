@@ -4171,7 +4171,7 @@
   let drag = null;
   document.addEventListener('pointerdown', (ev) => {
     const card = ev.target.closest('.qcard');
-    if (!card || ev.target.closest('button, input, select, a, label')) return;
+    if (!card || ev.target.closest('button, input, textarea, select, a, label, form')) return;
     drag = { card: card, x: ev.clientX, y: ev.clientY, dx: 0, moved: false };
     S.dragging = true;
   });
