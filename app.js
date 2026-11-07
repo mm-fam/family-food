@@ -49,6 +49,10 @@
     openDay: null,
     mealPick: {},      // date -> { itemId: true/false } (need it?)
     mealQuery: '',     // Our meals search (name or ingredient)
+    cartQuery: '',     // a store cart's search (Nov 7: a 65-line GE cart was hard to reconcile)
+    cartShow: 'all',   // a store cart's filter: all / meals / site / poppy
+    cartSort: 'aisle', // aisle / az / price
+    cartFiltersOpen: false,
     mealFiltersOpen: false,
     mealSort: 'top',   // Our meals order: top (sections by rating, default since Nov 4) / az / cost / stale
     sheet: null,       // bottom sheet { type, ...draft }
@@ -2103,6 +2107,36 @@
     html += '<p class="hint carts-foot">Claude fills the carts on the laptop. A person always places the order.</p>';
     return html;
   }
+  const CART_SHOW = [['all', 'All'], ['meals', 'Meals'], ['site', 'Store site'], ['poppy', 'Poppy']];
+  const CART_SORT = [['aisle', 'Aisle'], ['az', 'A–Z'], ['price', 'Price']];
+  function cartFiltersOn() {
+    const on = [];
+    if (S.cartShow !== 'all') on.push((CART_SHOW.find((x) => x[0] === S.cartShow) || [])[1]);
+    if (S.cartSort !== 'aisle') on.push('Sort: ' + (CART_SORT.find((x) => x[0] === S.cartSort) || [])[1]);
+    return on;
+  }
+  function cartTools(shown, total) {
+    const on = cartFiltersOn();
+    const open = !!S.cartFiltersOpen;
+    let h = '<div class="meal-tools cart-tools"><div class="shop-search"><form class="addbar" data-form="cart-q" autocomplete="off"><label class="sr" for="cart-q">Search this cart</label>' +
+      '<input id="cart-q" class="field" type="search" data-input="cart-q" placeholder="Search this cart…" value="' + esc(S.cartQuery) + '" enterkeyhint="search">' +
+      (S.cartQuery ? '<button type="button" class="search-x" data-act="cart-clear-q" aria-label="Clear the search">✕</button>' : '') + '</form>' +
+      '<button type="button" class="filter-btn' + (open ? ' open' : '') + (on.length ? ' active' : '') + '" data-act="cart-filters" aria-expanded="' + open + '" aria-controls="cart-filters">' +
+        '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+        '<span>Filter</span>' + (on.length ? '<span class="filter-n">' + on.length + '</span>' : '') + '</button></div>';
+    if (open) {
+      const seg = (act, cur, v, label) => '<button type="button" class="' + (cur === v ? 'on' : '') + '" data-act="' + act + '" data-v="' + v + '" aria-pressed="' + (cur === v) + '">' + label + '</button>';
+      h += '<div class="filter-panel" id="cart-filters">' +
+        '<div class="fp-label">Show</div><div class="seg">' + CART_SHOW.map((x) => seg('cart-show', S.cartShow, x[0], x[1])).join('') + '</div>' +
+        '<div class="fp-label">Sort</div><div class="seg seg-fit">' + CART_SORT.map((x) => seg('cart-sort', S.cartSort, x[0], x[1])).join('') + '</div>' +
+        '<div class="fp-foot">' + (on.length ? '<button type="button" class="link-btn" data-act="cart-filters-clear">Clear filters</button>' : '<span></span>') +
+        '<button type="button" class="btn btn-primary small" data-act="cart-filters">Done</button></div></div>';
+    } else if (on.length) {
+      h += '<div class="filter-sum"><span>' + esc(on.join(' · ')) + '</span><button type="button" class="link-btn" data-act="cart-filters-clear">Clear</button></div>';
+    }
+    if (S.cartQuery || S.cartShow !== 'all') h += '<div class="meal-tier-note found">' + (shown ? shown + ' of ' + total + ' lines' : 'No lines match') + (S.cartQuery ? ' with “' + esc(S.cartQuery.trim()) + '”' : '') + '</div>';
+    return h + '</div>';
+  }
   function viewCartDetail(code) {
     const st = storeOf(code);
     const r = cartRows(code);
@@ -2122,8 +2156,22 @@
         '</div>';
     }
     html += '</section>';
-    const sect = (label, rows, empty, id) => rows.length ? '<section class="card"' + (id ? ' id="' + id + '"' : '') + '><div class="card-head">' + label + ' · ' + rows.length + '</div>' +
-      rows.slice().sort((a, b) => groupOf(a).localeCompare(groupOf(b)) || String(a.name).localeCompare(String(b.name))).map((x) => listRow(x, code)).join('') + '</section>' : (empty || '');
+    // Search + Filter (owner, Nov 7: a 65-line Giant Eagle cart was tough to reconcile). Every typed word must be in
+    // the item's name, its note, its aisle, or the store's product name. Show narrows the lines; Sort orders them.
+    const q = String(S.cartQuery || '').trim().toLowerCase();
+    const words = q.split(/\s+/).filter(String);
+    const hay = (x) => [x.name, x.note, groupOf(x), ((((D().products || {})[x.item_id] || {})[code]) || {}).name].join(' ').toLowerCase();
+    const keep = (x) => (!words.length || words.every((w) => hay(x).indexOf(w) >= 0)) &&
+      (S.cartShow === 'meals' ? forMeal(x) : S.cartShow === 'site' ? x.added_by === 'Cart' : S.cartShow === 'poppy' ? x.added_by !== 'Cart' : true);
+    const price = (x) => { const p = linePrice(x, code); return p ? p.total : -1; };
+    const order = (a, b) => S.cartSort === 'az' ? String(a.name).localeCompare(String(b.name))
+      : S.cartSort === 'price' ? price(b) - price(a) || String(a.name).localeCompare(String(b.name))
+      : groupOf(a).localeCompare(groupOf(b)) || String(a.name).localeCompare(String(b.name));
+    const all = r.failed.concat(r.going, r.in, r.leaving);
+    if (all.length > 5 || q || S.cartShow !== 'all' || S.cartSort !== 'aisle') html += cartTools(all.filter(keep).length, all.length);
+    const narrowed = !!(q || S.cartShow !== 'all');
+    const sect = (label, rows0, empty, id) => { const rows = rows0.filter(keep); return rows.length ? '<section class="card"' + (id ? ' id="' + id + '"' : '') + '><div class="card-head">' + label + ' · ' + rows.length + (narrowed && rows.length !== rows0.length ? ' of ' + rows0.length : '') + '</div>' +
+      rows.slice().sort(order).map((x) => listRow(x, code)).join('') + '</section>' : (narrowed ? '' : (empty || '')); };
     html += sect('⚠ COULDN’T ADD', r.failed, '', 'cart-failed');
     html += sect('⏳ GOING IN', r.going);
     html += sect('🛒 IN THE CART', r.in, '<div class="empty">Nothing in the ' + esc(st.name) + ' cart that Poppy knows about.' + (kid ? '' : ' Check the cart reads what’s really there.') + '</div>');
@@ -3758,6 +3806,11 @@
     'meal-filters': () => { S.mealFiltersOpen = !S.mealFiltersOpen; render(); },
     'meal-filters-clear': () => { S.mealKind = 'all'; S.mealSort = 'top'; render(); },
     'meal-clear-q': () => { S.mealQuery = ''; render(); const f = document.getElementById('meal-q'); if (f) f.focus(); },
+    'cart-clear-q': () => { S.cartQuery = ''; render(); const f = document.getElementById('cart-q'); if (f) f.focus(); },
+    'cart-filters': () => { S.cartFiltersOpen = !S.cartFiltersOpen; render(); },
+    'cart-show': (el) => { S.cartShow = el.dataset.v; render(); },
+    'cart-sort': (el) => { S.cartSort = el.dataset.v; render(); },
+    'cart-filters-clear': () => { S.cartShow = 'all'; S.cartSort = 'aisle'; render(); },
     'open-day': (el) => { S.sheet = { type: 'day', day: el.dataset.day }; render(); },
     'points-open': (el) => { S.sheet = { type: 'points', tab: el.dataset.tab || 'rules', who: '' }; if (S.sheet.tab === 'history') loadPointsLog(); render(); },
     'points-tab': (el) => { const sh = S.sheet; if (!sh || sh.type !== 'points') return; sh.tab = el.dataset.tab; if (sh.tab === 'history' && !sh.log) loadPointsLog(); render(); const b = document.querySelector('.sheet'); if (b) b.scrollTop = 0; },
@@ -3877,7 +3930,7 @@
     'open-me': () => { S.sheet = { type: 'me' }; render(); },
     'cart-open': (el) => { S.cartOpen = el.dataset.store || ''; S.tab = 'carts'; store.set('ff_tab', 'carts'); S.sheet = null; render(); window.scrollTo(0, 0); },
     'cart-jump': () => { const box = document.getElementById('cart-failed'); if (box && box.scrollIntoView) { box.scrollIntoView({ block: 'start', behavior: 'smooth' }); box.classList.add('flash'); setTimeout(() => box.classList.remove('flash'), 1600); } },
-    'cart-back': () => { S.cartOpen = ''; render(); window.scrollTo(0, 0); },
+    'cart-back': () => { S.cartOpen = ''; S.cartQuery = ''; render(); window.scrollTo(0, 0); },
     'cart-pick': (el) => { if (S.sheet) { S.sheet.cartPick = el.dataset.store; S.sheet.move = false; render(); } },
     'cart-put': (el) => {
       const r = sheetRow(); const code = el.dataset.store; if (!r || !code) return;
@@ -4187,6 +4240,7 @@
     const kind = el.dataset && el.dataset.input;
     if (kind === 'staples-q') { S.staplesQuery = el.value; render(); }
     if (kind === 'meal-q') { S.mealQuery = el.value; render(); return; }
+    if (kind === 'cart-q') { S.cartQuery = el.value; render(); return; }
     if (kind === 'ask-draft') { S.askDraft = el.value; if (el.tagName === 'TEXTAREA') { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; } }
     if (kind === 'd' && S.sheet && S.sheet.d) S.sheet.d[el.dataset.field] = el.value;
     if (kind === 'draft' && S.sheet) {
@@ -4234,6 +4288,7 @@
     const form = ev.target;
     ev.preventDefault();
     if (form.dataset.form === 'meal-q') { if (document.activeElement) document.activeElement.blur(); return; }
+    if (form.dataset.form === 'cart-q') { if (document.activeElement) document.activeElement.blur(); return; }
     if (form.dataset.form === 'unlock') {
       const v = document.getElementById('pass').value.trim();
       if (!v) return;
@@ -4336,7 +4391,7 @@
   }, { passive: true });
   setInterval(() => {
     // Don't redraw under someone mid-edit.
-    if (document.hidden || S.sheet || S.query || S.mealQuery) return;
+    if (document.hidden || S.sheet || S.query || S.mealQuery || S.cartQuery) return;
     if (Date.now() - stripTouched < 3000) return; // mid-swipe through a week strip
     const a = document.activeElement;
     if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')) return;
