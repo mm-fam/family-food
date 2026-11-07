@@ -3245,7 +3245,9 @@
     if (aboutLastNight) control += '<button type="button" class="link-btn not-had" data-act="ask-nothad" data-id="' + r.id + '">🔄 Not what we had</button>';
 
     const textBox = '<form class="ask-text" data-form="ask-text" data-id="' + r.id + '"><label class="sr" for="ask-in">Answer</label>' +
-      '<input id="ask-in" class="field" data-input="ask-draft" value="' + esc(S.askDraft || '') + '" placeholder="' + (kind === 'text' ? 'Type an answer…' : 'Type your answer…') + '">' +
+      // A multi-line box: the phone's return key adds a line instead of sending a half-typed answer (a kid's
+      // 💡 idea, Nov 6). Only Save sends.
+      '<textarea id="ask-in" class="field" data-input="ask-draft" rows="2" enterkeyhint="enter" placeholder="' + (kind === 'text' ? 'Type an answer…' : 'Type your answer…') + '">' + esc(S.askDraft || '') + '</textarea>' +
       '<button class="btn btn-primary" type="submit">Save</button></form>';
 
     const sec = SECTIONS[sectionOf(r)];
@@ -4082,7 +4084,7 @@
     const kind = el.dataset && el.dataset.input;
     if (kind === 'staples-q') { S.staplesQuery = el.value; render(); }
     if (kind === 'meal-q') { S.mealQuery = el.value; render(); return; }
-    if (kind === 'ask-draft') { S.askDraft = el.value; }
+    if (kind === 'ask-draft') { S.askDraft = el.value; if (el.tagName === 'TEXTAREA') { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; } }
     if (kind === 'd' && S.sheet && S.sheet.d) S.sheet.d[el.dataset.field] = el.value;
     if (kind === 'draft' && S.sheet) {
       S.sheet[el.dataset.field] = el.value;
@@ -4234,7 +4236,8 @@
     if (document.hidden || S.sheet || S.query || S.mealQuery) return;
     if (Date.now() - stripTouched < 3000) return; // mid-swipe through a week strip
     const a = document.activeElement;
-    if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT')) return;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')) return;
+    if (String(S.askDraft || '').trim()) return; // a half-typed Inbox answer stays put
     refresh();
   }, POLL_MS);
 
