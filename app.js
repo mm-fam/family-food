@@ -1168,7 +1168,13 @@
     const today = D().today, last = addDays(today, 6);
     const onList = {};
     D().list.concat(D().held || []).forEach((r) => r.item_id && (onList[r.item_id] = 1));
-    (D().recent || []).forEach((r) => { if (r.item_id && (r.status === 'bought' || r.status === 'have') && addDays(String(r.updated_at || '').slice(0, 10) || '2000-01-01', 3) >= today) onList[r.item_id] = 1; });
+    // Bought or had in the last 3 days, or taken off the List in the last 7 (owner, Nov 7: coconut milk taken off,
+    // in the app or out of the store cart, came straight back as "missing for meals"; taken off = dealt with).
+    (D().recent || []).forEach((r) => {
+      if (!r.item_id) return;
+      const d = String(r.updated_at || '').slice(0, 10) || '2000-01-01';
+      if (((r.status === 'bought' || r.status === 'have') && addDays(d, 3) >= today) || (r.status === 'skipped' && addDays(d, 7) >= today)) onList[r.item_id] = 1;
+    });
     // api 62: shredded cheddar on the List (or just bought) covers a meal that links the cheddar chunk.
     const kindsOn = {};
     Object.keys(onList).forEach((id) => { const k = kindKey(itemById(id)); if (k) kindsOn[k] = 1; });
