@@ -414,7 +414,9 @@ test('who planned it and who is cooking (api 60)', () => {
 
 test('"Not what we had" marks the night not made and clears its other cards (api 61)', () => {
   const t = tabs();
-  const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  // Dates in the script's time zone (America/New_York), like the backend; the machine's own clock is UTC on CI,
+  // where after 7 pm Eastern it's already tomorrow.
+  const iso = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   const today = iso(new Date());
   const yest = iso(new Date(Date.now() - 86400000));
   t.Plan.push(['2026-11-01', '', 'm01', yest, 'dinner', '', '']);
