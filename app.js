@@ -2224,23 +2224,49 @@
     });
   }
 
-  // Text for Hearth Helper: one block per day, Breakfast / Lunch / Snack / Dinner.
+  // Text for Hearth Helper: one block per day, Breakfast / Lunch / Snack / Dinner. Since Nov 7 (owner: "Hearth can
+  // take notes and who's assigned") each meal can carry a Cooking: line (Plan cook → Hearth's assignee) and a
+  // Note: line (time, serves, an early-start heads-up from the recipe card, who asked for it, the plan note).
+  // No recipes: those live on the recipe cards.
+  const hearthMins = (n) => (n < 60 ? n + ' min' : Math.floor(n / 60) + ' hr' + (n % 60 ? ' ' + (n % 60) + ' min' : ''));
+  function hearthNote(p, slot) {
+    const m = mealById(p.meal_id || '');
+    const bits = [];
+    if (m && !isLeftover(p)) {
+      const r = recipeOf(m.id);
+      if (r && r.minutes) bits.push(hearthMins(Number(r.minutes)) + (slot === 'dinner' && r.serves ? ' · serves ' + r.serves : ''));
+      if (r && r.early) bits.push('Heads-up, ' + r.early.charAt(0).toLowerCase() + r.early.slice(1)); // "Heads-up, night before: …"
+    }
+    const asked = String(p.asked_by || '').split(';').map((x) => x.trim()).filter(String);
+    if (asked.length) bits.push(nameList(asked) + ' asked for it');
+    const note = String(p.note || '').trim();
+    if (note && planText(p) !== note && !/^leftover/i.test(note)) bits.push(note);
+    return bits.join(' · ');
+  }
   function hearthText(days) {
     const out = [];
+    let cooks = false, notes = false;
     days.forEach((d) => {
       const rows = planDay(d);
       const lines = SLOTS.map((x) => {
-        const t = planText(rows[x[0]]);
-        const ck = canCook() && x[0] === 'dinner' && t ? cookShort(rows[x[0]]) : '';
-        return t ? x[1] + ': ' + t + (ck ? ' (' + ck + ' cooking)' : '') : '';
+        const p = rows[x[0]];
+        const t = planText(p);
+        if (!t) return '';
+        const ck = canCook() ? cookShort(p).replace(' & ', ', ') : '';
+        const nt = hearthNote(p, x[0]);
+        if (ck) cooks = true;
+        if (nt) notes = true;
+        return x[1] + ': ' + t + (ck ? '\n  Cooking: ' + ck : '') + (nt ? '\n  Note: ' + nt : '');
       }).filter(String);
       if (lines.length) out.push(dayName(d) + ' ' + fmtLong(d) + '\n' + lines.join('\n'));
     });
     if (!out.length) return '';
     const first = days[0]; const last = days[days.length - 1];
     return 'Please update our Hearth Meal Plan for ' + fmtLong(first) + ' – ' + fmtLong(last) + ', ' + first.slice(0, 4) + '.\n' +
-      'Use these exact meal names in the Breakfast, Lunch, Snack and Dinner rows, for the whole family. ' +
-      'Keep any \"(… cooking)\" note as part of that dinner\'s name. Replace whatever is already in those spots. Leave any spot I don\'t list as it is. Meal plan only: no calendar events or reminders.\n\n' +
+      'Use these exact meal names (emoji included) in the Breakfast, Lunch, Snack and Dinner rows. ' +
+      (cooks ? 'Assign each meal to the people on its "Cooking:" line (they\'re in our family on Hearth); a meal without one is for the whole family. ' : 'Each meal is for the whole family. ') +
+      (notes ? 'Put the text after "Note:" in that meal\'s notes, word for word. ' : '') +
+      'Replace whatever is already in those spots. Leave any spot I don\'t list as it is. Meal plan only: no calendar events or reminders.\n\n' +
       out.join('\n\n');
   }
   function fmtLong(iso) {

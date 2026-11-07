@@ -77,6 +77,16 @@ function render(r) {
 }
 
 (async () => {
+  // The game plan's first step when it starts an hour or more ahead ("1 hr out: Dough out of the fridge…",
+  // "Sunday night: …"), for the → Hearth note (Nov 7). Short leads aren't worth a heads-up.
+  function earlyStep(r) {
+    const g = (r.game_plan || [])[0];
+    if (!g || !g.when || !g.what) return '';
+    const w = String(g.when).toLowerCase();
+    const min = /(\d+)\s*min/.exec(w);
+    const early = /hr|hour|night|morning|day|ahead|before/.test(w) || (min && Number(min[1]) >= 60);
+    return early && !/^optional/i.test(g.what) ? g.when + ': ' + g.what : '';
+  }
   const want = process.argv.slice(2);
   const files = fs.readdirSync(SRC).filter((f) => /^m\d+\.json$/.test(f)).sort();
   const tpl = fs.readFileSync(path.join(DIR, 'card.html'), 'utf8');
@@ -85,7 +95,7 @@ function render(r) {
   const index = {};
   for (const f of files) {
     const r = JSON.parse(fs.readFileSync(path.join(SRC, f), 'utf8'));
-    index[r.id] = { name: r.name, pdf: 'recipes/' + r.id + '.pdf', img: ['recipes/img/' + r.id + '-1.jpg', 'recipes/img/' + r.id + '-2.jpg'], serves: r.serves || '', minutes: (Number(r.prep) || 0) + (Number(r.cook) || 0), draft: r.draft !== false };
+    index[r.id] = { name: r.name, pdf: 'recipes/' + r.id + '.pdf', img: ['recipes/img/' + r.id + '-1.jpg', 'recipes/img/' + r.id + '-2.jpg'], serves: r.serves || '', minutes: (Number(r.prep) || 0) + (Number(r.cook) || 0), draft: r.draft !== false, early: earlyStep(r) };
     if (want.length && want.indexOf(r.id) < 0) continue;
     await makeQr(r.id);
     const tmp = path.join(DIR, '.tmp-' + r.id + '.html');

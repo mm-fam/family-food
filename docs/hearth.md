@@ -22,17 +22,20 @@ A **meal** has 2+ ingredients and a recipe. A breakfast, lunch or snack that's j
 ## The → Hearth button (parents only)
 Meals tab → **→ Hearth** right after the NEXT WEEK dates, open or folded (Nov 7: you fill next week during this week, then send it) → Next week is picked; This week is one tap away → **Copy** (or Share…) → in the Hearth app open **Hearth Helper**, paste, send, and check its preview before approving.
 
-The message it builds:
+The message it builds (richer since Nov 7: who's cooking and a short note per meal; no recipes, those are on the recipe cards):
 ```
 Please update our Hearth Meal Plan for Nov 8 – Nov 14, 2026.
-Use these exact meal names in the Breakfast, Lunch, Snack and Dinner rows, for the whole family. Replace whatever is already in those spots. Leave any spot I don't list as it is. Meal plan only: no calendar events or reminders.
+Use these exact meal names (emoji included) in the Breakfast, Lunch, Snack and Dinner rows. Assign each meal to the people on its "Cooking:" line (they're in our family on Hearth); a meal without one is for the whole family. Put the text after "Note:" in that meal's notes, word for word. Replace whatever is already in those spots. Leave any spot I don't list as it is. Meal plan only: no calendar events or reminders.
 
 Sun Nov 8
-Breakfast: Greek Yogurt Parfaits
-Lunch: …
-Snack: …
-Dinner: …
+Breakfast: 🍓 Greek Yogurt Parfaits
+  Note: 5 min · Heads-up, night before: Kids layer yogurt and berries in jars; lids on, into the fridge.
+Dinner: 🍕 Pizza Party
+  Cooking: <parent>, <kid>
+  Note: 35 min · serves 4, plus a lunch · Heads-up, 1 hr out: Dough out of the fridge to warm up. · <kid> asked for it
 ```
+- **Cooking:** Plan `cook` (any slot), sent as Hearth's assignee. Left out when nobody is set (then the whole family).
+- **Note:** total time (recipe card prep + cook), serves (dinners), **Heads-up** = the recipe card's first game-plan step when it starts an hour or more ahead (night before, Sunday, 1 hr out; "Optional" tips skipped; `recipes/index.json` `early`, written by `recipes/build.js`), who asked for it (Plan `asked_by`), and the Plan note. Meals without a recipe card get only the asked-for / note parts. Leftovers and planned items get no time or heads-up.
 "This week" starts today, so earlier days in Hearth are left alone. Empty slots are left out.
 
 **Not yet proven:** how well Hearth Helper follows "replace" and the slot names. the admin tries it with next week first; adjust the wording in `hearthText()` (app.js) if it misfiles anything.

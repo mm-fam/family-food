@@ -10,7 +10,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 25,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m02": {
    "name": "🍕 Pizza Party",
@@ -21,7 +22,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 35,
-   "draft": true
+   "draft": true,
+   "early": "1 hr out: Dough out of the fridge to warm up."
   },
   "m03": {
    "name": "🌶️ Cozy Cabin Chili",
@@ -32,7 +34,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 50,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m04": {
    "name": "🍖 Mighty Meatloaf",
@@ -43,7 +46,8 @@
    ],
    "serves": "4, plus lunches",
    "minutes": 75,
-   "draft": true
+   "draft": true,
+   "early": "75 min out: Oven to 375°F. Panko soaking in milk."
   },
   "m05": {
    "name": "🥩 Steakhouse Steak & Fries",
@@ -54,7 +58,8 @@
    ],
    "serves": "4",
    "minutes": 35,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m06": {
    "name": "🍕 Pepperoni Pizza Pasta Bake",
@@ -65,7 +70,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 45,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m07": {
    "name": "🫓 Greek Chicken Naan & Tzatziki",
@@ -76,7 +82,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 35,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m08": {
    "name": "🥟 Pierogi Party + Salad",
@@ -87,7 +94,8 @@
    ],
    "serves": "4",
    "minutes": 30,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m09": {
    "name": "🍆 Chicken & Eggplant Parm",
@@ -98,7 +106,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 55,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m10": {
    "name": "🥦 Beef & Broccoli Wok Night",
@@ -109,7 +118,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 32,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m11": {
    "name": "🫔 Cheesy Beef Enchiladas",
@@ -120,7 +130,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 45,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m12": {
    "name": "🧀 Loaded Nachos",
@@ -131,7 +142,8 @@
    ],
    "serves": "4",
    "minutes": 30,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m13": {
    "name": "🌭 Sausage, Peppers & Onions Sheet Pan",
@@ -142,7 +154,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 45,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m14": {
    "name": "🍔 Buffalo Chicken Sliders",
@@ -153,7 +166,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 40,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m15": {
    "name": "🍲 Soup & Sammie Night",
@@ -164,7 +178,8 @@
    ],
    "serves": "4",
    "minutes": 20,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m16": {
    "name": "💪 Iron & Protein Oatmeal Bowls",
@@ -175,7 +190,8 @@
    ],
    "serves": "4",
    "minutes": 15,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m17": {
    "name": "🍓 Greek Yogurt Parfaits",
@@ -186,7 +202,8 @@
    ],
    "serves": "4",
    "minutes": 5,
-   "draft": true
+   "draft": true,
+   "early": "Night before: Kids layer yogurt and berries in jars; lids on, into the fridge."
   },
   "m18": {
    "name": "🍳 Cottage Cheese Scramble",
@@ -197,7 +214,8 @@
    ],
    "serves": "4",
    "minutes": 11,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m19": {
    "name": "🥣 Overnight Oats",
@@ -208,7 +226,8 @@
    ],
    "serves": "4",
    "minutes": 10,
-   "draft": true
+   "draft": true,
+   "early": "Sunday night: Mix oats, milk, yogurt, honey, cinnamon, chia; fill 4 jars."
   },
   "m20": {
    "name": "🥤 Power Protein Smoothie",
@@ -219,7 +238,8 @@
    ],
    "serves": "4",
    "minutes": 5,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m21": {
    "name": "🥚 Veggie & Cheese Omelets",
@@ -230,7 +250,8 @@
    ],
    "serves": "4",
    "minutes": 20,
-   "draft": true
+   "draft": true,
+   "early": "Night before: Dice the peppers; keep covered in the fridge."
   },
   "m22": {
    "name": "🍌 Banana Egg Pancakes",
@@ -241,7 +262,8 @@
    ],
    "serves": "4",
    "minutes": 20,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m23": {
    "name": "🌯 Chicken & Black Bean Power Wraps",
@@ -252,7 +274,8 @@
    ],
    "serves": "4",
    "minutes": 15,
-   "draft": true
+   "draft": true,
+   "early": "Up to 3 days: Mix chicken, beans, taco seasoning and lime; fridge."
   },
   "m24": {
    "name": "🥗 Buffalo Chicken & White Bean Salad",
@@ -263,7 +286,8 @@
    ],
    "serves": "4",
    "minutes": 15,
-   "draft": true
+   "draft": true,
+   "early": "Up to 3 days: Make the chicken-bean mix; it's better on day 2."
   },
   "m25": {
    "name": "🌵 Southwest Black Bean & Egg Salad",
@@ -274,7 +298,8 @@
    ],
    "serves": "4",
    "minutes": 27,
-   "draft": true
+   "draft": true,
+   "early": "Sunday: Boil a dozen eggs: for this, snacks and Eggs & Apple Slices."
   },
   "m26": {
    "name": "🍚 Kitchen-Sink Grain Bowls",
@@ -285,7 +310,8 @@
    ],
    "serves": "4",
    "minutes": 25,
-   "draft": true
+   "draft": true,
+   "early": "Sunday: Cook the quinoa (keeps 5 days); shake up the dressing."
   },
   "m27": {
    "name": "🍎 Eggs & Apple Slices",
@@ -296,7 +322,8 @@
    ],
    "serves": "4",
    "minutes": 15,
-   "draft": true
+   "draft": true,
+   "early": "Sunday: Boil a dozen; unpeeled eggs keep a week."
   },
   "m28": {
    "name": "🥒 Cottage Cheese & Cucumbers",
@@ -307,7 +334,8 @@
    ],
    "serves": "4",
    "minutes": 5,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m29": {
    "name": "🫑 Cottage Cheese Dip & Peppers",
@@ -318,7 +346,8 @@
    ],
    "serves": "4",
    "minutes": 8,
-   "draft": true
+   "draft": true,
+   "early": "Ahead: Dip keeps 4 days; it thickens overnight."
   },
   "m31": {
    "name": "🥕 Greek Yogurt Veggie Dip",
@@ -329,7 +358,8 @@
    ],
    "serves": "4",
    "minutes": 10,
-   "draft": true
+   "draft": true,
+   "early": "Ahead: Dip keeps 3 days; cut veggies keep in water in the fridge."
   },
   "m32": {
    "name": "🥜 PB & Banana Toast",
@@ -340,7 +370,8 @@
    ],
    "serves": "4",
    "minutes": 8,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m34": {
    "name": "🔥 Buffalo Chicken Wraps",
@@ -351,7 +382,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 35,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m35": {
    "name": "🦃 Turkey & Black Bean Cottage Cheese Bake",
@@ -362,7 +394,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 50,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m36": {
    "name": "🍠 Sheet Pan Chicken, Sweet Potato & Broccoli",
@@ -373,7 +406,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 45,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m37": {
    "name": "🥢 Egg Roll in a Bowl",
@@ -384,7 +418,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 25,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m38": {
    "name": "🍝 Spinach & Cottage Cheese Baked Pasta",
@@ -395,7 +430,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 50,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m39": {
    "name": "🫘 Black Bean & Sweet Potato Quesadillas",
@@ -406,7 +442,8 @@
    ],
    "serves": "4",
    "minutes": 35,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m40": {
    "name": "🍛 One-Pot Chicken & Chickpea Curry",
@@ -417,7 +454,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 35,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m41": {
    "name": "🥖 Philly Cheesesteaks",
@@ -428,7 +466,8 @@
    ],
    "serves": "4",
    "minutes": 55,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m42": {
    "name": "🍏 Homemade Apple Pop-Tarts",
@@ -439,7 +478,8 @@
    ],
    "serves": "8 tarts",
    "minutes": 45,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m43": {
    "name": "🐷 Pork Carnitas Tacos",
@@ -450,7 +490,8 @@
    ],
    "serves": "4, plus 2 lunches",
    "minutes": 510,
-   "draft": true
+   "draft": true,
+   "early": "Morning: Season the pork; kids load onion, garlic and juices in the cooker."
   },
   "m44": {
    "name": "🥐 Cheeseburger Puff Pastry Pockets",
@@ -461,7 +502,8 @@
    ],
    "serves": "4 (8 pockets)",
    "minutes": 45,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m45": {
    "name": "🥪 Open-Faced Pizza & Deli Melts",
@@ -472,7 +514,8 @@
    ],
    "serves": "4",
    "minutes": 20,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m46": {
    "name": "🥞 Pancake PB&J Stack",
@@ -483,7 +526,8 @@
    ],
    "serves": "16 pancakes (4 breakfasts)",
    "minutes": 30,
-   "draft": true
+   "draft": true,
+   "early": ""
   },
   "m47": {
    "name": "🌯 Dad's Crunchy Burrito Roll-Ups",
@@ -494,7 +538,8 @@
    ],
    "serves": "4, plus a lunch",
    "minutes": 55,
-   "draft": true
+   "draft": true,
+   "early": ""
   }
  }
 }
