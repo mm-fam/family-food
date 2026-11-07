@@ -2,104 +2,38 @@
  "id": "m28",
  "name": "🥒 Cottage Cheese & Cucumbers",
  "kind": "snack",
- "tagline": "Cool, crunchy and salty: cottage cheese with cucumbers and tomatoes, like a mini Greek salad.",
+ "what": "Cottage cheese with cucumbers and tomatoes, like a mini Greek salad.",
+ "minutes": 5,
  "serves": "4",
- "prep": 5,
- "cook": 0,
- "level": "5-minute snack",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 cups",
-     "name": "Cottage cheese (Daisy 4%)",
-     "item": "i225"
-    },
-    {
-     "qty": "1 bag",
-     "name": "Mini seedless cucumbers",
-     "item": "i183"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Cherry tomatoes",
-     "item": "i274"
-    }
-   ]
+   "name": "Cottage cheese",
+   "item": "i225",
+   "out": "plain Greek yogurt"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "drizzle",
-     "name": "Olive oil"
-    },
-    {
-     "qty": "",
-     "name": "Salt, pepper, and everything seasoning or dill"
-    }
-   ]
+   "name": "Cucumbers",
+   "item": "i183",
+   "out": "peppers or snap peas"
   }
  ],
- "steps": [
+ "extras": "cherry tomatoes, olive oil, everything seasoning, dill",
+ "moves": [
   {
-   "text": "Slice the cucumbers into thick coins and halve the tomatoes.",
-   "kid": true
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Spoon cottage cheese into 4 small bowls.",
-   "kid": true
+   "text": "Slice cucumbers into coins, halve the tomatoes."
   },
   {
-   "text": "Pile the cucumbers and tomatoes on top.",
-   "kid": true
+   "text": "Cottage cheese into 4 bowls, veggies on top."
   },
   {
-   "text": "Drizzle with olive oil and sprinkle with salt, pepper and everything seasoning."
+   "text": "Drizzle of olive oil, salt, pepper and everything seasoning."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Slice the cucumbers (butter knife works on minis)"
-  },
-  {
-   "job": "Halve the tomatoes"
-  },
-  {
-   "job": "Season your own bowl"
-  }
- ],
- "chef_tip": "A tiny drizzle of good olive oil and flaky salt turns plain cottage cheese into something that tastes like a restaurant snack.",
- "make_ahead": "Slice cucumbers ahead and keep in a container with a damp paper towel.",
- "leftovers": "Leftover cucumbers go in lunchboxes.",
- "swaps": [
-  "Mini sweet peppers (i066)",
-  "Use cucumber slices as 'chips' to scoop"
- ],
- "serve_with": "Triscuits or crackers",
- "gear": [
-  "Cutting board",
-  "4 small bowls"
- ],
- "heads_up": "",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Ahead",
-   "what": "Optional: slice cucumbers; keep with a damp paper towel."
-  },
-  {
-   "when": "5 min out",
-   "what": "Kids slice cucumber coins and halve the tomatoes."
-  },
-  {
-   "when": "2 min",
-   "what": "Cottage cheese into 4 bowls; veggies on top."
-  },
-  {
-   "when": "Snack",
-   "what": "Olive oil, salt, pepper, everything seasoning."
-  }
- ]
+ "key": "A drizzle of olive oil and a pinch of salt make it taste fancy.",
+ "done": "Bowls look full and colorful.",
+ "plan_b": "Out of cottage cheese? Veggies with ranch.",
+ "draft": true
 }

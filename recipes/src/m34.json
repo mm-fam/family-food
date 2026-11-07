@@ -2,162 +2,53 @@
  "id": "m34",
  "name": "🔥 Buffalo Chicken Wraps",
  "kind": "dinner",
- "tagline": "Saucy buffalo chicken, cool ranch crunch, rolled tight and toasted so it holds.",
+ "what": "Buffalo chicken rolled in tortillas with lettuce, cheese and ranch, toasted crisp.",
+ "minutes": 35,
  "serves": "4, plus a lunch",
- "prep": 15,
- "cook": 20,
- "level": "Easy weeknight",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2½ lb",
-     "name": "Chicken breasts (double batch: meat ×2)",
-     "item": "i156"
-    },
-    {
-     "qty": "⅓ cup",
-     "name": "Frank's RedHot, plus more to taste",
-     "item": "i116"
-    },
-    {
-     "qty": "8",
-     "name": "Flour tortillas (burrito size)",
-     "item": "i074"
-    },
-    {
-     "qty": "1½ cups",
-     "name": "Shredded cheddar",
-     "item": "i188"
-    },
-    {
-     "qty": "3 cups",
-     "name": "Lettuce, shredded",
-     "item": "i280"
-    },
-    {
-     "qty": "½ cup",
-     "name": "Ranch or blue cheese dressing",
-     "item": "i160"
-    },
-    {
-     "qty": "3 stalks",
-     "name": "Celery, thin sliced (optional crunch)",
-     "item": "i239"
-    },
-    {
-     "qty": "1 bag",
-     "name": "Baby carrots, for the side",
-     "item": "i003"
-    }
-   ]
+   "name": "Chicken breasts",
+   "item": "i156",
+   "out": "rotisserie chicken, just shred it"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "3 Tbsp",
-     "name": "Butter, melted"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Garlic powder"
-    },
-    {
-     "qty": "",
-     "name": "Salt, pepper, olive oil"
-    }
-   ]
+   "name": "Frank's RedHot",
+   "item": "i116",
+   "out": "any hot sauce, or skip it for plain chicken wraps"
+  },
+  {
+   "name": "Big flour tortillas",
+   "item": "i074",
+   "out": "any tortillas, or serve it as a bowl over lettuce"
+  },
+  {
+   "name": "Shredded cheese",
+   "item": "i188",
+   "out": "any cheese we have"
   }
  ],
- "steps": [
+ "extras": "lettuce, ranch or blue cheese, celery, baby carrots, butter for the sauce",
+ "moves": [
   {
-   "text": "Slice each chicken breast in half the long way so it cooks fast and even. Season with salt, pepper and garlic powder.",
-   "time": "5 min"
+   "text": "Pull the must-haves onto the counter. Slice each chicken breast in half the long way."
   },
   {
-   "text": "Sear in a little oil over medium-high, 5–6 minutes a side, until 165°F. Rest 5 minutes, then chop or shred.",
+   "text": "Season and sear in a little oil over medium-high, 5–6 minutes a side. Rest, then chop.",
    "time": "12 min"
   },
   {
-   "text": "Whisk the melted butter into the Frank's. Toss the chicken in it while it's hot.",
-   "kid": true
+   "text": "Toss the hot chicken with Frank's (plus a little melted butter if we have it)."
   },
   {
-   "text": "Set out lettuce, cheese, celery and ranch in bowls.",
-   "kid": true
+   "text": "Fill warm tortillas with lettuce, chicken, cheese and ranch. Roll tight."
   },
   {
-   "text": "Warm the tortillas 20 seconds in the microwave. Fill: lettuce, chicken, cheese, celery, a drizzle of ranch.",
-   "kid": true
-  },
-  {
-   "text": "Fold the sides in and roll tight. Toast seam side down in a dry skillet, 1–2 minutes a side, until golden.",
+   "text": "Toast seam side down in a dry pan until golden, then flip. Save extra chicken for lunch.",
    "time": "6 min"
-  },
-  {
-   "text": "Cut in half on an angle. Carrots and extra ranch on the side. Pack the extra chicken for lunch before rolling."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Whisk the buffalo sauce (butter + Frank's)"
-  },
-  {
-   "job": "Shred lettuce and fill the topping bowls"
-  },
-  {
-   "job": "Roll the wraps: sides in, then roll tight"
-  },
-  {
-   "job": "Plate the carrots and ranch for dipping"
-  }
- ],
- "chef_tip": "Toss the chicken in the buffalo butter while it's still hot so it soaks in, and toast the wrap seam side down first to seal it shut.",
- "make_ahead": "Cook and sauce the chicken up to 2 days ahead; warm it before rolling.",
- "leftovers": "The second batch of chicken makes lunch wraps or a buffalo salad with ranch.",
- "swaps": [
-  "Whole wheat tortillas",
-  "Rotisserie chicken when time is tight",
-  "Go easy on the Frank's for milder eaters: sauce half the chicken"
- ],
- "serve_with": "Baby carrots, celery and ranch",
- "gear": [
-  "Big skillet",
-  "Small bowls",
-  "Whisk"
- ],
- "heads_up": "Slice the chicken breasts in half the long way before anything else.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "35 min out",
-   "what": "Halve the chicken the long way and season it."
-  },
-  {
-   "when": "30 min",
-   "what": "Chicken in the skillet, 5–6 min a side. Kids set out the fillings."
-  },
-  {
-   "when": "18 min",
-   "what": "Chicken rests. Kids whisk butter into the Frank's."
-  },
-  {
-   "when": "12 min",
-   "what": "Chop and toss the chicken in the sauce. Pack lunch chicken."
-  },
-  {
-   "when": "8 min",
-   "what": "Warm tortillas, fill and roll tight."
-  },
-  {
-   "when": "5 min",
-   "what": "Toast the wraps seam side down until golden."
-  },
-  {
-   "when": "Dinner",
-   "what": "Cut on an angle; carrots and ranch on the side."
-  }
- ]
+ "key": "Sauce the chicken while it's hot so it soaks in. Milder eaters: sauce only half.",
+ "done": "Chicken is white all the way through (165°F) and the wraps are golden.",
+ "plan_b": "No tortillas? Buffalo chicken over lettuce with cheese and ranch.",
+ "draft": true
 }

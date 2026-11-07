@@ -2,157 +2,53 @@
  "id": "m04",
  "name": "🍖 Mighty Meatloaf",
  "kind": "dinner",
- "tagline": "Tender, glazed meatloaf with broccoli and rice. Two loaves, so there's lunch tomorrow.",
+ "what": "Two glazed meatloaves with broccoli on the same pan, and rice. Extra for lunch.",
+ "minutes": 75,
  "serves": "4, plus lunches",
- "prep": 20,
- "cook": 55,
- "level": "Sunday-style, easy",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 lb",
-     "name": "Meatloaf mix (2 packs)",
-     "item": "i059"
-    },
-    {
-     "qty": "2",
-     "name": "Eggs",
-     "item": "i093"
-    },
-    {
-     "qty": "¾ cup",
-     "name": "Panko bread crumbs",
-     "item": "i127"
-    },
-    {
-     "qty": "1",
-     "name": "Onion, grated",
-     "item": "i155"
-    },
-    {
-     "qty": "½ cup + ⅓ cup",
-     "name": "Ketchup (half in, half for the glaze)",
-     "item": "i118"
-    },
-    {
-     "qty": "2 bags (12 oz)",
-     "name": "Broccoli florets",
-     "item": "i055"
-    },
-    {
-     "qty": "1½ cups (dry)",
-     "name": "Minute rice",
-     "item": "i058"
-    }
-   ]
+   "name": "Meatloaf mix (2 lb)",
+   "item": "i059",
+   "out": "ground beef or ground turkey"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "⅓ cup",
-     "name": "Milk"
-    },
-    {
-     "qty": "2 Tbsp",
-     "name": "Brown sugar"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Worcestershire or soy sauce"
-    },
-    {
-     "qty": "",
-     "name": "Salt, pepper, garlic powder, olive oil"
-    }
-   ]
+   "name": "Eggs (2)",
+   "item": "i093",
+   "out": "skip, add an extra splash of milk"
+  },
+  {
+   "name": "Panko bread crumbs",
+   "item": "i127",
+   "out": "crushed crackers or torn bread"
+  },
+  {
+   "name": "Ketchup",
+   "item": "i118",
+   "out": "BBQ sauce for the glaze"
   }
  ],
- "steps": [
+ "extras": "onion, broccoli, rice, brown sugar, worcestershire or soy sauce, milk, garlic powder",
+ "moves": [
   {
-   "text": "Oven to 375°F. Line a sheet pan with foil."
+   "text": "Pull the must-haves onto the counter. Oven to 375°F. Foil on a sheet pan."
   },
   {
-   "text": "In a big bowl stir the panko and milk; let it soak 2 minutes. Add eggs, grated onion, ½ cup ketchup, Worcestershire, 1½ tsp salt, pepper and garlic powder.",
-   "kid": true
+   "text": "In a big bowl, soak the crumbs in a splash of milk 2 minutes. Add eggs, ½ cup ketchup, salt and pepper."
   },
   {
-   "text": "Add the meat and mix gently with clean hands just until combined. Don't squeeze it.",
-   "kid": true
+   "text": "Add the meat and mix gently with clean hands just until combined. Shape two loaves on the pan."
   },
   {
-   "text": "Shape two loaves about 8×4 inches on the pan.",
-   "kid": true
+   "text": "Brush with ketchup mixed with a little brown sugar. Bake 35 min, then add broccoli to the pan and bake 20 more. Make the rice.",
+   "time": "55 min"
   },
   {
-   "text": "Stir ⅓ cup ketchup with the brown sugar; brush half on the loaves. Bake 35 minutes.",
-   "time": "35 min"
-  },
-  {
-   "text": "Brush on the rest of the glaze, add the broccoli tossed with oil and salt to the pan, and bake until the meat hits 160°F.",
-   "time": "20 min"
-  },
-  {
-   "text": "Make the rice while it bakes. Rest the meatloaf 10 minutes before slicing.",
+   "text": "Rest 10 minutes, then slice.",
    "time": "10 min"
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Crack the eggs into a cup first (fish out shells)"
-  },
-  {
-   "job": "Squish the meatloaf mix (wash hands before and after)"
-  },
-  {
-   "job": "Shape the loaves"
-  },
-  {
-   "job": "Paint on the glaze with a brush"
-  }
- ],
- "chef_tip": "Soak the crumbs in milk first and mix the meat as little as you can. That's what makes meatloaf tender instead of a brick.",
- "make_ahead": "Shape the loaves in the morning, cover and refrigerate; add 5 minutes to the bake.",
- "leftovers": "Cold meatloaf sandwiches on sandwich bread with ketchup: a lunchbox classic.",
- "swaps": [
-  "Ground beef or ground turkey for the meatloaf mix",
-  "Mashed potatoes instead of rice"
- ],
- "serve_with": "Broccoli and rice (in the recipe), or green beans",
- "gear": [
-  "Sheet pan + foil",
-  "Big bowl",
-  "Meat thermometer",
-  "Pastry brush"
- ],
- "heads_up": "Oven to 375°F first.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "75 min out",
-   "what": "Oven to 375°F. Panko soaking in milk."
-  },
-  {
-   "when": "70 min",
-   "what": "Kids mix the meatloaf gently and shape two loaves."
-  },
-  {
-   "when": "60 min",
-   "what": "First glaze on; loaves into the oven."
-  },
-  {
-   "when": "25 min",
-   "what": "Second glaze; broccoli onto the pan. Rice on."
-  },
-  {
-   "when": "10 min",
-   "what": "Meatloaf out to rest. Fluff the rice."
-  },
-  {
-   "when": "Dinner",
-   "what": "Slice and serve with broccoli and rice."
-  }
- ]
+ "key": "Mix the meat as little as you can. Squeezing it makes it tough.",
+ "done": "160°F in the middle, or the juice runs clear.",
+ "plan_b": "Running late? Make burgers from the same mix: 4–5 minutes a side in a skillet.",
+ "draft": true
 }

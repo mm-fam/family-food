@@ -2,160 +2,53 @@
  "id": "m11",
  "name": "🫔 Cheesy Beef Enchiladas",
  "kind": "dinner",
- "tagline": "Saucy, cheesy beef and bean enchiladas, baked in one pan and topped with cool sour cream.",
+ "what": "Beef and bean tortillas rolled up, covered in sauce and cheese, and baked.",
+ "minutes": 45,
  "serves": "4, plus a lunch",
- "prep": 20,
- "cook": 25,
- "level": "Easy, crowd-pleaser",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1¼ lb",
-     "name": "Ground beef",
-     "item": "i091"
-    },
-    {
-     "qty": "1",
-     "name": "Onion, diced",
-     "item": "i155"
-    },
-    {
-     "qty": "1 can",
-     "name": "Bush's black beans, drained",
-     "item": "i061"
-    },
-    {
-     "qty": "1 can (19 oz)",
-     "name": "Enchilada sauce",
-     "item": "i167"
-    },
-    {
-     "qty": "8",
-     "name": "Flour tortillas",
-     "item": "i074"
-    },
-    {
-     "qty": "2 cups",
-     "name": "Mexican blend shredded cheese",
-     "item": "i039"
-    },
-    {
-     "qty": "to serve",
-     "name": "Sour cream",
-     "item": "i159"
-    },
-    {
-     "qty": "to serve",
-     "name": "Cilantro, limes, avocado",
-     "item": "i329"
-    }
-   ]
+   "name": "Ground beef",
+   "item": "i091",
+   "out": "ground turkey or rotisserie chicken"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "2 tsp",
-     "name": "Cumin"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Chili powder"
-    },
-    {
-     "qty": "",
-     "name": "Salt, pepper, oil"
-    }
-   ]
+   "name": "Enchilada sauce",
+   "item": "i167",
+   "out": "salsa or a jar of marinara + cumin"
+  },
+  {
+   "name": "Flour tortillas",
+   "item": "i074",
+   "out": "soft taco tortillas (smaller)"
+  },
+  {
+   "name": "Mexican blend cheese",
+   "item": "i039",
+   "out": "any shredded cheese"
   }
  ],
- "steps": [
+ "extras": "onion, black beans, sour cream, cilantro, limes, avocado, cumin, chili powder",
+ "moves": [
   {
-   "text": "Oven to 375°F."
+   "text": "Pull the must-haves onto the counter. Oven to 375°F."
   },
   {
-   "text": "Brown the beef with the onion in a skillet until cooked through; drain the fat.",
+   "text": "Brown the beef with a diced onion; drain the fat. Stir in cumin, beans and a little sauce.",
    "time": "10 min"
   },
   {
-   "text": "Stir in cumin, chili powder, salt, the beans and ½ cup enchilada sauce.",
-   "kid": true
+   "text": "Sauce on the bottom of a 9×13 dish. Fill each tortilla with beef and cheese, roll, and lay seam down."
   },
   {
-   "text": "Spread ½ cup sauce in a 9×13 dish.",
-   "kid": true
-  },
-  {
-   "text": "Fill each tortilla with beef and a sprinkle of cheese, roll, and lay seam side down.",
-   "kid": true
-  },
-  {
-   "text": "Pour the rest of the sauce over, covering the ends so they don't dry out. Top with the rest of the cheese.",
-   "kid": true
-  },
-  {
-   "text": "Bake until bubbling, covered for 15 minutes then uncovered 10.",
+   "text": "Pour the rest of the sauce over, covering the ends. Cheese on top. Bake covered 15, uncovered 10.",
    "time": "25 min"
   },
   {
    "text": "Top with sour cream, cilantro and avocado."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Spread sauce in the pan"
-  },
-  {
-   "job": "Roll the enchiladas assembly-line style"
-  },
-  {
-   "job": "Sprinkle on the cheese"
-  },
-  {
-   "job": "Pick cilantro leaves and cut lime wedges"
-  }
- ],
- "chef_tip": "Sauce the tortilla ends too. Any dry edge goes crunchy and hard; covered ends stay soft and saucy.",
- "make_ahead": "Assemble the night before; add 10 minutes to the bake straight from the fridge.",
- "leftovers": "Microwave a portion covered with a damp towel. Great with a fried egg on top for breakfast.",
- "swaps": [
-  "Ground turkey or rotisserie chicken",
-  "Mission soft taco tortillas for smaller ones"
- ],
- "serve_with": "Tortilla chips and salsa, Alexia street corn",
- "gear": [
-  "Skillet",
-  "9×13 baking dish",
-  "Foil"
- ],
- "heads_up": "Oven to 375°F.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "45 min out",
-   "what": "Oven to 375°F. Brown the beef with the onion."
-  },
-  {
-   "when": "35 min",
-   "what": "Spices, beans and sauce into the beef."
-  },
-  {
-   "when": "30 min",
-   "what": "Kids fill and roll tortillas into the dish."
-  },
-  {
-   "when": "25 min",
-   "what": "Sauce over, cheese on, covered into the oven."
-  },
-  {
-   "when": "10 min",
-   "what": "Foil off to finish bubbling."
-  },
-  {
-   "when": "Dinner",
-   "what": "Sour cream, cilantro and avocado on top."
-  }
- ]
+ "key": "Cover the tortilla ends with sauce so they don't go hard.",
+ "done": "Bubbling all over and the cheese is melted.",
+ "plan_b": "Skip the rolling: layer tortillas, filling and sauce like a lasagna.",
+ "draft": true
 }

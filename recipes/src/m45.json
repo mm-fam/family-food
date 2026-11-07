@@ -2,147 +2,53 @@
  "id": "m45",
  "name": "🥪 Open-Faced Pizza & Deli Melts",
  "kind": "dinner",
- "tagline": "Crusty bread, sauce, deli meats and bubbling cheese under the broiler. Dinner in 15.",
+ "what": "Thick toasted bread, sauce, meats and cheese under the broiler. Everyone builds their own.",
+ "minutes": 20,
  "serves": "4",
- "prep": 10,
- "cook": 10,
- "level": "15-minute dinner",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1 loaf",
-     "name": "Crusty bakery bread (sourdough or semolina)",
-     "item": "i393"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Rao's marinara",
-     "item": "i168"
-    },
-    {
-     "qty": "2 cups",
-     "name": "Tillamook mozzarella, shredded",
-     "item": "i083"
-    },
-    {
-     "qty": "1 pack",
-     "name": "Pepperoni (deli)",
-     "item": "i044"
-    },
-    {
-     "qty": "¼ lb",
-     "name": "Deli ham",
-     "item": "i189"
-    },
-    {
-     "qty": "¼ lb",
-     "name": "Sliced salami",
-     "item": "i257"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Grated parmesan",
-     "item": "i100"
-    }
-   ]
+   "name": "Crusty bread",
+   "item": "i393",
+   "out": "any bread, English muffins or naan"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "2 Tbsp",
-     "name": "Olive oil"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Garlic powder"
-    },
-    {
-     "qty": "",
-     "name": "Italian seasoning, red pepper flakes"
-    }
-   ]
+   "name": "Rao's marinara",
+   "item": "i168",
+   "out": "any pizza or pasta sauce"
+  },
+  {
+   "name": "Shredded mozzarella",
+   "item": "i083",
+   "out": "any melty cheese"
+  },
+  {
+   "name": "Pepperoni or deli meat",
+   "item": "i044",
+   "out": "ham, salami, or veggies"
   }
  ],
- "steps": [
+ "extras": "ham, salami, parmesan, garlic powder, italian seasoning",
+ "moves": [
   {
-   "text": "Turn the broiler on high with a rack in the upper third."
+   "text": "Pull the must-haves onto the counter. Broiler on high, rack near the top."
   },
   {
-   "text": "Slice the bread in thick slices on an angle (or split the loaf in half the long way).",
+   "text": "Slice the bread thick. Brush with oil and broil until just crisp.",
    "time": "2 min"
   },
   {
-   "text": "Brush with olive oil, sprinkle garlic powder, and broil 2 minutes until just crisp.",
-   "time": "2 min"
+   "text": "Spread sauce on each slice."
   },
   {
-   "text": "Spread sauce on each slice.",
-   "kid": true
+   "text": "Everyone builds their own: meats, mozzarella, a pinch of parmesan."
   },
   {
-   "text": "Everyone builds their own: meats, mozzarella, a pinch of parmesan and Italian seasoning.",
-   "kid": true
-  },
-  {
-   "text": "Broil 3–4 minutes until the cheese bubbles and browns. Don't walk away.",
+   "text": "Broil until the cheese bubbles and browns. Don't walk away.",
    "time": "4 min"
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Spread the sauce"
-  },
-  {
-   "job": "Build your own melt"
-  },
-  {
-   "job": "Make a design with the pepperoni"
-  },
-  {
-   "job": "Toss the side salad"
-  }
- ],
- "chef_tip": "Toast the bread with oil before the toppings. It keeps the bottom crisp instead of soggy from the sauce.",
- "make_ahead": "Nothing to do ahead; it's that fast.",
- "leftovers": "Best fresh. Leftover deli meat goes into lunches.",
- "swaps": [
-  "Brioche loaf or English muffins for little ones",
-  "Hoagie dressing + provolone for an Italian-sub version"
- ],
- "serve_with": "Spring mix with Italian dressing",
- "gear": [
-  "Sheet pan",
-  "Pastry brush"
- ],
- "heads_up": "Broiler on high.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "20 min out",
-   "what": "Broiler on high. Slice the bread thick."
-  },
-  {
-   "when": "15 min",
-   "what": "Oil, garlic powder, broil 2 min until crisp."
-  },
-  {
-   "when": "12 min",
-   "what": "Kids set out sauce, meats and cheese."
-  },
-  {
-   "when": "8 min",
-   "what": "Everyone builds their own melt."
-  },
-  {
-   "when": "5 min",
-   "what": "Broil 3–4 min. Don't walk away."
-  },
-  {
-   "when": "Dinner",
-   "what": "Serve hot with a salad."
-  }
- ]
+ "key": "Toast the bread with oil before the toppings so it stays crisp.",
+ "done": "The cheese bubbles with brown spots.",
+ "plan_b": "No good bread? Same thing on tortillas for crispy tortilla pizzas.",
+ "draft": true
 }

@@ -2,155 +2,53 @@
  "id": "m38",
  "name": "🍝 Spinach & Cottage Cheese Baked Pasta",
  "kind": "dinner",
- "tagline": "A lazy lasagna: creamy, cheesy, high-protein baked pasta with spinach hiding in plain sight.",
+ "what": "Pasta, marinara and a creamy cheese layer baked until bubbly.",
+ "minutes": 50,
  "serves": "4, plus a lunch",
- "prep": 15,
- "cook": 35,
- "level": "Weeknight bake",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1 lb",
-     "name": "Pasta (rotini or penne)",
-     "item": "i190"
-    },
-    {
-     "qty": "1 jar",
-     "name": "Rao's marinara",
-     "item": "i168"
-    },
-    {
-     "qty": "2 cups",
-     "name": "Cottage cheese",
-     "item": "i225"
-    },
-    {
-     "qty": "5 oz",
-     "name": "Baby spinach, chopped",
-     "item": "i054"
-    },
-    {
-     "qty": "1",
-     "name": "Egg",
-     "item": "i093"
-    },
-    {
-     "qty": "2 cups",
-     "name": "Tillamook mozzarella, shredded",
-     "item": "i083"
-    },
-    {
-     "qty": "½ cup",
-     "name": "Grated parmesan",
-     "item": "i100"
-    },
-    {
-     "qty": "3 cloves",
-     "name": "Garlic, minced",
-     "item": "i153"
-    }
-   ]
+   "name": "Pasta (rotini or penne)",
+   "item": "i190",
+   "out": "any short pasta"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 Tbsp",
-     "name": "Olive oil"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Italian seasoning"
-    },
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    }
-   ]
+   "name": "Rao's marinara",
+   "item": "i168",
+   "out": "any jar of sauce we have"
+  },
+  {
+   "name": "Cottage cheese",
+   "item": "i225",
+   "out": "ricotta"
+  },
+  {
+   "name": "Shredded mozzarella",
+   "item": "i083",
+   "out": "any melty cheese"
   }
  ],
- "steps": [
+ "extras": "baby spinach, an egg, parmesan, garlic, italian seasoning",
+ "moves": [
   {
-   "text": "Heat the oven to 400°F. Boil the pasta 2 minutes less than the box says. Drain.",
+   "text": "Pull the must-haves onto the counter. Oven to 400°F, pasta water on."
+  },
+  {
+   "text": "Boil the pasta 2 minutes less than the box says. Wilt the spinach with garlic while it boils.",
    "time": "10 min"
   },
   {
-   "text": "While it boils, cook the garlic in the oil 30 seconds, add the spinach and stir until wilted.",
-   "time": "2 min"
+   "text": "Mix the cottage cheese, egg and parmesan. Fold in pasta, spinach, most of the sauce and half the mozzarella."
   },
   {
-   "text": "In a big bowl mix the cottage cheese, egg, half the parmesan, Italian seasoning, salt and pepper.",
-   "kid": true
+   "text": "Into a 9×13. Rest of the sauce and cheese on top."
   },
   {
-   "text": "Fold in the spinach, the pasta, 2 cups marinara and 1 cup mozzarella.",
-   "kid": true
-  },
-  {
-   "text": "Spread in a 9×13. Spoon the rest of the sauce on top, then the last mozzarella and parmesan.",
-   "kid": true
-  },
-  {
-   "text": "Bake 20 minutes until bubbly; broil 2 minutes for brown spots. Rest 5 minutes.",
+   "text": "Bake until bubbly, broil 2 minutes for brown spots. Rest 5.",
    "time": "22 min"
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Crack the egg into the cottage cheese and stir"
-  },
-  {
-   "job": "Tear up the spinach"
-  },
-  {
-   "job": "Spread it in the dish and add the cheese on top"
-  },
-  {
-   "job": "Set out parmesan for the table"
-  }
- ],
- "chef_tip": "Undercook the pasta by 2 minutes. It finishes in the oven soaking up sauce, so it ends up just right instead of mushy.",
- "make_ahead": "Assemble a day ahead (fridge, covered); bake 30 minutes.",
- "leftovers": "Reheats better than it starts. Perfect lunch.",
- "swaps": [
-  "Barilla Protein+ pasta for even more protein",
-  "Ricotta instead of cottage cheese",
-  "Add browned Italian sausage"
- ],
- "serve_with": "Spring mix with Italian dressing, garlic toast",
- "gear": [
-  "Big pot",
-  "9×13 dish",
-  "Big bowl"
- ],
- "heads_up": "Oven to 400°F and the pasta water on.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "50 min out",
-   "what": "Oven to 400°F. Pasta water on to boil."
-  },
-  {
-   "when": "40 min",
-   "what": "Pasta in. Wilt the spinach with garlic. Kids mix the cheese filling."
-  },
-  {
-   "when": "32 min",
-   "what": "Drain. Kids fold it all together and fill the 9×13."
-  },
-  {
-   "when": "27 min",
-   "what": "Into the oven for 20 min, then 2 min under the broiler."
-  },
-  {
-   "when": "5 min",
-   "what": "Rest so it slices clean."
-  },
-  {
-   "when": "Dinner",
-   "what": "Serve with a salad or garlic toast."
-  }
- ]
+ "key": "Undercook the pasta by 2 minutes. It finishes in the oven.",
+ "done": "Bubbling all over with brown spots on the cheese.",
+ "plan_b": "No time to bake? Toss the pasta with sauce, cottage cheese and spinach in the pot and serve.",
+ "draft": true
 }

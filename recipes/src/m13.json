@@ -2,149 +2,53 @@
  "id": "m13",
  "name": "🌭 Sausage, Peppers & Onions Sheet Pan",
  "kind": "dinner",
- "tagline": "Italian sausage, sweet peppers and onions, plus crispy little potatoes, all on one pan.",
+ "what": "Italian sausage, peppers, onions and little potatoes roasted on one pan.",
+ "minutes": 45,
  "serves": "4, plus a lunch",
- "prep": 10,
- "cook": 35,
- "level": "One pan, easy cleanup",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1½ lb",
-     "name": "Italian sausage links",
-     "item": "i158"
-    },
-    {
-     "qty": "3",
-     "name": "Bell peppers, sliced",
-     "item": "i150"
-    },
-    {
-     "qty": "2",
-     "name": "Onions, sliced",
-     "item": "i155"
-    },
-    {
-     "qty": "1½ lb",
-     "name": "Petite potatoes, halved",
-     "item": "i202"
-    },
-    {
-     "qty": "4",
-     "name": "Bolillo rolls (optional, for sandwiches)",
-     "item": "i281"
-    }
-   ]
+   "name": "Italian sausage links",
+   "item": "i158",
+   "out": "chicken sausage or kielbasa"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "3 Tbsp",
-     "name": "Olive oil"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Italian seasoning or oregano"
-    },
-    {
-     "qty": "½ tsp",
-     "name": "Garlic powder"
-    },
-    {
-     "qty": "",
-     "name": "Salt, pepper"
-    },
-    {
-     "qty": "optional",
-     "name": "Mustard, Rao's for dipping"
-    }
-   ]
+   "name": "Bell peppers",
+   "item": "i150",
+   "out": "mini sweet peppers or zucchini"
+  },
+  {
+   "name": "Onions",
+   "item": "i155",
+   "out": "skip them"
+  },
+  {
+   "name": "Petite potatoes",
+   "item": "i202",
+   "out": "skip them and serve with rolls or rice"
   }
  ],
- "steps": [
+ "extras": "bolillo rolls, italian seasoning, garlic powder, mustard, rao's for dipping",
+ "moves": [
   {
-   "text": "Oven to 425°F with the rack in the middle. Line a big sheet pan with foil."
+   "text": "Pull the must-haves onto the counter. Oven to 425°F. Foil on a big sheet pan."
   },
   {
-   "text": "Toss the potatoes with 1 Tbsp oil and salt; roast alone first.",
+   "text": "Halve the potatoes, toss with oil and salt, and roast alone first.",
    "time": "10 min"
   },
   {
-   "text": "Toss the peppers and onions with the rest of the oil, seasoning, garlic powder, salt and pepper.",
-   "kid": true
+   "text": "Slice the peppers and onions; toss with oil and seasoning. Add to the pan with the sausages."
   },
   {
-   "text": "Add the veggies and sausages to the pan with the potatoes in one layer.",
-   "kid": true
-  },
-  {
-   "text": "Roast, flipping the sausages once, until they're browned and 160°F inside.",
+   "text": "Roast, flipping the sausages once, until browned.",
    "time": "25 min"
   },
   {
-   "text": "Last 3 minutes: split the rolls and warm them on the oven rack.",
-   "kid": true
-  },
-  {
-   "text": "Eat as a plate, or pile into rolls as sandwiches."
+   "text": "Eat as a plate, or pile into warm rolls."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Toss the veggies with oil and seasoning (hands work best)"
-  },
-  {
-   "job": "Arrange everything in one layer"
-  },
-  {
-   "job": "Split and warm the rolls"
-  },
-  {
-   "job": "Set out mustard and ketchup"
-  }
- ],
- "chef_tip": "Give the potatoes a 10-minute head start and spread everything out. A crowded pan steams; room on the pan gives you browned edges.",
- "make_ahead": "Slice the peppers and onions the night before.",
- "leftovers": "Chop it up with eggs for a breakfast scramble, or over pasta with Rao's.",
- "swaps": [
-  "Chicken sausage",
-  "Skip the potatoes and serve over polenta"
- ],
- "serve_with": "Bolillo rolls or a green salad",
- "gear": [
-  "Big sheet pan + foil",
-  "Tongs",
-  "Meat thermometer"
- ],
- "heads_up": "Oven to 425°F; potatoes go in first.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "45 min out",
-   "what": "Oven to 425°F. Potatoes oiled and roasting."
-  },
-  {
-   "when": "40 min",
-   "what": "Kids toss the peppers and onions with seasoning."
-  },
-  {
-   "when": "35 min",
-   "what": "Sausages and veggies onto the pan with the potatoes."
-  },
-  {
-   "when": "20 min",
-   "what": "Flip the sausages."
-  },
-  {
-   "when": "3 min",
-   "what": "Rolls on the oven rack to warm."
-  },
-  {
-   "when": "Dinner",
-   "what": "Plates or sandwiches, your call."
-  }
- ]
+ "key": "Give the potatoes a head start and spread everything out.",
+ "done": "Sausages are browned and 160°F inside.",
+ "plan_b": "No oven time? Slice the sausage and cook it all in one big skillet.",
+ "draft": true
 }

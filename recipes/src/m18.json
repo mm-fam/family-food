@@ -2,124 +2,47 @@
  "id": "m18",
  "name": "🍳 Cottage Cheese Scramble",
  "kind": "breakfast",
- "tagline": "The fluffiest, creamiest scrambled eggs, and cottage cheese is the secret protein boost.",
+ "what": "Soft scrambled eggs with cottage cheese whisked in, with toast.",
+ "minutes": 11,
  "serves": "4",
- "prep": 5,
- "cook": 6,
- "level": "Quick weekday breakfast",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "8",
-     "name": "Eggs, pasture-raised",
-     "item": "i093"
-    },
-    {
-     "qty": "¾ cup",
-     "name": "Cottage cheese (Daisy 4%)",
-     "item": "i225"
-    },
-    {
-     "qty": "1 handful",
-     "name": "Baby spinach (optional)",
-     "item": "i054"
-    },
-    {
-     "qty": "4 slices",
-     "name": "Sandwich bread or English muffins, toasted",
-     "item": "i272"
-    }
-   ]
+   "name": "Eggs",
+   "item": "i093",
+   "out": "no eggs: this one needs them, see Plan B"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 Tbsp",
-     "name": "Butter"
-    },
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    },
-    {
-     "qty": "",
-     "name": "Chives if we have them"
-    }
-   ]
+   "name": "Cottage cheese",
+   "item": "i225",
+   "out": "a splash of milk, or cheese on top"
+  },
+  {
+   "name": "Bread or English muffins",
+   "item": "i272",
+   "out": "skip it, eggs are enough"
   }
  ],
- "steps": [
+ "extras": "baby spinach, butter, chives, shredded cheese",
+ "moves": [
   {
-   "text": "Crack the eggs into a bowl, add the cottage cheese and a pinch of salt, and whisk well.",
-   "kid": true
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Melt the butter in a nonstick skillet over medium-low."
+   "text": "Whisk 8 eggs, ¾ cup cottage cheese and a pinch of salt."
   },
   {
-   "text": "Add the spinach (if using) and stir 30 seconds until it wilts."
+   "text": "Butter in a nonstick pan on medium-low. Add spinach if we have it."
   },
   {
-   "text": "Pour in the eggs. Stir slowly with a spatula, pushing big soft curds to the middle.",
-   "time": "3–4 min"
+   "text": "Pour in the eggs. Push slowly with a spatula into big soft curds.",
+   "time": "4 min"
   },
   {
-   "text": "Pull the pan off when the eggs still look a little wet; they finish on the plate."
-  },
-  {
-   "text": "Pepper on top and serve with toast.",
-   "kid": true
+   "text": "Take it off while still a little wet. Toast and serve."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Crack the eggs (fish out shells with a shell)"
-  },
-  {
-   "job": "Whisk until no streaks"
-  },
-  {
-   "job": "Make the toast and butter it"
-  }
- ],
- "chef_tip": "Low heat and pull them early. Cottage cheese melts into the eggs and keeps them custardy instead of rubbery.",
- "make_ahead": "Whisk eggs + cottage cheese the night before and keep covered in the fridge.",
- "leftovers": "Wrap leftovers in a tortilla with cheese for a grab-and-go breakfast burrito.",
- "swaps": [
-  "Egg whites for half the eggs",
-  "Jack or cheddar shreds on top"
- ],
- "serve_with": "Fruit and English muffins",
- "gear": [
-  "Nonstick skillet",
-  "Silicone spatula",
-  "Mixing bowl"
- ],
- "heads_up": "Low heat is the whole trick.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Night before",
-   "what": "Optional: whisk eggs + cottage cheese, cover, fridge."
-  },
-  {
-   "when": "11 min out",
-   "what": "Kids crack and whisk the eggs with the cottage cheese."
-  },
-  {
-   "when": "8 min",
-   "what": "Toast in. Butter melting in the skillet on medium-low."
-  },
-  {
-   "when": "6 min",
-   "what": "Spinach in 30 sec, then eggs; slow, big soft curds."
-  },
-  {
-   "when": "Breakfast",
-   "what": "Pull the pan while eggs look a bit wet. Pepper, toast."
-  }
- ]
+ "key": "Low heat, and pull the pan off early. They finish on the plate.",
+ "done": "Soft curds, still a little shiny.",
+ "plan_b": "No eggs? Peanut butter toast or yogurt bowls.",
+ "draft": true
 }

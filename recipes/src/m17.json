@@ -2,106 +2,44 @@
  "id": "m17",
  "name": "🍓 Greek Yogurt Parfaits",
  "kind": "breakfast",
- "tagline": "Layers of Nounos vanilla yogurt, berries and crunchy granola. Fancy-looking, five minutes.",
+ "what": "Vanilla yogurt, berries and crunchy granola layered in glasses.",
+ "minutes": 5,
  "serves": "4",
- "prep": 5,
- "cook": 0,
- "level": "5-minute breakfast",
- "ingredients": [
+ "early": "Night before (optional): layer yogurt and berries in jars; add granola in the morning.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 tubs (32 oz)",
-     "name": "Nounos Greek yogurt, vanilla",
-     "item": "i005"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Strawberries, sliced",
-     "item": "i095"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Blueberries",
-     "item": "i017"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Vanilla almond granola",
-     "item": "i027"
-    }
-   ]
+   "name": "Vanilla Greek yogurt",
+   "item": "i005",
+   "out": "plain yogurt with a little honey"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "drizzle",
-     "name": "Honey (optional)",
-     "item": "i126"
-    }
-   ]
+   "name": "Berries",
+   "item": "i095",
+   "out": "any fruit, or thawed frozen berries"
+  },
+  {
+   "name": "Granola",
+   "item": "i027",
+   "out": "any cereal, or chopped nuts"
   }
  ],
- "steps": [
+ "extras": "honey",
+ "moves": [
   {
-   "text": "Slice the strawberries and rinse the blueberries.",
-   "kid": true
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "In 4 glasses or jars: a big spoon of yogurt, then berries, then a sprinkle of granola.",
-   "kid": true
+   "text": "Slice strawberries, rinse blueberries."
   },
   {
-   "text": "Repeat the layers, ending with berries on top.",
-   "kid": true
+   "text": "In 4 glasses: yogurt, then berries, then granola. Repeat."
   },
   {
-   "text": "Add the last of the granola right before eating so it stays crunchy."
+   "text": "Last sprinkle of granola right before eating."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Hull and slice the strawberries"
-  },
-  {
-   "job": "Build your own parfait in a clear glass"
-  },
-  {
-   "job": "Make a fancy top layer"
-  }
- ],
- "chef_tip": "Keep the granola out until the last second. For school-morning jars, pack it in a little cup on the side.",
- "make_ahead": "Layer yogurt and fruit in jars the night before; add granola in the morning.",
- "leftovers": "Berries going soft? Blend them into the Power Protein Smoothie.",
- "swaps": [
-  "Icelandic Provisions skyr for Nounos",
-  "Purely Elizabeth granola"
- ],
- "serve_with": "Fairlife milk or OJ",
- "gear": [
-  "4 glasses or jars",
-  "Paring knife"
- ],
- "heads_up": "Wash berries first.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Night before",
-   "what": "Kids layer yogurt and berries in jars; lids on, into the fridge."
-  },
-  {
-   "when": "Morning",
-   "what": "Slice strawberries if not done; rinse blueberries."
-  },
-  {
-   "when": "1 min out",
-   "what": "Granola on top so it stays crunchy."
-  },
-  {
-   "when": "Breakfast",
-   "what": "Grab a jar and a spoon."
-  }
- ]
+ "key": "Granola goes on last so it stays crunchy.",
+ "done": "Berries on top and the granola still crunches.",
+ "plan_b": "No granola or fruit? Yogurt with honey and cinnamon.",
+ "draft": true
 }

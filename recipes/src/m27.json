@@ -2,114 +2,41 @@
  "id": "m27",
  "name": "🍎 Eggs & Apple Slices",
  "kind": "snack",
- "tagline": "The perfect after-school snack: jammy hard-boiled eggs and crisp apple slices.",
+ "what": "Hard-boiled eggs and crisp apple slices.",
+ "minutes": 15,
  "serves": "4",
- "prep": 5,
- "cook": 10,
- "level": "After-school snack",
- "ingredients": [
+ "early": "Optional, Sunday: boil a dozen eggs; unpeeled, they keep a week.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "4–8",
-     "name": "Eggs, pasture-raised",
-     "item": "i093"
-    },
-    {
-     "qty": "2",
-     "name": "Pink Lady apples",
-     "item": "i090"
-    },
-    {
-     "qty": "optional",
-     "name": "Peanut butter or cheddar for dipping",
-     "item": "i326"
-    }
-   ]
+   "name": "Eggs",
+   "item": "i093",
+   "out": "cheese cubes"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "",
-     "name": "Salt and pepper (or everything seasoning)"
-    },
-    {
-     "qty": "½",
-     "name": "Lemon, to keep apples white",
-     "item": "i096"
-    }
-   ]
+   "name": "Apples",
+   "item": "i090",
+   "out": "any apple, or another fruit"
   }
  ],
- "steps": [
+ "extras": "peanut butter or cheddar for dipping, lemon, everything seasoning",
+ "moves": [
   {
-   "text": "Lower cold eggs into boiling water. Cook 9 minutes for firm-but-creamy yolks.",
+   "text": "Pull the must-haves onto the counter. Water on to boil."
+  },
+  {
+   "text": "Lower cold eggs into the boiling water with a spoon.",
    "time": "9 min"
   },
   {
-   "text": "Move straight to a bowl of ice water for 5 minutes.",
+   "text": "Into ice water, then peel under the tap.",
    "time": "5 min"
   },
   {
-   "text": "Peel under running water.",
-   "kid": true
-  },
-  {
-   "text": "Slice the apples and toss with a squeeze of lemon so they don't brown.",
-   "kid": true
-  },
-  {
-   "text": "Halve the eggs, sprinkle with salt and pepper, and plate with apples."
+   "text": "Slice apples, squeeze of lemon. Halve eggs, salt and pepper."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Peel the eggs"
-  },
-  {
-   "job": "Run the apple slicer"
-  },
-  {
-   "job": "Squeeze the lemon over the apples"
-  }
- ],
- "chef_tip": "Start eggs in boiling water, not cold: they peel cleanly every time.",
- "make_ahead": "Boil a dozen on Sunday; unpeeled eggs keep a week in the fridge.",
- "leftovers": "Extra eggs go into the Southwest Black Bean & Egg Salad.",
- "swaps": [
-  "Green apples (i151) or Honeycrisp (i344)",
-  "Cheese cubes instead of eggs"
- ],
- "serve_with": "A handful of almonds",
- "gear": [
-  "Pot",
-  "Bowl of ice water",
-  "Apple slicer"
- ],
- "heads_up": "Pre-boiled eggs make this 2 minutes.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Sunday",
-   "what": "Boil a dozen; unpeeled eggs keep a week."
-  },
-  {
-   "when": "15 min out",
-   "what": "Eggs into boiling water, 9 minutes."
-  },
-  {
-   "when": "6 min",
-   "what": "Ice bath 5 min. Kids slice apples, toss with lemon."
-  },
-  {
-   "when": "1 min",
-   "what": "Peel under running water; halve, salt and pepper."
-  },
-  {
-   "when": "Snack",
-   "what": "Plate eggs with the apple slices."
-  }
- ]
+ "key": "Start eggs in boiling water, not cold, and they peel easily.",
+ "done": "Yolks are set but still creamy.",
+ "plan_b": "Already-boiled eggs in the fridge? Skip to the last step.",
+ "draft": true
 }

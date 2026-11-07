@@ -2,159 +2,53 @@
  "id": "m36",
  "name": "🍠 Sheet Pan Chicken, Sweet Potato & Broccoli",
  "kind": "dinner",
- "tagline": "One pan, high heat, crispy edges: the weeknight dinner that cleans up in five minutes.",
+ "what": "Chicken, sweet potatoes and broccoli roasted on hot pans until crispy at the edges.",
+ "minutes": 45,
  "serves": "4, plus a lunch",
- "prep": 15,
- "cook": 30,
- "level": "Easy weeknight, one pan",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 lb",
-     "name": "Chicken breasts, cut in 1½-inch chunks",
-     "item": "i156"
-    },
-    {
-     "qty": "2 large",
-     "name": "Sweet potatoes, ¾-inch cubes",
-     "item": "i180"
-    },
-    {
-     "qty": "2 heads",
-     "name": "Broccoli crowns, cut in florets",
-     "item": "i335"
-    },
-    {
-     "qty": "3 cloves",
-     "name": "Garlic, grated",
-     "item": "i153"
-    },
-    {
-     "qty": "1",
-     "name": "Lemon",
-     "item": "i096"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Grated parmesan (optional)",
-     "item": "i100"
-    }
-   ]
+   "name": "Chicken breasts",
+   "item": "i156",
+   "out": "chicken thighs (5 more minutes) or sausage"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "4 Tbsp",
-     "name": "Olive oil"
-    },
-    {
-     "qty": "2 tsp",
-     "name": "Smoked paprika"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Garlic powder"
-    },
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    },
-    {
-     "qty": "",
-     "name": "Honey or hot honey, to drizzle"
-    }
-   ]
+   "name": "Sweet potatoes",
+   "item": "i180",
+   "out": "regular potatoes or carrots"
+  },
+  {
+   "name": "Broccoli",
+   "item": "i335",
+   "out": "bagged florets, green beans or any veggie"
+  },
+  {
+   "name": "Olive oil + salt",
+   "out": "any cooking oil"
   }
  ],
- "steps": [
+ "extras": "smoked paprika, garlic, lemon, parmesan, a drizzle of honey",
+ "moves": [
   {
-   "text": "Heat the oven to 425°F with two sheet pans inside (hot pans = crispy bottoms).",
+   "text": "Pull the must-haves onto the counter. Oven to 425°F with two sheet pans inside.",
    "time": "10 min"
   },
   {
-   "text": "Toss the sweet potatoes with 2 Tbsp oil, salt and paprika. Roast on one pan for 10 minutes first.",
+   "text": "Toss the sweet potato cubes with oil, salt and paprika. Roast on one pan first.",
    "time": "10 min"
   },
   {
-   "text": "Meanwhile toss the chicken with 1 Tbsp oil, garlic, garlic powder, paprika, salt and pepper.",
-   "kid": true
+   "text": "Toss bite-size chicken with oil and seasoning, broccoli with oil and salt."
   },
   {
-   "text": "Toss the broccoli with the last oil and a pinch of salt.",
-   "kid": true
-  },
-  {
-   "text": "Stir the potatoes and push them to one side. Add the chicken to that pan and the broccoli to the second pan. Roast 15–18 minutes until the chicken is 165°F and the broccoli edges are dark.",
+   "text": "Chicken goes next to the potatoes, broccoli on the second pan. Roast.",
    "time": "18 min"
   },
   {
-   "text": "Squeeze the lemon over everything, shower with parmesan, and drizzle a little honey on the sweet potatoes.",
-   "kid": true
-  },
-  {
-   "text": "Pack a lunch box before serving."
+   "text": "Squeeze lemon over everything, parmesan on top. Pack a lunch box first."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Toss the broccoli in oil and salt (clean hands work best)"
-  },
-  {
-   "job": "Zest and squeeze the lemon at the end"
-  },
-  {
-   "job": "Sprinkle the parmesan"
-  },
-  {
-   "job": "Pack tomorrow's lunch container"
-  }
- ],
- "chef_tip": "Don't crowd the pans. Give everything space and preheat the pans: that's the difference between steamed and roasted.",
- "make_ahead": "Cut the sweet potatoes and broccoli the night before; keep in zip bags in the fridge.",
- "leftovers": "Great cold or reheated for lunch; or wrap it in a tortilla with ranch.",
- "swaps": [
-  "Chicken thighs (juicier, add 5 minutes)",
-  "Broccoli florets bag (i055) to skip chopping"
- ],
- "serve_with": "Nothing else needed; add naan if you want bread",
- "gear": [
-  "2 sheet pans",
-  "Big bowl",
-  "Meat thermometer"
- ],
- "heads_up": "Oven to 425°F with the sheet pans inside.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "45 min out",
-   "what": "Oven to 425°F with both sheet pans inside."
-  },
-  {
-   "when": "35 min",
-   "what": "Sweet potatoes on the hot pan for 10 min. Kids season the chicken."
-  },
-  {
-   "when": "30 min",
-   "what": "Kids toss the broccoli with oil and salt."
-  },
-  {
-   "when": "25 min",
-   "what": "Chicken in with the potatoes, broccoli on pan two: 15–18 min."
-  },
-  {
-   "when": "5 min",
-   "what": "Kids add lemon, parmesan and a drizzle of honey."
-  },
-  {
-   "when": "2 min",
-   "what": "Pack tomorrow's lunch box."
-  },
-  {
-   "when": "Dinner",
-   "what": "Straight from the pans to the table."
-  }
- ]
+ "key": "Hot pans and space between pieces. Crowded food steams instead of browning.",
+ "done": "Chicken is white inside (165°F) and the broccoli edges are dark.",
+ "plan_b": "Short on time? Skip the potatoes and serve the chicken and broccoli with rice.",
+ "draft": true
 }

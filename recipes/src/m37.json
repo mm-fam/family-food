@@ -2,166 +2,54 @@
  "id": "m37",
  "name": "🥢 Egg Roll in a Bowl",
  "kind": "dinner",
- "tagline": "Everything good about an egg roll, none of the frying: 20 minutes in one skillet.",
+ "what": "Everything inside an egg roll, stir-fried fast and served over rice.",
+ "minutes": 25,
  "serves": "4, plus a lunch",
- "prep": 10,
- "cook": 15,
- "level": "Fast weeknight",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1½ lb",
-     "name": "Ground chicken",
-     "item": "i431"
-    },
-    {
-     "qty": "1 bag",
-     "name": "Rainbow slaw",
-     "item": "i179"
-    },
-    {
-     "qty": "4 cloves",
-     "name": "Garlic, minced",
-     "item": "i153"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Fresh ginger, grated",
-     "item": "i154"
-    },
-    {
-     "qty": "4",
-     "name": "Green onions, sliced",
-     "item": "i348"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Soy sauce",
-     "item": "i170"
-    },
-    {
-     "qty": "2 tsp",
-     "name": "Sesame oil",
-     "item": "i171"
-    },
-    {
-     "qty": "1½ cups",
-     "name": "Jasmine rice (dry)",
-     "item": "i166"
-    },
-    {
-     "qty": "3 Tbsp",
-     "name": "Mayo, for the spicy mayo",
-     "item": "i331"
-    }
-   ]
+   "name": "Ground chicken",
+   "item": "i431",
+   "out": "ground turkey or pork"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 Tbsp",
-     "name": "Vegetable oil"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Rice vinegar"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Brown sugar"
-    },
-    {
-     "qty": "",
-     "name": "Sriracha (for the spicy mayo)"
-    }
-   ]
+   "name": "Rainbow slaw (bag)",
+   "item": "i179",
+   "out": "any coleslaw mix, or thin-sliced cabbage and carrots"
+  },
+  {
+   "name": "Soy sauce",
+   "item": "i170",
+   "out": "teriyaki sauce"
+  },
+  {
+   "name": "Rice",
+   "item": "i166",
+   "out": "any rice or noodles"
   }
  ],
- "steps": [
+ "extras": "garlic, ginger, green onions, sesame oil, mayo + sriracha for spicy mayo",
+ "moves": [
   {
-   "text": "Start the rice.",
+   "text": "Pull the must-haves onto the counter. Start the rice.",
    "time": "15 min"
   },
   {
-   "text": "Heat the oil in your biggest skillet over high. Add the chicken, press flat and leave it 4 minutes to brown hard, then crumble.",
+   "text": "Brown the chicken in a big skillet on high. Leave it alone 4 minutes, then crumble.",
    "time": "7 min"
   },
   {
-   "text": "Push the meat aside. Add garlic, ginger and the white parts of the green onions; stir 30 seconds."
+   "text": "Add garlic and ginger for 30 seconds. Mix soy sauce with a little sesame oil and sugar."
   },
   {
-   "text": "Stir together soy sauce, rice vinegar, brown sugar and sesame oil.",
-   "kid": true
-  },
-  {
-   "text": "Add the slaw and the sauce. Toss 2–3 minutes, just until wilted but still crunchy.",
+   "text": "Add the slaw and the sauce. Toss just until wilted, still crunchy.",
    "time": "3 min"
   },
   {
-   "text": "Mix the mayo with sriracha to taste (keep a plain bowl for milder eaters).",
-   "kid": true
-  },
-  {
-   "text": "Serve over rice with green onion tops and a drizzle of spicy mayo.",
-   "kid": true
+   "text": "Serve over rice with green onions and spicy mayo for anyone who wants it."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Whisk the sauce"
-  },
-  {
-   "job": "Stir up the spicy mayo (taste-test it!)"
-  },
-  {
-   "job": "Slice green onions with kid scissors"
-  },
-  {
-   "job": "Rinse the rice before it cooks"
-  }
- ],
- "chef_tip": "High heat and a short cook on the slaw: it should still crunch. Overcooked cabbage goes limp and watery.",
- "make_ahead": "Cook the rice ahead; this one is fast enough to make fresh.",
- "leftovers": "Holds well for lunch; or roll it in a tortilla with spicy mayo.",
- "swaps": [
-  "Ground turkey or pork",
-  "Cauliflower rice for a lighter bowl"
- ],
- "serve_with": "Over jasmine rice, or with crispy wonton strips on top",
- "gear": [
-  "Biggest skillet",
-  "Rice pot",
-  "Small bowls"
- ],
- "heads_up": "Get the rice going first.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "25 min out",
-   "what": "Start the rice."
-  },
-  {
-   "when": "20 min",
-   "what": "Chicken in a hot skillet; leave it 4 min to brown."
-  },
-  {
-   "when": "15 min",
-   "what": "Kids stir up the sauce and the spicy mayo."
-  },
-  {
-   "when": "12 min",
-   "what": "Crumble the chicken; garlic, ginger and green onions in."
-  },
-  {
-   "when": "8 min",
-   "what": "Slaw and sauce in; toss just until wilted."
-  },
-  {
-   "when": "Dinner",
-   "what": "Over rice with green onion tops and spicy mayo."
-  }
- ]
+ "key": "High heat, short cook on the slaw. It should still crunch.",
+ "done": "No pink in the meat and the slaw is bright and just soft.",
+ "plan_b": "No slaw? Use any veggies we have, or just serve the meat and sauce over rice.",
+ "draft": true
 }

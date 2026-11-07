@@ -2,147 +2,53 @@
  "id": "m08",
  "name": "🥟 Pierogi Party + Salad",
  "kind": "dinner",
- "tagline": "Pierogies pan-fried golden with sweet buttery onions, plus a crisp salad on the side.",
+ "what": "Frozen pierogies pan-fried golden with sweet buttery onions, with a crisp salad.",
+ "minutes": 30,
  "serves": "4",
- "prep": 10,
- "cook": 20,
- "level": "20-minute dinner",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 boxes",
-     "name": "Mrs. T's pierogies (frozen)",
-     "item": "i258"
-    },
-    {
-     "qty": "2",
-     "name": "Onions, sliced thin",
-     "item": "i155"
-    },
-    {
-     "qty": "to serve",
-     "name": "Sour cream",
-     "item": "i159"
-    },
-    {
-     "qty": "1 bag",
-     "name": "Spring mix",
-     "item": "i097"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Cherry tomatoes, halved",
-     "item": "i274"
-    },
-    {
-     "qty": "1",
-     "name": "Cucumber, sliced",
-     "item": "i183"
-    }
-   ]
+   "name": "Frozen pierogies (2 boxes)",
+   "item": "i258",
+   "out": "frozen potstickers or gnocchi"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "4 Tbsp",
-     "name": "Butter"
-    },
-    {
-     "qty": "3 Tbsp",
-     "name": "Olive oil + 1 Tbsp vinegar (dressing)"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Dijon or honey for the dressing"
-    },
-    {
-     "qty": "",
-     "name": "Salt, pepper"
-    }
-   ]
+   "name": "Onions",
+   "item": "i155",
+   "out": "skip them, still good"
+  },
+  {
+   "name": "Butter",
+   "out": "olive oil"
+  },
+  {
+   "name": "Spring mix",
+   "item": "i097",
+   "out": "any lettuce or cut veggies"
   }
  ],
- "steps": [
+ "extras": "sour cream, cherry tomatoes, cucumber, kielbasa or bacon, oil + vinegar dressing",
+ "moves": [
   {
-   "text": "Melt 2 Tbsp butter in a big nonstick skillet over medium. Add the onions and a pinch of salt; cook, stirring now and then, until soft and golden.",
+   "text": "Pull the must-haves onto the counter. Slice the onions thin."
+  },
+  {
+   "text": "Cook the onions in butter over medium, stirring now and then, until soft and golden.",
    "time": "12 min"
   },
   {
-   "text": "Meanwhile, boil the pierogies 4 minutes (or follow the box), then drain well.",
+   "text": "Meanwhile, boil the pierogies (see the box), then drain well.",
    "time": "4 min"
   },
   {
-   "text": "Push the onions to the side, add 2 Tbsp butter and the pierogies in one layer. Fry until golden on both sides.",
+   "text": "Push the onions aside, add more butter and fry the pierogies golden on both sides.",
    "time": "6 min"
   },
   {
-   "text": "Shake the dressing in a jar: oil, vinegar, Dijon or honey, salt, pepper.",
-   "kid": true
-  },
-  {
-   "text": "Toss the spring mix, tomatoes and cucumber with dressing right before eating.",
-   "kid": true
-  },
-  {
-   "text": "Pile the onions on the pierogies; serve with sour cream."
+   "text": "Toss the salad with dressing. Pile onions on the pierogies; serve with sour cream."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Shake the dressing in a jar (lid on tight!)"
-  },
-  {
-   "job": "Halve the cherry tomatoes with a kid knife"
-  },
-  {
-   "job": "Toss the salad"
-  },
-  {
-   "job": "Spoon out sour cream for everyone"
-  }
- ],
- "chef_tip": "Take your time on the onions. Low and slow until they're golden and sweet turns a box of frozen pierogies into a real dinner.",
- "make_ahead": "Caramelize a big batch of onions ahead; they keep 4 days and are great on burgers too.",
- "leftovers": "Re-fry in a skillet; the microwave makes them gummy.",
- "swaps": [
-  "Add sliced kielbasa or bacon to the onions",
-  "Air fryer: 400°F 10–12 minutes after boiling"
- ],
- "serve_with": "The salad (above), applesauce for the girls",
- "gear": [
-  "Big nonstick skillet",
-  "Pot",
-  "Jar with a lid"
- ],
- "heads_up": "Onions go in first; they take the longest.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "30 min out",
-   "what": "Butter and onions in the skillet, low and slow."
-  },
-  {
-   "when": "20 min",
-   "what": "Water on for the pierogies."
-  },
-  {
-   "when": "15 min",
-   "what": "Pierogies boil 4 minutes, then drain well."
-  },
-  {
-   "when": "10 min",
-   "what": "Pierogies into the pan with the onions to brown."
-  },
-  {
-   "when": "5 min",
-   "what": "Kids shake the dressing and toss the salad."
-  },
-  {
-   "when": "Dinner",
-   "what": "Onions on top, sour cream on the side."
-  }
- ]
+ "key": "Low and slow on the onions until golden and sweet.",
+ "done": "Pierogies are golden brown on both sides.",
+ "plan_b": "Skip the frying: air fry boiled pierogies at 400°F for 10–12 minutes.",
+ "draft": true
 }

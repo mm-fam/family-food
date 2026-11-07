@@ -2,149 +2,53 @@
  "id": "m25",
  "name": "🌵 Southwest Black Bean & Egg Salad",
  "kind": "lunch",
- "tagline": "Egg salad meets taco salad: chopped eggs, black beans, corn, salsa and a creamy lime dressing.",
+ "what": "Chopped hard-boiled eggs, black beans and corn in a creamy salsa-lime dressing.",
+ "minutes": 27,
  "serves": "4",
- "prep": 15,
- "cook": 12,
- "level": "Make-ahead lunch",
- "ingredients": [
+ "early": "Sunday: boil a dozen eggs for this and snacks.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "8",
-     "name": "Eggs, pasture-raised",
-     "item": "i093"
-    },
-    {
-     "qty": "1 can",
-     "name": "Bush's black beans, drained and rinsed",
-     "item": "i061"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Frozen corn, thawed",
-     "item": "i223"
-    },
-    {
-     "qty": "½ cup",
-     "name": "Chunky salsa, mild",
-     "item": "i113"
-    },
-    {
-     "qty": "⅓ cup",
-     "name": "Nounos Greek yogurt, plain",
-     "item": "i004"
-    },
-    {
-     "qty": "1",
-     "name": "Avocado",
-     "item": "i042"
-    },
-    {
-     "qty": "1",
-     "name": "Lime",
-     "item": "i019"
-    },
-    {
-     "qty": "to serve",
-     "name": "Tortilla chips or lettuce cups",
-     "item": "i163"
-    }
-   ]
+   "name": "Eggs (hard-boiled)",
+   "item": "i093",
+   "out": "no eggs: double the beans"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "½ tsp",
-     "name": "Cumin"
-    },
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    },
-    {
-     "qty": "",
-     "name": "Cilantro if we have it"
-    }
-   ]
+   "name": "Black beans",
+   "item": "i061",
+   "out": "any beans"
+  },
+  {
+   "name": "Salsa",
+   "item": "i113",
+   "out": "diced tomato + lime + salt"
+  },
+  {
+   "name": "Greek yogurt",
+   "item": "i004",
+   "out": "mayo or sour cream"
   }
  ],
- "steps": [
+ "extras": "frozen corn, avocado, lime, cumin, cilantro, tortilla chips or lettuce cups",
+ "moves": [
   {
-   "text": "Hard-boil the eggs: cover with cold water, bring to a boil, cover, turn off the heat and wait 10 minutes. Move to ice water.",
-   "time": "12 min"
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Peel and chop the eggs.",
-   "kid": true
+   "text": "No boiled eggs? Cover 8 eggs with cold water, boil, cover, heat off, wait 10 min, then ice water.",
+   "time": "20 min"
   },
   {
-   "text": "Stir the yogurt, salsa, lime juice, cumin and salt into a dressing.",
-   "kid": true
+   "text": "Stir yogurt, salsa, lime, cumin and salt into a dressing."
   },
   {
-   "text": "Fold in the eggs, beans and corn.",
-   "kid": true
+   "text": "Fold in the chopped eggs, beans and corn."
   },
   {
-   "text": "Dice the avocado and fold in right before eating.",
-   "kid": false
-  },
-  {
-   "text": "Scoop with tortilla chips or serve in lettuce cups."
+   "text": "Avocado in last. Scoop with chips or lettuce."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Peel the hard-boiled eggs"
-  },
-  {
-   "job": "Squeeze the lime"
-  },
-  {
-   "job": "Mix the dressing"
-  },
-  {
-   "job": "Pack chips on the side"
-  }
- ],
- "chef_tip": "Greek yogurt plus salsa makes a dressing with all the creaminess of mayo, double the protein and a little zip.",
- "make_ahead": "Boil a dozen eggs on Sunday for this, snacks and Eggs & Apple Slices.",
- "leftovers": "Keeps 2 days without the avocado.",
- "swaps": [
-  "Mayo for the yogurt",
-  "Rinsed salsa verde (i112)"
- ],
- "serve_with": "Tortilla chips",
- "gear": [
-  "Pot",
-  "Bowl of ice water",
-  "Mixing bowl"
- ],
- "heads_up": "Boil the eggs first (or use pre-boiled).",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Sunday",
-   "what": "Boil a dozen eggs: for this, snacks and Eggs & Apple Slices."
-  },
-  {
-   "when": "15 min out",
-   "what": "Kids peel and chop the eggs."
-  },
-  {
-   "when": "10 min",
-   "what": "Stir yogurt, salsa, lime, cumin and salt into a dressing."
-  },
-  {
-   "when": "5 min",
-   "what": "Fold in eggs, beans and corn."
-  },
-  {
-   "when": "Lunch",
-   "what": "Avocado in last; scoop with chips or lettuce cups."
-  }
- ]
+ "key": "Yogurt + salsa is the whole dressing. Creamy, with a little zip.",
+ "done": "Eggs peel clean and the yolks are fully yellow.",
+ "plan_b": "No time for eggs? Make it a bean and corn salsa and eat it with chips.",
+ "draft": true
 }

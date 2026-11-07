@@ -2,138 +2,52 @@
  "id": "m23",
  "name": "🌯 Chicken & Black Bean Power Wraps",
  "kind": "lunch",
- "tagline": "Packable high-protein wraps: chicken, black beans, cheese and crunch, rolled tight.",
+ "what": "Chicken, black beans and cheese rolled tight in a tortilla, made to pack.",
+ "minutes": 15,
  "serves": "4",
- "prep": 15,
- "cook": 0,
- "level": "Lunchbox friendly",
- "ingredients": [
+ "early": "Optional: mix the filling up to 3 days ahead.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 cups",
-     "name": "Cooked chicken (leftover breasts or rotisserie)",
-     "item": "i156"
-    },
-    {
-     "qty": "1 can",
-     "name": "Bush's black beans, drained and rinsed",
-     "item": "i061"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Mexican blend shredded cheese",
-     "item": "i039"
-    },
-    {
-     "qty": "4 large",
-     "name": "Flour tortillas",
-     "item": "i074"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Lettuce, shredded",
-     "item": "i280"
-    },
-    {
-     "qty": "½ cup",
-     "name": "Chunky salsa, mild",
-     "item": "i113"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Sour cream",
-     "item": "i159"
-    }
-   ]
+   "name": "Cooked chicken",
+   "item": "i156",
+   "out": "more beans, or rotisserie chicken"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 tsp",
-     "name": "Taco seasoning or cumin"
-    },
-    {
-     "qty": "½",
-     "name": "Lime, squeezed",
-     "item": "i019"
-    }
-   ]
+   "name": "Black beans",
+   "item": "i061",
+   "out": "any beans, or skip and add more chicken"
+  },
+  {
+   "name": "Shredded cheese",
+   "item": "i039",
+   "out": "any cheese"
+  },
+  {
+   "name": "Big tortillas",
+   "item": "i074",
+   "out": "any wrap, or make it a bowl over rice"
   }
  ],
- "steps": [
+ "extras": "salsa, sour cream, lettuce, lime, taco seasoning",
+ "moves": [
   {
-   "text": "Shred or chop the chicken. Toss it with the beans, taco seasoning and lime.",
-   "kid": true
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Stir the salsa into the sour cream for a quick sauce."
+   "text": "Chop the chicken. Mix with the drained beans, a little taco seasoning and lime."
   },
   {
-   "text": "Warm the tortillas 15 seconds in the microwave so they roll without cracking."
+   "text": "Warm tortillas 15 seconds in the microwave."
   },
   {
-   "text": "Spread sauce down the middle, then cheese, chicken-bean mix and lettuce.",
-   "kid": true
+   "text": "Sauce (salsa + sour cream), then cheese, then filling, then lettuce. Roll tight."
   },
   {
-   "text": "Fold in the sides and roll tight. Cut in half on an angle.",
-   "kid": true
-  },
-  {
-   "text": "For lunchboxes: wrap each half in foil and pack with an ice pack."
+   "text": "Cut in half. For lunchboxes, wrap in foil with an ice pack."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Drain and rinse the beans"
-  },
-  {
-   "job": "Shred the chicken with two forks"
-  },
-  {
-   "job": "Assembly line and roll"
-  },
-  {
-   "job": "Wrap them in foil for lunches"
-  }
- ],
- "chef_tip": "Put the cheese down first, right on the sauce. It acts like a wall so the wrap doesn't get soggy by lunchtime.",
- "make_ahead": "Mix the filling up to 3 days ahead; roll the morning of.",
- "leftovers": "Toast a wrap in a dry skillet 2 minutes a side for a hot quesadilla-style lunch.",
- "swaps": [
-  "Egglife egg white wraps (i198) for lower carb",
-  "Whole wheat tortillas (i110)"
- ],
- "serve_with": "Tortilla chips and salsa or baby carrots",
- "gear": [
-  "Mixing bowl",
-  "Foil"
- ],
- "heads_up": "Use leftover chicken from a dinner if there is some.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Up to 3 days",
-   "what": "Mix chicken, beans, taco seasoning and lime; fridge."
-  },
-  {
-   "when": "15 min out",
-   "what": "Kids stir salsa into sour cream for the sauce."
-  },
-  {
-   "when": "10 min",
-   "what": "Warm tortillas 15 sec so they roll without cracking."
-  },
-  {
-   "when": "8 min",
-   "what": "Sauce, cheese, filling, lettuce. Roll tight, cut on an angle."
-  },
-  {
-   "when": "Lunchbox",
-   "what": "Wrap halves in foil; pack with an ice pack."
-  }
- ]
+ "key": "Cheese goes right on the sauce. It keeps the wrap from going soggy.",
+ "done": "Rolled tight, and nothing falls out when you cut it.",
+ "plan_b": "Tortillas tearing? Make it a bowl over rice or lettuce.",
+ "draft": true
 }

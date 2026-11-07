@@ -2,111 +2,43 @@
  "id": "m32",
  "name": "🥜 PB & Banana Toast",
  "kind": "snack",
- "tagline": "Toasty bread, peanut butter, banana coins and a honey-cinnamon finish.",
+ "what": "Hot toast with peanut butter, banana coins and a little honey.",
+ "minutes": 8,
  "serves": "4",
- "prep": 5,
- "cook": 3,
- "level": "5-minute snack",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "4 slices",
-     "name": "Sandwich bread",
-     "item": "i161"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Peanut butter",
-     "item": "i326"
-    },
-    {
-     "qty": "2",
-     "name": "Bananas",
-     "item": "i001"
-    }
-   ]
+   "name": "Bread",
+   "item": "i161",
+   "out": "English muffin, bagel or a tortilla"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "drizzle",
-     "name": "Honey",
-     "item": "i126"
-    },
-    {
-     "qty": "pinch",
-     "name": "Cinnamon"
-    },
-    {
-     "qty": "",
-     "name": "Flaky salt (optional)"
-    }
-   ]
+   "name": "Peanut butter",
+   "item": "i326",
+   "out": "any nut butter"
+  },
+  {
+   "name": "Bananas",
+   "item": "i001",
+   "out": "strawberries or apple slices"
   }
  ],
- "steps": [
+ "extras": "honey, cinnamon, flaky salt",
+ "moves": [
   {
-   "text": "Toast the bread.",
-   "kid": true
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Spread peanut butter on while the toast is hot so it melts a little.",
-   "kid": true
+   "text": "Toast the bread."
   },
   {
-   "text": "Slice bananas into coins and line them up on top.",
-   "kid": true
+   "text": "Spread peanut butter on while it's hot."
   },
   {
-   "text": "Drizzle with honey and a pinch of cinnamon.",
-   "kid": true
+   "text": "Banana coins on top, honey and cinnamon."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Run the toaster"
-  },
-  {
-   "job": "Spread the peanut butter"
-  },
-  {
-   "job": "Make a banana-coin pattern"
-  }
- ],
- "chef_tip": "Spread the peanut butter on hot toast and finish with a few flakes of salt. Sweet-salty is what makes it crave-worthy.",
- "make_ahead": "",
- "leftovers": "",
- "swaps": [
-  "Brioche loaf (i162) for a treat",
-  "One Trick Pony peanut butter",
-  "Strawberries instead of banana"
- ],
- "serve_with": "A glass of milk",
- "gear": [
-  "Toaster",
-  "Butter knife"
- ],
- "heads_up": "",
- "draft": true,
- "game_plan": [
-  {
-   "when": "8 min out",
-   "what": "Kids slice the bananas into coins."
-  },
-  {
-   "when": "5 min",
-   "what": "Toast the bread."
-  },
-  {
-   "when": "2 min",
-   "what": "PB on the hot toast so it melts; line up the bananas."
-  },
-  {
-   "when": "Snack",
-   "what": "Drizzle of honey and a pinch of cinnamon."
-  }
- ]
+ "key": "Hot toast melts the peanut butter. A few flakes of salt on top.",
+ "done": "The peanut butter looks melty and shiny.",
+ "plan_b": "No bread? Apple or banana slices with peanut butter to dip.",
+ "draft": true
 }

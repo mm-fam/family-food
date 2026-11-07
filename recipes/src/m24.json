@@ -2,132 +2,52 @@
  "id": "m24",
  "name": "🥗 Buffalo Chicken & White Bean Salad",
  "kind": "lunch",
- "tagline": "Spicy, creamy, crunchy: buffalo chicken and white beans tossed with ranch and veggies.",
+ "what": "Buffalo chicken and white beans with ranch and crunchy veggies over lettuce.",
+ "minutes": 15,
  "serves": "4",
- "prep": 15,
- "cook": 0,
- "level": "Lunchbox friendly",
- "ingredients": [
+ "early": "Optional: the chicken-bean mix keeps 3 days and is better on day 2.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 cups",
-     "name": "Cooked chicken, chopped",
-     "item": "i156"
-    },
-    {
-     "qty": "1 can",
-     "name": "Cannellini beans, drained and rinsed",
-     "item": "i230"
-    },
-    {
-     "qty": "3 Tbsp",
-     "name": "Frank's RedHot",
-     "item": "i116"
-    },
-    {
-     "qty": "⅓ cup",
-     "name": "Ranch or blue cheese dressing",
-     "item": "i160"
-    },
-    {
-     "qty": "2 ribs",
-     "name": "Celery, sliced",
-     "item": "i239"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Baby carrots, sliced",
-     "item": "i003"
-    },
-    {
-     "qty": "4 cups",
-     "name": "Lettuce (romaine), chopped",
-     "item": "i280"
-    }
-   ]
+   "name": "Cooked chicken",
+   "item": "i156",
+   "out": "rotisserie chicken, or more beans"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 Tbsp",
-     "name": "Butter, melted"
-    },
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    }
-   ]
+   "name": "White beans",
+   "item": "i230",
+   "out": "chickpeas or any beans"
+  },
+  {
+   "name": "Frank's RedHot",
+   "item": "i116",
+   "out": "any hot sauce, or BBQ sauce for no heat"
+  },
+  {
+   "name": "Ranch dressing",
+   "item": "i160",
+   "out": "Greek yogurt with ranch seasoning"
   }
  ],
- "steps": [
+ "extras": "celery, baby carrots, lettuce, butter",
+ "moves": [
   {
-   "text": "Stir the Frank's into the melted butter. Toss with the chicken.",
-   "time": "2 min"
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Add the beans, celery and carrots and stir.",
-   "kid": true
+   "text": "Stir 3 Tbsp Frank's into 1 Tbsp melted butter. Toss with the chopped chicken."
   },
   {
-   "text": "Fold in the dressing and season with pepper.",
-   "kid": true
+   "text": "Add the drained beans and any crunchy veggies."
   },
   {
-   "text": "Serve over the chopped lettuce."
+   "text": "Fold in the ranch. Serve over lettuce."
   },
   {
-   "text": "For lunches: pack the chicken-bean mix in one container and lettuce in another; combine at school.",
-   "kid": true
+   "text": "For lunches: mix and lettuce in separate containers."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Rinse the beans"
-  },
-  {
-   "job": "Slice the celery and carrots (with a grown-up)"
-  },
-  {
-   "job": "Pack the two-container lunches"
-  }
- ],
- "chef_tip": "Melted butter in the Frank's is the classic wing-sauce trick: it rounds the heat so kids can handle it.",
- "make_ahead": "The mix keeps 3 days in the fridge; it's better on day 2.",
- "leftovers": "Stuff into a wrap or pita.",
- "swaps": [
-  "Rotisserie chicken (i314)",
-  "Greek yogurt for half the ranch"
- ],
- "serve_with": "Crackers or a demi baguette",
- "gear": [
-  "Mixing bowl",
-  "2-part lunch containers"
- ],
- "heads_up": "Great use for leftover chicken.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Up to 3 days",
-   "what": "Make the chicken-bean mix; it's better on day 2."
-  },
-  {
-   "when": "15 min out",
-   "what": "Frank's into melted butter; toss with the chicken."
-  },
-  {
-   "when": "10 min",
-   "what": "Kids stir in beans, celery and carrots; fold in dressing."
-  },
-  {
-   "when": "5 min",
-   "what": "Chop the lettuce."
-  },
-  {
-   "when": "Lunchbox",
-   "what": "Mix in one container, lettuce in another; combine at lunch."
-  }
- ]
+ "key": "Butter in the hot sauce takes the edge off the heat.",
+ "done": "Everything's coated and it tastes good with a spoon.",
+ "plan_b": "No chicken? Make it with beans, or tuck it in a wrap.",
+ "draft": true
 }

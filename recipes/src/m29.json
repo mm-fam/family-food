@@ -2,110 +2,44 @@
  "id": "m29",
  "name": "🫑 Cottage Cheese Dip & Peppers",
  "kind": "snack",
- "tagline": "Blend cottage cheese smooth with ranch seasoning: a protein-packed dip for sweet peppers.",
+ "what": "Cottage cheese blended smooth with ranch seasoning, a dip for sweet peppers.",
+ "minutes": 8,
  "serves": "4",
- "prep": 8,
- "cook": 0,
- "level": "After-school snack",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1½ cups",
-     "name": "Cottage cheese (Daisy 4%)",
-     "item": "i225"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Ranch seasoning mix",
-     "item": "i288"
-    },
-    {
-     "qty": "1 bag",
-     "name": "Mini sweet peppers",
-     "item": "i066"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Baby carrots",
-     "item": "i003"
-    }
-   ]
+   "name": "Cottage cheese",
+   "item": "i225",
+   "out": "Greek yogurt (no blending needed)"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 tsp",
-     "name": "Lemon juice",
-     "item": "i096"
-    },
-    {
-     "qty": "",
-     "name": "Pepper"
-    }
-   ]
+   "name": "Ranch seasoning",
+   "item": "i288",
+   "out": "ranch dressing, or garlic powder + dill + salt"
+  },
+  {
+   "name": "Mini sweet peppers",
+   "item": "i066",
+   "out": "bell pepper strips, cucumbers, carrots"
   }
  ],
- "steps": [
+ "extras": "baby carrots, lemon juice",
+ "moves": [
   {
-   "text": "Blend the cottage cheese, ranch seasoning and lemon juice until totally smooth.",
-   "kid": true,
+   "text": "Pull the must-haves onto the counter."
+  },
+  {
+   "text": "Blend 1½ cups cottage cheese, 1 Tbsp ranch seasoning and a squeeze of lemon.",
    "time": "1 min"
   },
   {
-   "text": "Taste and add more ranch seasoning if you like.",
-   "kid": true
+   "text": "Taste. More ranch if you like."
   },
   {
-   "text": "Halve the mini peppers and pull out the seeds.",
-   "kid": true
-  },
-  {
-   "text": "Serve the dip in a bowl with peppers and carrots around it."
+   "text": "Halve the peppers and pull out the seeds. Serve around the dip."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Run the blender"
-  },
-  {
-   "job": "Seed the mini peppers"
-  },
-  {
-   "job": "Arrange the veggie platter"
-  }
- ],
- "chef_tip": "Blend it really smooth, a full minute. The curds disappear and nobody can tell it's cottage cheese.",
- "make_ahead": "Dip keeps 4 days in the fridge; it thickens overnight.",
- "leftovers": "Use as a sandwich spread or baked-potato topping.",
- "swaps": [
-  "Bell peppers (i150) in strips",
-  "Cucumbers and snap peas"
- ],
- "serve_with": "Pretzels or crackers",
- "gear": [
-  "Blender or food processor"
- ],
- "heads_up": "",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Ahead",
-   "what": "Dip keeps 4 days; it thickens overnight."
-  },
-  {
-   "when": "8 min out",
-   "what": "Blend cottage cheese, ranch seasoning and lemon smooth."
-  },
-  {
-   "when": "5 min",
-   "what": "Kids halve the mini peppers and pull the seeds."
-  },
-  {
-   "when": "Snack",
-   "what": "Dip in a bowl, peppers and carrots around it."
-  }
- ]
+ "key": "Blend a full minute. The lumps disappear and nobody can tell.",
+ "done": "Smooth with no lumps at all.",
+ "plan_b": "No blender? Use Greek yogurt and just stir.",
+ "draft": true
 }

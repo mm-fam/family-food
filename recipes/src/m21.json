@@ -2,139 +2,49 @@
  "id": "m21",
  "name": "🥚 Veggie & Cheese Omelets",
  "kind": "breakfast",
- "tagline": "One big skillet omelet you slice into wedges: no flipping four separate omelets.",
+ "what": "One big cheesy veggie omelet, finished under the broiler and cut into wedges.",
+ "minutes": 20,
  "serves": "4",
- "prep": 8,
- "cook": 12,
- "level": "Easy weekend breakfast",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "10",
-     "name": "Eggs, pasture-raised",
-     "item": "i093"
-    },
-    {
-     "qty": "1",
-     "name": "Bell pepper, diced",
-     "item": "i150"
-    },
-    {
-     "qty": "2 handfuls",
-     "name": "Baby spinach",
-     "item": "i054"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Shredded cheddar",
-     "item": "i188"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Fairlife milk",
-     "item": "i068"
-    },
-    {
-     "qty": "4",
-     "name": "English muffins, toasted",
-     "item": "i272"
-    }
-   ]
+   "name": "Eggs",
+   "item": "i093",
+   "out": "no eggs: see Plan B"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 Tbsp",
-     "name": "Butter or olive oil"
-    },
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    }
-   ]
+   "name": "Shredded cheese",
+   "item": "i188",
+   "out": "any cheese we have"
+  },
+  {
+   "name": "A veggie or two",
+   "item": "i150",
+   "out": "spinach, mushrooms, or leftover veggies"
   }
  ],
- "steps": [
+ "extras": "baby spinach, milk, english muffins, butter",
+ "moves": [
   {
-   "text": "Oven on to broil. Whisk the eggs, milk, salt and pepper.",
-   "kid": true
+   "text": "Pull the must-haves onto the counter. Broiler on."
   },
   {
-   "text": "Melt butter in a 10–12 inch oven-safe nonstick skillet over medium. Cook the pepper until soft.",
+   "text": "Whisk 10 eggs with a splash of milk, salt and pepper."
+  },
+  {
+   "text": "Butter in an oven-safe nonstick pan on medium. Cook the veggies soft.",
    "time": "4 min"
   },
   {
-   "text": "Add spinach and stir until it wilts."
-  },
-  {
-   "text": "Pour in the eggs. Cook without stirring, lifting the edges so raw egg runs under.",
+   "text": "Pour in the eggs. Lift the edges so raw egg runs under.",
    "time": "5 min"
   },
   {
-   "text": "When the top is almost set, scatter the cheese and slide under the broiler until puffed and golden.",
+   "text": "Cheese on top, under the broiler until puffy and golden. Cut in wedges.",
    "time": "2 min"
-  },
-  {
-   "text": "Slide out, cut into wedges and serve with English muffins.",
-   "kid": true
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Wash and tear the spinach"
-  },
-  {
-   "job": "Whisk the eggs"
-  },
-  {
-   "job": "Sprinkle the cheese"
-  },
-  {
-   "job": "Toast the English muffins"
-  }
- ],
- "chef_tip": "Finish under the broiler: the top sets fluffy and the cheese bubbles without anyone flipping anything.",
- "make_ahead": "Dice peppers the night before.",
- "leftovers": "Wedges keep 3 days; reheat 30 seconds or eat cold on an English muffin.",
- "swaps": [
-  "Mushrooms or zucchini",
-  "Jack or mozzarella instead of cheddar",
-  "Diced ham"
- ],
- "serve_with": "Fruit and OJ",
- "gear": [
-  "Oven-safe nonstick skillet",
-  "Whisk"
- ],
- "heads_up": "Broiler on first.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Night before",
-   "what": "Dice the peppers; keep covered in the fridge."
-  },
-  {
-   "when": "20 min out",
-   "what": "Broiler on. Kids whisk eggs, milk, salt and pepper."
-  },
-  {
-   "when": "15 min",
-   "what": "Butter in the skillet; peppers until soft, then spinach."
-  },
-  {
-   "when": "10 min",
-   "what": "Eggs in; lift edges so raw egg runs under."
-  },
-  {
-   "when": "3 min",
-   "what": "Cheese on, under the broiler till puffed. Muffins in toaster."
-  },
-  {
-   "when": "Breakfast",
-   "what": "Slide out, cut wedges."
-  }
- ]
+ "key": "The broiler sets the top, so nobody has to flip it. Use an oven mitt on that handle.",
+ "done": "Puffed, golden, and the middle doesn't jiggle.",
+ "plan_b": "No oven-safe pan? Make scrambled eggs with the veggies and cheese stirred in.",
+ "draft": true
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Builds the printable recipe cards: recipes/src/mNN.json -> recipes/mNN.pdf (front = cook it, back = kitchen crew,
-// make-ahead, leftovers, "How'd it go?"), plus recipes/index.json, which the app reads to show the 🖨 Recipe card button.
+// Builds the printable recipe cards: recipes/src/mNN.json -> recipes/mNN.pdf (one page since Nov 7: the must-haves with a
+// swap for each, a few big moves, the one thing that matters, when it's done, Plan B; schema = m01.json), plus recipes/index.json, which the app reads to show the 🖨 Recipe card button.
 // Usage: node recipes/build.js            (every recipe)
 //        node recipes/build.js m01 m47    (just these)
 // Needs Playwright's Chromium (npm i -g playwright && npx playwright install chromium), Inter + Lora fonts for best looks.
@@ -31,62 +31,32 @@ function splitName(name) {
 }
 const mins = (n) => (n >= 60 ? Math.floor(n / 60) + ' hr' + (n % 60 ? ' ' + (n % 60) : '') : n + ' min');
 
-function footer(r, side) {
-  return '<div class="ft"><span><img src="' + logo + '">Poppy 2.0 · ' + esc(r.id) + ' · ' + side + '</span>' +
-    '<span>' + (r.draft === false ? 'Family-tested recipe' : 'Poppy\'s draft. Change something? Tell Poppy with 💡 so the card learns.').replace('💡', '<span class="emoji">💡</span>') + '</span></div>';
-}
-
 function render(r) {
   const n = splitName(r.name);
   const kind = r.kind || 'dinner';
-  const total = (Number(r.prep) || 0) + (Number(r.cook) || 0);
-  const ing = (r.ingredients || []).map((g) => '<div class="grp">' + emo(g.group) + '</div><ul class="ing">' + g.items.map((i) =>
-    '<li class="' + (i.qty ? '' : 'noqty') + '"><span class="box"></span>' + (i.qty ? '<span class="qty">' + esc(i.qty) + '</span>' : '') + '<span>' + emo(i.name) + '</span></li>').join('') + '</ul>').join('');
-  const steps = (r.steps || []).map((s) => '<li><div>' + emo(s.text) +
-    ((s.kid || s.time) ? '<span class="chips">' + (s.kid ? '<span class="chip kid"><span class="emoji">🧒</span> Kids can do this</span>' : '') + (s.time ? '<span class="chip time">⏱ ' + esc(s.time) + '</span>' : '') + '</span>' : '') +
-    '</div></li>').join('');
-  const front = '<section class="page front k-' + kind + '">' +
+  const draft = r.draft === false ? 'Family-tested recipe' : 'Poppy\'s draft, not family-tested yet';
+  const rows = (r.core || []).map((c) => '<tr><td class="box"><i></i></td><td class="name">' + emo(c.name) + '</td><td class="out">' +
+    (c.out ? '<b>Out?</b> ' + emo(c.out) : '') + '</td></tr>').join('');
+  const moves = (r.moves || []).map((m) => '<li><div>' + emo(m.text) + (m.time ? '<span class="t">⏱ ' + esc(m.time) + '</span>' : '') + '</div></li>').join('');
+  return '<section class="page k-' + kind + '">' +
     '<div class="hd"><div class="badge">' + esc(n.icon) + '</div><div class="hd-main"><div class="kicker">' + KIND[kind] + ' · Poppy\'s kitchen</div><h1>' + emo(n.title) + '</h1>' +
-    (r.tagline ? '<p class="tag">' + emo(r.tagline) + '</p>' : '') + '</div>' +
-    '<div class="meta"><div class="pill"><b>' + esc(r.serves || '4') + '</b><span>Serves</span></div><div class="pill"><b>' + mins(total) + '</b><span>Start to table</span></div>' +
-    '<div class="pill"><b>' + mins(Number(r.prep) || 0) + '</b><span>Prep</span></div><div class="pill"><b>' + mins(Number(r.cook) || 0) + '</b><span>Cook</span></div>' +
-    (r.level ? '<div class="level">' + esc(r.level) + '</div>' : '') + '</div></div>' +
-    '<div class="cols"><div class="left"><div class="need"><h2><span class="emoji">🛒</span> What you need</h2>' + ing + '</div>' +
-    ((r.gear && r.gear.length) || r.heads_up ? '<div class="gear">' + (r.heads_up ? '<p class="heads"><span class="emoji">⚡</span> <b>First:</b> ' + emo(r.heads_up) + '</p>' : '') +
-      (r.gear && r.gear.length ? '<div class="grp">Gear</div><p>' + r.gear.map(esc).join(' · ') + '</p>' : '') + '</div>' : '') + '</div>' +
-    '<div class="cook"><h2><span class="emoji">🔥</span> Let\'s cook</h2><ol class="steps">' + steps + '</ol>' +
-    (r.chef_tip ? '<div class="secret"><span class="emoji">👨‍🍳</span><div><b>Chef\'s secret</b>' + emo(r.chef_tip) + '</div></div>' : '') + '</div></div>' +
-    footer(r, 'front') + '</section>';
-  const card = (title, body) => body ? '<div class="card"><h3>' + title + '</h3>' + body + '</div>' : '';
-  const back = '<section class="page back k-' + kind + '">' +
-    '<div class="hd"><div class="badge" style="width:.6in;height:.6in;font-size:24pt">' + esc(n.icon) + '</div><div class="hd-main"><div class="kicker">' + KIND[kind] + ' · flip side</div><h1 style="font-size:19pt">' + emo(n.title) + '</h1></div></div>' +
-    (r.kid_jobs && r.kid_jobs.length ? '<div class="crew"><h2><span class="emoji">🧑‍🍳</span> Kitchen crew: kid jobs</h2><ul>' +
-      r.kid_jobs.map((j) => '<li><span class="box"></span><span>' + emo(j.job) + '</span></li>').join('') + '</ul>' +
-      '<p class="safety">Knives, the stove and the oven: a grown-up stays right there. Steps marked <b>🧒 Kids can do this</b> on the front are theirs to own.</p></div>' : '') +
-    '<div class="grid4">' +
-    card('<span class="emoji">⏰</span> Make it ahead', r.make_ahead ? '<p>' + emo(r.make_ahead) + '</p>' : '') +
-    card('<span class="emoji">🥡</span> Leftovers', r.leftovers ? '<p>' + emo(r.leftovers) + '</p>' : '') +
-    card('<span class="emoji">🔁</span> Swap it', r.swaps && r.swaps.length ? '<ul>' + r.swaps.map((s) => '<li>' + emo(s) + '</li>').join('') + '</ul>' : '') +
-    card('<span class="emoji">🍽️</span> Serve it with', r.serve_with ? '<p>' + emo(r.serve_with) + '</p>' : '') +
-    '</div>' +
-    (r.game_plan && r.game_plan.length ? '<div class="plan"><h2><span class="emoji">⏱</span> Game plan: everything lands at once</h2><ol class="tl">' +
-      r.game_plan.map((g) => '<li><span class="when">' + emo(g.when) + '</span><span class="what">' + emo(g.what) + '</span></li>').join('') + '</ol></div>' : '') +
-    '<div class="rate"><div class="qr">' + qrSvg(r.id) + '</div><div><b>Done cooking? Tell Poppy how it went.</b>' + emo('Scan to open this meal in Poppy: vote 😍 🙂 😐 👎 and send tweaks with 💡. What you tell Poppy makes this card better next time.') + '</div></div>' +
-    footer(r, 'back') + '</section>';
-  return front + back;
+    (r.what ? '<p class="what">' + emo(r.what) + '</p>' : '') + '</div>' +
+    '<div class="meta"><div class="pill"><b>' + mins(Number(r.minutes) || 0) + '</b><span>Start to table</span></div><div class="pill"><b>' + esc(r.serves || '4') + '</b><span>Serves</span></div></div></div>' +
+    (r.early ? '<p class="early"><b><span class="emoji">⏰</span> Heads-up:</b> ' + emo(r.early) + '</p>' : '') +
+    '<div class="must"><h2><span class="emoji">🧺</span> The must-haves</h2><p class="lead">Put these on the counter <b>before you start</b>. Out of one? Use the swap next to it. That\'s it, keep going.</p><table>' + rows + '</table></div>' +
+    (r.extras ? '<p class="extras"><b><span class="emoji">✨</span> If we have them:</b> ' + emo(r.extras) + '. Skip any of these.</p>' : '') +
+    '<div><h2><span class="emoji">🔥</span> How it goes</h2><ol>' + moves + '</ol></div>' +
+    ((r.key || r.done) ? '<div class="two">' + (r.key ? '<div class="tip"><b><span class="emoji">🔑</span> The one thing that matters</b>' + emo(r.key) + '</div>' : '') +
+      (r.done ? '<div class="tip"><b><span class="emoji">✅</span> It\'s done when</b>' + emo(r.done) + '</div>' : '') + '</div>' : '') +
+    (r.plan_b ? '<div class="planb"><b><span class="emoji">🛟</span> Plan B:</b> ' + emo(r.plan_b) + '</div>' : '') +
+    '<div class="ft"><div class="qr">' + qrSvg(r.id) + '</div><div class="grow"><b>Done? Tell Poppy how it went.</b> Scan to vote and send tweaks with <span class="emoji">💡</span>.<br>' + emo(draft) + '</div>' +
+    '<span><img src="' + logo + '">Poppy 2.0 · ' + esc(r.id) + '</span></div></section>';
 }
 
 (async () => {
-  // The game plan's first step when it starts an hour or more ahead ("1 hr out: Dough out of the fridge…",
-  // "Sunday night: …"), for the → Hearth note (Nov 7). Short leads aren't worth a heads-up.
-  function earlyStep(r) {
-    const g = (r.game_plan || [])[0];
-    if (!g || !g.when || !g.what) return '';
-    const w = String(g.when).toLowerCase();
-    const min = /(\d+)\s*min/.exec(w);
-    const early = /hr|hour|night|morning|day|ahead|before/.test(w) || (min && Number(min[1]) >= 60);
-    return early && !/^optional/i.test(g.what) ? g.when + ': ' + g.what : '';
-  }
+  // A heads-up for the → Hearth note when the meal needs an early start ("Night before: thaw the puff pastry").
+  // "Optional, Sunday: …" stays on the card but isn't a Hearth heads-up.
+  const earlyStep = (r) => (/^optional/i.test(String(r.early || '').trim()) ? '' : String(r.early || '').trim());
   const want = process.argv.slice(2);
   const files = fs.readdirSync(SRC).filter((f) => /^m\d+\.json$/.test(f)).sort();
   const tpl = fs.readFileSync(path.join(DIR, 'card.html'), 'utf8');
@@ -95,20 +65,20 @@ function render(r) {
   const index = {};
   for (const f of files) {
     const r = JSON.parse(fs.readFileSync(path.join(SRC, f), 'utf8'));
-    index[r.id] = { name: r.name, pdf: 'recipes/' + r.id + '.pdf', img: ['recipes/img/' + r.id + '-1.jpg', 'recipes/img/' + r.id + '-2.jpg'], serves: r.serves || '', minutes: (Number(r.prep) || 0) + (Number(r.cook) || 0), draft: r.draft !== false, early: earlyStep(r) };
+    index[r.id] = { name: r.name, pdf: 'recipes/' + r.id + '.pdf', img: ['recipes/img/' + r.id + '-1.jpg'], serves: r.serves || '', minutes: Number(r.minutes) || 0, draft: r.draft !== false, early: earlyStep(r) };
     if (want.length && want.indexOf(r.id) < 0) continue;
     await makeQr(r.id);
     const tmp = path.join(DIR, '.tmp-' + r.id + '.html');
     fs.writeFileSync(tmp, tpl.replace('__BODY__', render(r)));
     await page.goto('file://' + tmp);
     await page.evaluate(() => document.fonts.ready);
-    // Shrink the type until each page's content fits (front: steps + ingredients; back: crew + cards).
-    let fs_ = 12;
+    // Shrink the type until the page fits.
+    let fs_ = 12.4;
     for (; fs_ >= 7.6; fs_ -= 0.2) {
       const over = await page.evaluate((v) => {
         document.documentElement.style.setProperty('--fs', v + 'pt');
         return [...document.querySelectorAll('.page')].some((p) => p.scrollHeight > p.clientHeight + 1 ||
-          [...p.querySelectorAll('.cols > *')].some((c) => c.getBoundingClientRect().bottom > p.querySelector('.ft').getBoundingClientRect().top - 4));
+          [...p.children].filter((c) => !c.classList.contains('ft')).some((c) => c.getBoundingClientRect().bottom > p.querySelector('.ft').getBoundingClientRect().top - 4));
       }, fs_.toFixed(1));
       if (!over) break;
     }

@@ -2645,11 +2645,11 @@
     if (!m || !r) return '<p class="note">That recipe card isn’t here.</p>';
     const f = S.recipeFiles && S.recipeFiles[sh.id];
     const v = encodeURIComponent((S.recipes && S.recipes.built) || '');
-    return '<div class="is-head"><div><h2>' + esc(m.name) + '</h2><p class="note">Recipe card · front and back</p></div><button class="x-btn" data-act="recipe-close" aria-label="Back to the meal">✕</button></div>' +
+    return '<div class="is-head"><div><h2>' + esc(m.name) + '</h2><p class="note">Recipe card · one page</p></div><button class="x-btn" data-act="recipe-close" aria-label="Back to the meal">✕</button></div>' +
       '<div class="recipe-bar"><button class="btn btn-primary" data-act="recipe-share"' + (f === 'loading' ? ' disabled' : '') + '>' + (f === 'loading' ? 'Getting the card…' : '🖨 Print or share') + '</button>' +
       '<button class="btn btn-plain" data-act="recipe-close">‹ ' + (sh.from === 'inbox' ? 'Back to the Inbox' : 'Back to the meal') + '</button></div>' +
       '<p class="note recipe-tip">Print or share opens your phone’s share sheet: pick <b>Print</b>, or AirDrop / Messages.</p>' +
-      (r.img || []).map((src, i) => '<img class="recipe-page" src="' + esc(src) + '?v=' + v + '" alt="' + (i ? 'Back' : 'Front') + ' of the recipe card" loading="lazy">').join('');
+      (r.img || []).map((src, i) => '<img class="recipe-page" src="' + esc(src) + '?v=' + v + '" alt="' + (i ? 'Page ' + (i + 1) + ' of the recipe card' : 'The recipe card') + '" loading="lazy">').join('');
   }
 
 

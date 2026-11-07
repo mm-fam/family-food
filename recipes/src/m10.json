@@ -2,166 +2,59 @@
  "id": "m10",
  "name": "🥦 Beef & Broccoli Wok Night",
  "kind": "dinner",
- "tagline": "Better than takeout: tender flank steak and broccoli in a glossy ginger-garlic sauce.",
+ "what": "Thin-sliced steak and broccoli in a glossy ginger-garlic sauce over rice.",
+ "minutes": 32,
  "serves": "4, plus a lunch",
- "prep": 20,
- "cook": 12,
- "level": "Fast once prepped",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1½ lb",
-     "name": "Flank steak",
-     "item": "i157"
-    },
-    {
-     "qty": "2 bags (12 oz)",
-     "name": "Broccoli florets",
-     "item": "i055"
-    },
-    {
-     "qty": "4 cloves",
-     "name": "Garlic, minced",
-     "item": "i153"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Fresh ginger, grated",
-     "item": "i154"
-    },
-    {
-     "qty": "½ cup",
-     "name": "Soy sauce (low sodium if we have it)",
-     "item": "i170"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Sesame oil",
-     "item": "i171"
-    },
-    {
-     "qty": "3 Tbsp",
-     "name": "Brown sugar",
-     "item": "i172"
-    },
-    {
-     "qty": "2 Tbsp",
-     "name": "Cornstarch",
-     "item": "i173"
-    },
-    {
-     "qty": "2 cups (dry)",
-     "name": "Jasmine rice",
-     "item": "i166"
-    }
-   ]
+   "name": "Flank steak",
+   "item": "i157",
+   "out": "sirloin, skirt steak, or chicken"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "3 Tbsp",
-     "name": "Vegetable oil"
-    },
-    {
-     "qty": "¾ cup",
-     "name": "Water or broth"
-    },
-    {
-     "qty": "optional",
-     "name": "Sesame seeds, green onions"
-    }
-   ]
+   "name": "Broccoli",
+   "item": "i055",
+   "out": "frozen stir-fry veggies"
+  },
+  {
+   "name": "Soy sauce",
+   "item": "i170",
+   "out": "teriyaki sauce (skip the sugar)"
+  },
+  {
+   "name": "Cornstarch",
+   "item": "i173",
+   "out": "skip it, the sauce will just be thinner"
+  },
+  {
+   "name": "Jasmine rice",
+   "item": "i166",
+   "out": "Minute rice or noodles"
   }
  ],
- "steps": [
+ "extras": "garlic, ginger, sesame oil, brown sugar, sesame seeds, green onions",
+ "moves": [
   {
-   "text": "Rice on first (it's done when dinner is).",
+   "text": "Pull the must-haves onto the counter. Rice on. Steak into the freezer 15 minutes.",
    "time": "20 min"
   },
   {
-   "text": "Slice the steak very thin against the grain (15 minutes in the freezer makes it easy). Toss with 1 Tbsp soy and 1 Tbsp cornstarch.",
-   "time": "5 min"
+   "text": "Slice the steak thin across the grain; toss with a little soy and cornstarch. Whisk the sauce: soy, brown sugar, sesame oil, cornstarch, ¾ cup water."
   },
   {
-   "text": "Sauce: whisk the rest of the soy, the brown sugar, sesame oil, 1 Tbsp cornstarch and the water.",
-   "kid": true
-  },
-  {
-   "text": "Heat 1 Tbsp oil in a wok or big skillet over high. Add the broccoli and 3 Tbsp water; cover and steam-fry 3 minutes. Tip out.",
+   "text": "Very hot pan: broccoli with 3 Tbsp water, covered, 3 minutes. Tip out.",
    "time": "3 min"
   },
   {
-   "text": "Add 2 Tbsp oil. Sear the beef in two batches, 1–2 minutes each, without crowding.",
-   "time": "4 min"
+   "text": "Sear the beef in two batches, 1–2 minutes each. Add garlic and ginger, then the sauce.",
+   "time": "5 min"
   },
   {
-   "text": "Lower the heat, add garlic and ginger for 30 seconds, then the sauce. It thickens in a minute."
-  },
-  {
-   "text": "Toss the beef and broccoli back in to coat. Serve over rice.",
-   "kid": true
+   "text": "Toss the broccoli back in. Serve over rice."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Whisk the sauce"
-  },
-  {
-   "job": "Rinse the rice and start it with a grown-up"
-  },
-  {
-   "job": "Peel the ginger with a spoon"
-  },
-  {
-   "job": "Sprinkle sesame seeds on top"
-  }
- ],
- "chef_tip": "Sear the beef in two batches in a really hot pan. Crowd it and it steams gray; give it room and you get those browned, takeout-style edges.",
- "make_ahead": "Slice and marinate the beef and mix the sauce up to a day ahead.",
- "leftovers": "Reheat in a skillet with a splash of water; great over rice in a thermos.",
- "swaps": [
-  "Sirloin or skirt steak",
-  "Frozen stir-fry vegetables (i243) with the broccoli"
- ],
- "serve_with": "Jasmine rice (in the recipe)",
- "gear": [
-  "Wok or big skillet",
-  "Rice cooker or pot",
-  "Sharp knife"
- ],
- "heads_up": "Rice first; steak into the freezer 15 min for easy slicing.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "35 min out",
-   "what": "Rice on. Steak into the freezer for 15 minutes."
-  },
-  {
-   "when": "20 min",
-   "what": "Slice the steak thin and toss with soy and cornstarch."
-  },
-  {
-   "when": "15 min",
-   "what": "Kids whisk the sauce in a cup."
-  },
-  {
-   "when": "10 min",
-   "what": "Steam-fry the broccoli; tip it out."
-  },
-  {
-   "when": "6 min",
-   "what": "Sear the beef in two batches."
-  },
-  {
-   "when": "2 min",
-   "what": "Garlic, ginger, sauce; toss it all back in."
-  },
-  {
-   "when": "Dinner",
-   "what": "Over rice, straight to the table."
-  }
- ]
+ "key": "Two batches in a really hot pan. Crowded beef steams gray.",
+ "done": "Sauce is glossy and thick, beef has no pink.",
+ "plan_b": "Steak's not thawed? Make it with chicken or just broccoli and eggs.",
+ "draft": true
 }

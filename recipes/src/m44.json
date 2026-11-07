@@ -2,157 +2,54 @@
  "id": "m44",
  "name": "🥐 Cheeseburger Puff Pastry Pockets",
  "kind": "dinner",
- "tagline": "All the cheeseburger flavor sealed in golden, flaky puff pastry. Kids go nuts for these.",
+ "what": "Cheeseburger filling baked inside golden puff pastry triangles.",
+ "minutes": 45,
  "serves": "4 (8 pockets)",
- "prep": 20,
- "cook": 25,
- "level": "Fun weeknight",
- "ingredients": [
+ "early": "Thaw the puff pastry in the fridge the night before.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1 lb",
-     "name": "Ground beef",
-     "item": "i091"
-    },
-    {
-     "qty": "2 sheets",
-     "name": "Puff pastry, thawed",
-     "item": "i184"
-    },
-    {
-     "qty": "1½ cups",
-     "name": "Shredded cheddar",
-     "item": "i188"
-    },
-    {
-     "qty": "1 small",
-     "name": "Onion, finely diced",
-     "item": "i155"
-    },
-    {
-     "qty": "1",
-     "name": "Egg, for brushing",
-     "item": "i093"
-    },
-    {
-     "qty": "2 Tbsp",
-     "name": "Ketchup, plus more to dip",
-     "item": "i118"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Yellow mustard",
-     "item": "i117"
-    },
-    {
-     "qty": "4",
-     "name": "Dill pickle spears, chopped",
-     "item": "i289"
-    }
-   ]
+   "name": "Ground beef",
+   "item": "i091",
+   "out": "ground turkey"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Garlic powder"
-    },
-    {
-     "qty": "",
-     "name": "Sesame seeds (optional)"
-    }
-   ]
+   "name": "Puff pastry (2 sheets)",
+   "item": "i184",
+   "out": "tortillas, toasted in a pan like quesadillas"
+  },
+  {
+   "name": "Shredded cheddar",
+   "item": "i188",
+   "out": "American cheese torn up"
+  },
+  {
+   "name": "Egg",
+   "item": "i093",
+   "out": "brush with milk instead"
   }
  ],
- "steps": [
+ "extras": "onion, ketchup, mustard, pickles, sesame seeds",
+ "moves": [
   {
-   "text": "Heat the oven to 400°F. Line a sheet pan with parchment."
+   "text": "Pull the must-haves onto the counter. Oven to 400°F, parchment on a pan."
   },
   {
-   "text": "Brown the beef and onion over medium-high, breaking it up, 7 minutes. Drain the fat. Season with salt, pepper and garlic powder.",
+   "text": "Brown the beef (and onion). Drain, season. Stir in ketchup, mustard and pickles.",
    "time": "8 min"
   },
   {
-   "text": "Off the heat, stir in ketchup, mustard and pickles. Cool 10 minutes, then stir in the cheese.",
-   "kid": true
+   "text": "Cool 10 minutes, then stir in the cheese."
   },
   {
-   "text": "Cut each pastry sheet into 4 squares. Spoon filling onto each, brush the edges with egg, fold into a triangle.",
-   "kid": true
+   "text": "Cut each sheet into 4 squares. Fill, egg the edges, fold into triangles, seal with a fork."
   },
   {
-   "text": "Seal with a fork, cut a little slit on top, brush with egg and sprinkle sesame seeds.",
-   "kid": true
-  },
-  {
-   "text": "Bake 20–22 minutes until deep golden.",
+   "text": "Brush with egg, cut a slit on top. Bake. Cool 5 minutes before eating.",
    "time": "22 min"
-  },
-  {
-   "text": "Cool 5 minutes (the filling is hot). Serve with ketchup and mustard for dipping."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Chop the pickles (with a grown-up)"
-  },
-  {
-   "job": "Fill and fold the pockets"
-  },
-  {
-   "job": "Fork-crimp the edges"
-  },
-  {
-   "job": "Brush on the egg and sesame seeds"
-  }
- ],
- "chef_tip": "Let the filling cool before it goes in the pastry and add the cheese last. Hot filling melts the pastry and the pockets leak.",
- "make_ahead": "Assemble and freeze unbaked on a tray; bake from frozen at 400°F for 30 minutes.",
- "leftovers": "Reheat at 375°F 10 minutes to keep them flaky; good cold in a lunch box too.",
- "swaps": [
-  "Ground turkey",
-  "American cheese torn up instead of cheddar",
-  "Add crumbled bacon"
- ],
- "serve_with": "Sweet potato fries or a big salad",
- "gear": [
-  "Sheet pan + parchment",
-  "Skillet",
-  "Pastry brush"
- ],
- "heads_up": "Thaw the puff pastry in the fridge the night before.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "45 min out",
-   "what": "Oven to 400°F. Line the sheet pan."
-  },
-  {
-   "when": "40 min",
-   "what": "Brown the beef and onion; drain and season."
-  },
-  {
-   "when": "32 min",
-   "what": "Kids stir in ketchup, mustard and pickles; cool, add cheese."
-  },
-  {
-   "when": "27 min",
-   "what": "Kids cut, fill, fold, seal and brush the pockets."
-  },
-  {
-   "when": "22 min",
-   "what": "Bake 20–22 min until deep golden."
-  },
-  {
-   "when": "Dinner",
-   "what": "Cool 5 min; ketchup and mustard for dipping."
-  }
- ]
+ "key": "Cool the filling and add the cheese last, or the pockets leak.",
+ "done": "Deep golden brown and puffed.",
+ "plan_b": "Pastry not thawed? Make it cheeseburger quesadillas in tortillas.",
+ "draft": true
 }

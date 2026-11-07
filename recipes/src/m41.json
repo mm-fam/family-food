@@ -2,147 +2,55 @@
  "id": "m41",
  "name": "🥖 Philly Cheesesteaks",
  "kind": "dinner",
- "tagline": "Thin-shaved ribeye, sweet onions and melty cheese, piled into toasted rolls.",
+ "what": "Thin-shaved steak and soft onions with melted cheese, flipped into toasted rolls.",
+ "minutes": 55,
  "serves": "4",
- "prep": 40,
- "cook": 15,
- "level": "Weekend favorite",
- "ingredients": [
+ "early": "Ribeye into the freezer 30–40 minutes before you slice it.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1½ lb",
-     "name": "Ribeye steak",
-     "item": "i430"
-    },
-    {
-     "qty": "2",
-     "name": "Onions, thin sliced",
-     "item": "i155"
-    },
-    {
-     "qty": "1",
-     "name": "Bell pepper, thin sliced (optional)",
-     "item": "i150"
-    },
-    {
-     "qty": "8 slices",
-     "name": "American cheese (or provolone)",
-     "item": "i318"
-    },
-    {
-     "qty": "4",
-     "name": "Bolillo rolls (or hoagie rolls)",
-     "item": "i281"
-    }
-   ]
+   "name": "Ribeye steak",
+   "item": "i430",
+   "out": "sirloin, or deli roast beef warmed in the pan"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "2 Tbsp",
-     "name": "Vegetable oil"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Butter"
-    },
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    },
-    {
-     "qty": "",
-     "name": "Ketchup or hot peppers, to serve"
-    }
-   ]
+   "name": "Onions",
+   "item": "i155",
+   "out": "bell peppers or mushrooms"
+  },
+  {
+   "name": "American cheese",
+   "item": "i318",
+   "out": "provolone or any sliced cheese"
+  },
+  {
+   "name": "Rolls",
+   "item": "i281",
+   "out": "hoagie rolls or toasted bread"
   }
  ],
- "steps": [
+ "extras": "bell pepper, butter, ketchup, hot peppers",
+ "moves": [
   {
-   "text": "Freeze the ribeye 30–40 minutes so it firms up, then slice it as thin as you can against the grain.",
-   "time": "40 min"
-  },
-  {
-   "text": "Cook the onions (and pepper) in butter and a little oil over medium until soft and sweet. Set aside.",
+   "text": "Pull the must-haves onto the counter. Slice the half-frozen steak as thin as you can.",
    "time": "10 min"
   },
   {
-   "text": "Split the rolls, not all the way through, and toast them cut side down in the pan.",
-   "kid": true
+   "text": "Cook the onions in butter over medium until soft and sweet. Set aside.",
+   "time": "10 min"
   },
   {
-   "text": "Turn the heat to high. Add oil, then the steak in one layer. Season with salt and pepper; sear 1 minute, then chop and toss with a spatula until just cooked.",
+   "text": "Toast the split rolls cut side down in the pan."
+  },
+  {
+   "text": "High heat, a little oil, steak in one layer with salt and pepper. Sear 1 minute, then chop and toss.",
    "time": "3 min"
   },
   {
-   "text": "Mix the onions back in and divide into 4 piles. Lay 2 slices of cheese on each pile and let it melt, 30 seconds."
-  },
-  {
-   "text": "Put a roll face down over each pile, slide the spatula under and flip it into the roll.",
-   "kid": true
+   "text": "Onions back in, 4 piles, cheese on top. Roll over each pile, slide the spatula under, flip."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Peel the onions"
-  },
-  {
-   "job": "Toast the rolls"
-  },
-  {
-   "job": "Lay the cheese slices on the piles"
-  },
-  {
-   "job": "Set out ketchup, hot peppers and pickles"
-  }
- ],
- "chef_tip": "Partly freeze the ribeye before slicing. It's the only way to get paper-thin shavings at home, and thin is what makes it a real cheesesteak.",
- "make_ahead": "Slice the steak in the morning and fridge it; cook the onions ahead too.",
- "leftovers": "Best fresh. Leftover meat and onions make a great cheesesteak quesadilla.",
- "swaps": [
-  "Provolone or Cheez Whiz instead of American",
-  "Add mushrooms with the onions",
-  "Sirloin is cheaper than ribeye"
- ],
- "serve_with": "Fries or tater tots",
- "gear": [
-  "Big skillet or griddle",
-  "Sharp knife",
-  "Sturdy spatula"
- ],
- "heads_up": "Ribeye into the freezer 30–40 minutes before slicing.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "55 min out",
-   "what": "Ribeye in the freezer to firm up."
-  },
-  {
-   "when": "25 min",
-   "what": "Slice it paper thin. Onions and peppers on to soften."
-  },
-  {
-   "when": "12 min",
-   "what": "Kids toast the rolls in the pan."
-  },
-  {
-   "when": "8 min",
-   "what": "Steak on high: sear, chop, toss."
-  },
-  {
-   "when": "4 min",
-   "what": "Onions back in, 4 piles, cheese on top to melt."
-  },
-  {
-   "when": "2 min",
-   "what": "Kids flip each pile into its roll."
-  },
-  {
-   "when": "Dinner",
-   "what": "Cut in half and eat right away."
-  }
- ]
+ "key": "Half-freeze the steak first. It's the only way to slice it paper-thin.",
+ "done": "No red left on the steak and the cheese is melted.",
+ "plan_b": "Out of steak? Ground beef cheesesteaks, same onions and cheese.",
+ "draft": true
 }

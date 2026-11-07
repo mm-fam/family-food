@@ -2,144 +2,53 @@
  "id": "m26",
  "name": "🍚 Kitchen-Sink Grain Bowls",
  "kind": "lunch",
- "tagline": "A use-it-up bowl: a grain, a protein, two veggies, something crunchy and a great sauce.",
+ "what": "A grain, a protein, two veggies, something crunchy and a dressing. Use up the fridge.",
+ "minutes": 25,
  "serves": "4",
- "prep": 10,
- "cook": 15,
- "level": "Fridge clean-out lunch",
- "ingredients": [
+ "early": "Optional, Sunday: cook the quinoa; it keeps 5 days.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1 cup dry",
-     "name": "Quinoa (or frozen brown rice)",
-     "item": "i317"
-    },
-    {
-     "qty": "2 cups",
-     "name": "Leftover chicken or steak, sliced",
-     "item": "i156"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Cherry tomatoes, halved",
-     "item": "i274"
-    },
-    {
-     "qty": "1",
-     "name": "Cucumber, diced",
-     "item": "i183"
-    },
-    {
-     "qty": "1 can",
-     "name": "Cannellini beans or black beans",
-     "item": "i230"
-    },
-    {
-     "qty": "½ cup",
-     "name": "Cheese (feta, mozzarella, whatever's open)",
-     "item": "i214"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Pumpkin seeds or sliced almonds",
-     "item": "i134"
-    }
-   ]
+   "name": "A grain: quinoa or rice",
+   "item": "i317",
+   "out": "frozen brown rice, or lettuce"
   },
   {
-   "group": "House dressing (pantry)",
-   "items": [
-    {
-     "qty": "¼ cup",
-     "name": "Olive oil"
-    },
-    {
-     "qty": "2 Tbsp",
-     "name": "Red wine vinegar",
-     "item": "i235"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Dijon mustard",
-     "item": "i268"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Honey",
-     "item": "i126"
-    },
-    {
-     "qty": "",
-     "name": "Salt and pepper"
-    }
-   ]
+   "name": "A protein: leftover chicken or steak",
+   "item": "i156",
+   "out": "beans, eggs, or cheese"
+  },
+  {
+   "name": "Two veggies",
+   "item": "i274",
+   "out": "whatever's in the fridge"
+  },
+  {
+   "name": "Olive oil + vinegar dressing",
+   "item": "i235",
+   "out": "ranch, or any dressing we have"
   }
  ],
- "steps": [
+ "extras": "beans, cheese, pumpkin seeds or almonds, dijon, honey",
+ "moves": [
   {
-   "text": "Rinse the quinoa, then simmer in 2 cups salted water, covered, 15 minutes. Fluff with a fork. (Or microwave the frozen brown rice.)",
+   "text": "Pull the must-haves onto the counter."
+  },
+  {
+   "text": "Rinse 1 cup quinoa, simmer covered in 2 cups salted water.",
    "time": "15 min"
   },
   {
-   "text": "Shake the dressing in a jar until creamy.",
-   "kid": true
+   "text": "Shake ¼ cup oil, 2 Tbsp vinegar, mustard, honey, salt in a jar."
   },
   {
-   "text": "Prep the toppings into little piles: tomatoes, cucumber, beans, cheese, protein.",
-   "kid": true
+   "text": "Chop toppings into little piles."
   },
   {
-   "text": "Bowl it: grain on the bottom, toppings in sections on top.",
-   "kid": true
-  },
-  {
-   "text": "Dress right before eating and finish with the crunchy seeds."
+   "text": "Grain on the bottom, toppings on top, dressing and crunch last."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Shake the dressing jar"
-  },
-  {
-   "job": "Halve the cherry tomatoes"
-  },
-  {
-   "job": "Design your own bowl"
-  }
- ],
- "chef_tip": "Formula, not recipe: grain + protein + 2 veggies + crunch + sauce. Whatever's in the fridge, it works.",
- "make_ahead": "Cook the quinoa on Sunday; it keeps 5 days. Dressing keeps a week.",
- "leftovers": "Pack dressing separately in a small cup for lunches.",
- "swaps": [
-  "Frozen brown rice (i410)",
-  "Spring mix base instead of grain",
-  "Ranch instead of the vinaigrette"
- ],
- "serve_with": "Naan dippers",
- "gear": [
-  "Small pot",
-  "Jar with lid"
- ],
- "heads_up": "Check the fridge for leftovers to use.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Sunday",
-   "what": "Cook the quinoa (keeps 5 days); shake up the dressing."
-  },
-  {
-   "when": "10 min out",
-   "what": "Kids prep topping piles: tomatoes, cucumber, beans, cheese."
-  },
-  {
-   "when": "5 min",
-   "what": "Bowl it: quinoa on the bottom, toppings in sections."
-  },
-  {
-   "when": "Lunch",
-   "what": "Dress right before eating; crunchy seeds on top."
-  }
- ]
+ "key": "It's a formula, not a recipe: grain + protein + 2 veggies + crunch + sauce.",
+ "done": "Quinoa is fluffy and the little white tails show.",
+ "plan_b": "No grain? Pile it all on lettuce for a big salad.",
+ "draft": true
 }

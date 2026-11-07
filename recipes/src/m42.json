@@ -2,154 +2,53 @@
  "id": "m42",
  "name": "🍏 Homemade Apple Pop-Tarts",
  "kind": "snack",
- "tagline": "Flaky puff pastry, cinnamon apple filling, a drizzle of glaze. Better than the box.",
+ "what": "Flaky puff pastry with warm cinnamon apples inside and a sweet glaze.",
+ "minutes": 45,
  "serves": "8 tarts",
- "prep": 25,
- "cook": 20,
- "level": "Weekend baking project",
- "ingredients": [
+ "early": "Thaw the puff pastry in the fridge the night before.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 sheets",
-     "name": "Puff pastry, thawed",
-     "item": "i184"
-    },
-    {
-     "qty": "2",
-     "name": "Pink Lady apples, small dice",
-     "item": "i090"
-    },
-    {
-     "qty": "1",
-     "name": "Egg, for brushing",
-     "item": "i093"
-    },
-    {
-     "qty": "½",
-     "name": "Lemon",
-     "item": "i096"
-    }
-   ]
+   "name": "Puff pastry (2 sheets)",
+   "item": "i184",
+   "out": "pie crust works, a little less flaky"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "3 Tbsp",
-     "name": "Brown sugar"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Cinnamon"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Cornstarch"
-    },
-    {
-     "qty": "1 Tbsp",
-     "name": "Butter"
-    },
-    {
-     "qty": "¾ cup",
-     "name": "Powdered sugar (glaze)"
-    },
-    {
-     "qty": "1–2 Tbsp",
-     "name": "Milk (glaze)"
-    }
-   ]
+   "name": "Apples",
+   "item": "i090",
+   "out": "any apples, or a few spoons of jam"
+  },
+  {
+   "name": "Brown sugar + cinnamon",
+   "out": "white sugar and cinnamon"
+  },
+  {
+   "name": "Egg",
+   "item": "i093",
+   "out": "brush with milk instead"
   }
  ],
- "steps": [
+ "extras": "lemon, butter, cornstarch, powdered sugar + milk for the glaze",
+ "moves": [
   {
-   "text": "Heat the oven to 400°F. Line a sheet pan with parchment."
+   "text": "Pull the must-haves onto the counter. Oven to 400°F, parchment on a pan."
   },
   {
-   "text": "Cook the apples with butter, brown sugar, cinnamon and a squeeze of lemon over medium for 6 minutes. Stir in the cornstarch, cook 1 minute, then cool.",
+   "text": "Cook diced apples with butter, brown sugar and cinnamon. Let it cool all the way.",
    "time": "8 min"
   },
   {
-   "text": "Cut each pastry sheet into 8 rectangles (16 total).",
-   "kid": true
+   "text": "Cut each pastry sheet into 8. Filling on 8, egg on the edges, the other 8 on top."
   },
   {
-   "text": "Spoon filling onto 8 of them, leaving a border. Brush the edges with beaten egg and top with the other 8.",
-   "kid": true
-  },
-  {
-   "text": "Press the edges with a fork, poke the tops 3 times, and brush with egg.",
-   "kid": true
-  },
-  {
-   "text": "Bake 18–20 minutes until puffed and deep golden. Cool 10 minutes.",
+   "text": "Press the edges with a fork, poke the tops, brush with egg. Bake.",
    "time": "20 min"
   },
   {
-   "text": "Whisk the powdered sugar and milk; drizzle over the tarts.",
-   "kid": true
+   "text": "Cool 10 minutes, then drizzle with powdered sugar mixed with a little milk."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Cut the pastry with a pizza cutter"
-  },
-  {
-   "job": "Spoon in the filling (not too much!)"
-  },
-  {
-   "job": "Crimp the edges with a fork"
-  },
-  {
-   "job": "Whisk and drizzle the glaze"
-  }
- ],
- "chef_tip": "Cool the filling all the way before filling. Warm filling melts the butter in the pastry and you lose the flakes.",
- "make_ahead": "Freeze unbaked tarts on a tray, then bag them. Bake from frozen, add 5 minutes.",
- "leftovers": "Keep 2 days in a container; re-crisp in the toaster oven.",
- "swaps": [
-  "Ham & cheese version: deli ham + cheddar instead of apples (Mom's idea)",
-  "Bonne Maman preserves for a quick filling"
- ],
- "serve_with": "A glass of milk",
- "gear": [
-  "Sheet pan + parchment",
-  "Pizza cutter",
-  "Fork",
-  "Pastry brush"
- ],
- "heads_up": "Thaw the puff pastry in the fridge the night before.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "45 min out",
-   "what": "Oven to 400°F. Line the sheet pan."
-  },
-  {
-   "when": "40 min",
-   "what": "Cook the apple filling; let it cool."
-  },
-  {
-   "when": "30 min",
-   "what": "Kids cut the pastry into 16 rectangles."
-  },
-  {
-   "when": "25 min",
-   "what": "Kids fill, seal with a fork, poke and brush with egg."
-  },
-  {
-   "when": "20 min",
-   "what": "Bake 18–20 min until deep golden."
-  },
-  {
-   "when": "5 min",
-   "what": "Cool, then kids drizzle the glaze."
-  },
-  {
-   "when": "Snack",
-   "what": "Serve warm; freeze extras for later."
-  }
- ]
+ "key": "Cool the filling all the way first. Warm filling melts the pastry and you lose the flakes.",
+ "done": "Puffed and deep golden brown.",
+ "plan_b": "Out of apples? Ham and cheese pockets, same pastry.",
+ "draft": true
 }

@@ -2,122 +2,48 @@
  "id": "m20",
  "name": "🥤 Power Protein Smoothie",
  "kind": "breakfast",
- "tagline": "Thick, cold and fruity, with Greek yogurt and OJ for a breakfast that holds until lunch.",
+ "what": "A thick, cold blender smoothie with yogurt, frozen fruit and OJ.",
+ "minutes": 5,
  "serves": "4",
- "prep": 5,
- "cook": 0,
- "level": "5-minute breakfast",
- "ingredients": [
+ "early": "Optional, Sunday: freeze ripe banana chunks.",
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 cups",
-     "name": "Nounos Greek yogurt, plain",
-     "item": "i004"
-    },
-    {
-     "qty": "3 cups",
-     "name": "Frozen berries",
-     "item": "i264"
-    },
-    {
-     "qty": "1½ cups",
-     "name": "Orange juice",
-     "item": "i012"
-    },
-    {
-     "qty": "2",
-     "name": "Bananas (frozen are best)",
-     "item": "i001"
-    },
-    {
-     "qty": "2 handfuls",
-     "name": "Baby spinach (they won't taste it)",
-     "item": "i054"
-    }
-   ]
+   "name": "Frozen berries",
+   "item": "i264",
+   "out": "any frozen fruit, or fresh + ice"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1–2 Tbsp",
-     "name": "Honey, to taste",
-     "item": "i126"
-    },
-    {
-     "qty": "",
-     "name": "Ice, if the fruit isn't frozen"
-    }
-   ]
+   "name": "Greek yogurt",
+   "item": "i004",
+   "out": "milk, or more fruit"
+  },
+  {
+   "name": "Orange juice",
+   "item": "i012",
+   "out": "milk"
   }
  ],
- "steps": [
+ "extras": "bananas, baby spinach, honey, peanut butter",
+ "moves": [
   {
-   "text": "Pour the OJ into the blender first, then the yogurt.",
-   "kid": true
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Add the spinach, banana and frozen berries on top.",
-   "kid": true
+   "text": "Into the blender: 1½ cups OJ, then 2 cups yogurt."
   },
   {
-   "text": "Blend on low, then high, until totally smooth.",
+   "text": "Spinach and banana, then the frozen berries on top."
+  },
+  {
+   "text": "Blend low, then high, until smooth.",
    "time": "1 min"
   },
   {
-   "text": "Taste; add honey if needed. Too thick? A splash more juice.",
-   "kid": true
-  },
-  {
-   "text": "Pour into 4 glasses and serve right away."
+   "text": "Taste. Too thick? More juice. Not sweet? Honey."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Load the blender in order: liquid, yogurt, greens, fruit"
-  },
-  {
-   "job": "Peel the bananas"
-  },
-  {
-   "job": "Taste test and decide on honey"
-  }
- ],
- "chef_tip": "Liquids in first, frozen fruit last. The blender won't jam and you need no ice, so it never tastes watered down.",
- "make_ahead": "Pack 'smoothie bags' (berries, banana, spinach) in the freezer; dump and blend.",
- "leftovers": "Freeze extra in popsicle molds for an after-school snack.",
- "swaps": [
-  "Fairlife milk for OJ (more protein)",
-  "Add 2 Tbsp peanut butter"
- ],
- "serve_with": "A slice of toast or a hard-boiled egg",
- "gear": [
-  "Blender"
- ],
- "heads_up": "Peel and freeze ripe bananas ahead.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Sunday",
-   "what": "Optional: freeze smoothie bags of berries, banana, spinach."
-  },
-  {
-   "when": "5 min out",
-   "what": "OJ into the blender first, then the yogurt."
-  },
-  {
-   "when": "4 min",
-   "what": "Kids add spinach, banana and frozen berries."
-  },
-  {
-   "when": "3 min",
-   "what": "Blend low, then high, until smooth. Taste; honey if needed."
-  },
-  {
-   "when": "Breakfast",
-   "what": "Pour into 4 glasses and drink right away."
-  }
- ]
+ "key": "Liquids in first, frozen fruit last, so the blender doesn't jam.",
+ "done": "Smooth, no chunks, and thick enough to hold a straw.",
+ "plan_b": "No frozen fruit? Yogurt parfaits or a banana with peanut butter.",
+ "draft": true
 }

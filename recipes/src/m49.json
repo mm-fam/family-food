@@ -2,71 +2,54 @@
  "id": "m49",
  "name": "🍅 Ratatouille",
  "kind": "dinner",
- "tagline": "A big sheet pan of summer vegetables roasted sweet, then folded into a garlicky tomato sauce.",
+ "what": "Whatever veggies we have, roasted until sweet, then stirred into a tomato sauce.",
+ "minutes": 60,
  "serves": "4, plus a lunch",
- "prep": 20,
- "cook": 40,
- "level": "Easy, meat-free",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    { "qty": "1 large", "name": "Eggplant", "item": "i152" },
-    { "qty": "2", "name": "Zucchini", "item": "i089" },
-    { "qty": "1", "name": "Yellow squash", "item": "i339" },
-    { "qty": "2", "name": "Bell peppers (red, yellow or orange)", "item": "i150" },
-    { "qty": "1", "name": "Onion", "item": "i155" },
-    { "qty": "4 cloves", "name": "Garlic", "item": "i153" },
-    { "qty": "1 can (28 oz)", "name": "Contadina diced tomatoes", "item": "i176" },
-    { "qty": "to serve", "name": "Grated parmesan", "item": "i100" },
-    { "qty": "to serve", "name": "Crusty bakery bread", "item": "i393" }
-   ]
+   "name": "4–5 vegetables: eggplant, zucchini, squash, peppers",
+   "item": "i152",
+   "out": "any mix works: mushrooms, onion, broccoli, carrots"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    { "qty": "1/3 cup", "name": "Olive oil", "item": "i197" },
-    { "qty": "2 tsp", "name": "Italian seasoning or herbes de Provence" },
-    { "qty": "1 tsp", "name": "Sugar (only if the tomatoes taste sharp)" },
-    { "qty": "", "name": "Salt and pepper" },
-    { "qty": "", "name": "Red pepper flakes (optional)" }
-   ]
+   "name": "Canned diced tomatoes (big can)",
+   "item": "i176",
+   "out": "5–6 fresh tomatoes, or a jar of marinara"
+  },
+  {
+   "name": "Onion + garlic",
+   "item": "i155",
+   "out": "skip the onion, or use garlic powder"
+  },
+  {
+   "name": "Olive oil",
+   "item": "i197",
+   "out": "any cooking oil"
   }
  ],
- "steps": [
-  { "text": "Oven to 425°F. Line two sheet pans with foil.", "time": "5 min" },
-  { "text": "Cut the eggplant, zucchini, squash and peppers into 3/4-inch cubes, about the same size so they cook evenly.", "kid": true },
-  { "text": "Toss the vegetables with most of the olive oil, the seasoning, 1 tsp salt and pepper. Spread in one layer across both pans.", "kid": true },
-  { "text": "Roast until browned at the edges, stirring once halfway.", "time": "30 min" },
-  { "text": "Meanwhile, cook the chopped onion in the rest of the oil in a big pot over medium until soft. Add the garlic for 1 minute.", "time": "10 min" },
-  { "text": "Add the tomatoes and simmer while the vegetables roast. Taste: a pinch of sugar if it's sharp.", "time": "15 min" },
-  { "text": "Fold the roasted vegetables into the sauce and simmer together for 5 minutes.", "time": "5 min" },
-  { "text": "Top with parmesan and serve with warm crusty bread.", "kid": true }
+ "extras": "parmesan, crusty bread, Italian seasoning, pasta or rice to serve it over",
+ "moves": [
+  {
+   "text": "Pull the must-haves onto the counter. Oven to 425°F."
+  },
+  {
+   "text": "Cut the veggies into bite-size cubes, all about the same size. Toss with oil and salt on two pans.",
+   "time": "15 min"
+  },
+  {
+   "text": "Roast, stirring once halfway, until the edges are brown.",
+   "time": "35 min"
+  },
+  {
+   "text": "While they roast: soften a chopped onion in oil in a pot, add garlic, then the tomatoes. Simmer.",
+   "time": "15 min"
+  },
+  {
+   "text": "Stir the roasted veggies into the sauce. Taste, add salt. Serve with cheese and bread."
+  }
  ],
- "kid_jobs": [
-  { "job": "Wash the vegetables and cut the soft ones (zucchini, squash) with a kid knife" },
-  { "job": "Toss the vegetables with oil and seasoning in a big bowl" },
-  { "job": "Warm and slice the bread" },
-  { "job": "Sprinkle the parmesan and set the table" }
- ],
- "chef_tip": "Roast, don't stew. Two pans with room between the pieces give browned, sweet vegetables instead of a soggy pot.",
- "make_ahead": "Better the next day. Make it up to 2 days ahead and warm it gently on the stove.",
- "leftovers": "Lunch over pasta or rice, or warm it in a skillet, make wells and crack in eggs for a quick shakshuka.",
- "swaps": [
-  "Fresh tomatoes: 5–6 ripe ones, chopped, instead of the can",
-  "Add Italian sausage or chicken for more protein",
-  "Serve over polenta, pasta or rice instead of bread"
- ],
- "serve_with": "Crusty bread, or over pasta, polenta or rice",
- "gear": [ "2 sheet pans", "Big pot", "Cutting board" ],
- "heads_up": "Oven to 425°F before you start chopping.",
- "draft": true,
- "game_plan": [
-  { "when": "60 min out", "what": "Oven to 425°F. Kids wash the vegetables." },
-  { "when": "50 min", "what": "Cut and toss the vegetables; into the oven." },
-  { "when": "30 min", "what": "Onion and garlic in the pot, then the tomatoes. Stir the pans." },
-  { "when": "10 min", "what": "Vegetables into the sauce. Kids warm the bread." },
-  { "when": "3 min", "what": "Kids set out parmesan and the bread." },
-  { "when": "Dinner", "what": "Serve it hot." }
- ]
+ "key": "Two pans, not one. Crowded veggies steam and go mushy.",
+ "done": "Veggies are soft with brown edges.",
+ "plan_b": "Short on time? Skip the oven: cook everything in the pot, 20 minutes, and serve it over pasta.",
+ "draft": true
 }

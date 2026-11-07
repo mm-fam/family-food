@@ -2,156 +2,59 @@
  "id": "m09",
  "name": "🍆 Chicken & Eggplant Parm",
  "kind": "dinner",
- "tagline": "Crispy panko chicken and eggplant, Rao's, bubbling mozzarella. The oven does the frying.",
+ "what": "Crispy breaded chicken and eggplant, baked with sauce and melted mozzarella.",
+ "minutes": 55,
  "serves": "4, plus a lunch",
- "prep": 25,
- "cook": 30,
- "level": "Worth-it weeknight",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1½ lb",
-     "name": "Chicken breasts or cutlets",
-     "item": "i156"
-    },
-    {
-     "qty": "1 large",
-     "name": "Eggplant",
-     "item": "i152"
-    },
-    {
-     "qty": "2",
-     "name": "Eggs",
-     "item": "i093"
-    },
-    {
-     "qty": "2 cups",
-     "name": "Panko bread crumbs",
-     "item": "i127"
-    },
-    {
-     "qty": "½ cup",
-     "name": "Grated parmesan",
-     "item": "i100"
-    },
-    {
-     "qty": "1 jar (24 oz)",
-     "name": "Rao's marinara",
-     "item": "i168"
-    },
-    {
-     "qty": "2 cups",
-     "name": "Tillamook mozzarella, shredded",
-     "item": "i083"
-    }
-   ]
+   "name": "Chicken breasts or cutlets",
+   "item": "i156",
+   "out": "just eggplant"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "½ cup",
-     "name": "Flour"
-    },
-    {
-     "qty": "",
-     "name": "Olive oil or cooking spray"
-    },
-    {
-     "qty": "",
-     "name": "Salt, pepper, garlic powder, dried oregano"
-    },
-    {
-     "qty": "optional",
-     "name": "Pasta to serve"
-    }
-   ]
+   "name": "Eggplant",
+   "item": "i152",
+   "out": "just chicken"
+  },
+  {
+   "name": "Eggs + panko",
+   "item": "i093",
+   "out": "crushed crackers or plain bread crumbs"
+  },
+  {
+   "name": "Rao's marinara",
+   "item": "i168",
+   "out": "any jar of pasta sauce"
+  },
+  {
+   "name": "Shredded mozzarella",
+   "item": "i083",
+   "out": "any melty cheese"
   }
  ],
- "steps": [
+ "extras": "parmesan, flour, oregano, garlic powder, pasta to serve",
+ "moves": [
   {
-   "text": "Oven to 425°F. Line 2 sheet pans with foil and oil them well."
+   "text": "Pull the must-haves onto the counter. Oven to 425°F. Oil two foil-lined pans."
   },
   {
-   "text": "Slice the eggplant into ½-inch rounds; salt and set aside 10 minutes. If the chicken breasts are thick, slice them in half the long way.",
+   "text": "Slice the eggplant into ½-inch rounds and salt them. Slice thick chicken in half the long way.",
    "time": "10 min"
   },
   {
-   "text": "Set up three plates: flour; eggs beaten with a splash of water; panko mixed with half the parmesan, oregano, garlic powder, salt.",
-   "kid": true
+   "text": "Three plates: flour, beaten egg, panko + parmesan. Dip each piece in all three. Onto the pans, spray with oil."
   },
   {
-   "text": "Dredge chicken and patted-dry eggplant: flour, egg, panko. Lay on the pans and spray or drizzle the tops with oil.",
-   "kid": true
-  },
-  {
-   "text": "Bake until golden, flipping once.",
+   "text": "Bake, flipping once, until golden.",
    "time": "20 min"
   },
   {
-   "text": "Spoon sauce over each piece, top with mozzarella and parmesan, and bake until bubbly.",
-   "kid": true,
+   "text": "Sauce and cheese on each piece; bake until bubbly.",
    "time": "8–10 min"
-  },
-  {
-   "text": "Warm the rest of the sauce for pasta, if serving."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Set up the breading station"
-  },
-  {
-   "job": "Bread the eggplant (dry hand, wet hand)"
-  },
-  {
-   "job": "Spoon on the sauce and cheese"
-  },
-  {
-   "job": "Cook the pasta with a grown-up"
-  }
- ],
- "chef_tip": "Salt the eggplant and pat it dry before breading. It pulls out bitterness and water, so it bakes up crisp instead of soggy.",
- "make_ahead": "Bread everything in the morning and refrigerate on the pans; bake when you get home.",
- "leftovers": "Parm sandwiches on a demi baguette or bolillo roll for lunch.",
- "swaps": [
-  "WF chicken scallopini (i384) skips the slicing",
-  "Just chicken or just eggplant"
- ],
- "serve_with": "Spaghetti or fusilli, and a simple salad",
- "gear": [
-  "2 sheet pans + foil",
-  "3 shallow plates",
-  "Meat thermometer"
- ],
- "heads_up": "Oven to 425°F and salt the eggplant first.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "55 min out",
-   "what": "Oven to 425°F. Salt the eggplant; split the chicken."
-  },
-  {
-   "when": "45 min",
-   "what": "Kids set up flour, egg and panko plates."
-  },
-  {
-   "when": "40 min",
-   "what": "Bread chicken and eggplant; onto the oiled pans."
-  },
-  {
-   "when": "35 min",
-   "what": "Into the oven; flip halfway."
-  },
-  {
-   "when": "12 min",
-   "what": "Sauce and cheese on top; back in to bubble."
-  },
-  {
-   "when": "Dinner",
-   "what": "Serve with the extra warm sauce."
-  }
- ]
+ "key": "Salt the eggplant and pat it dry before breading so it bakes crisp.",
+ "done": "Golden and crispy, cheese bubbling, chicken 165°F inside.",
+ "plan_b": "Skip the breading: bake the chicken plain, then sauce and cheese on top.",
+ "draft": true
 }

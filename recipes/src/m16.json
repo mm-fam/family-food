@@ -2,141 +2,52 @@
  "id": "m16",
  "name": "💪 Iron & Protein Oatmeal Bowls",
  "kind": "breakfast",
- "tagline": "Creamy oats cooked in milk, boosted with Greek yogurt and nut butter, topped with berries.",
+ "what": "Oats cooked in milk, peanut butter stirred in, cold yogurt and fruit on top.",
+ "minutes": 15,
  "serves": "4",
- "prep": 5,
- "cook": 10,
- "level": "Quick weekday breakfast",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "2 cups",
-     "name": "Old fashioned oats",
-     "item": "i128"
-    },
-    {
-     "qty": "3 cups",
-     "name": "Fairlife 2% milk",
-     "item": "i068"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Nounos Greek yogurt, plain",
-     "item": "i004"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Jif crunchy peanut butter",
-     "item": "i326"
-    },
-    {
-     "qty": "2",
-     "name": "Bananas, sliced",
-     "item": "i001"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Blueberries",
-     "item": "i017"
-    },
-    {
-     "qty": "¼ cup",
-     "name": "Pumpkin seeds (iron!)",
-     "item": "i134"
-    }
-   ]
+   "name": "Old fashioned oats",
+   "item": "i128",
+   "out": "quick oats, cook 1–2 minutes"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 tsp",
-     "name": "Cinnamon"
-    },
-    {
-     "qty": "pinch",
-     "name": "Salt"
-    },
-    {
-     "qty": "2 Tbsp",
-     "name": "Honey, to drizzle",
-     "item": "i126"
-    }
-   ]
+   "name": "Milk",
+   "item": "i068",
+   "out": "water, then a splash of milk at the end"
+  },
+  {
+   "name": "Greek yogurt",
+   "item": "i004",
+   "out": "skip it, or add an extra spoon of peanut butter"
+  },
+  {
+   "name": "Peanut butter",
+   "item": "i326",
+   "out": "any nut butter, or skip"
   }
  ],
- "steps": [
+ "extras": "bananas, blueberries, pumpkin seeds, honey, cinnamon",
+ "moves": [
   {
-   "text": "Bring the milk, a pinch of salt and the cinnamon to a gentle simmer in a medium pot.",
-   "time": "4 min"
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Stir in the oats and cook over medium-low, stirring now and then, until thick and creamy.",
+   "text": "Warm 3 cups milk with a pinch of salt in a pot until it just bubbles."
+  },
+  {
+   "text": "Stir in 2 cups oats. Cook on medium-low, stirring now and then.",
    "time": "5 min"
   },
   {
-   "text": "Off the heat, stir in the peanut butter until it melts in.",
-   "kid": true
+   "text": "Off the heat, stir in the peanut butter."
   },
   {
-   "text": "Spoon into bowls and top each with a big dollop of Greek yogurt.",
-   "kid": true
-  },
-  {
-   "text": "Finish with banana, blueberries, pumpkin seeds and a drizzle of honey.",
-   "kid": true
+   "text": "Into bowls, a big spoon of cold yogurt on top, then any fruit we have."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Slice the bananas with a butter knife"
-  },
-  {
-   "job": "Rinse the blueberries"
-  },
-  {
-   "job": "Build the toppings bar"
-  },
-  {
-   "job": "Drizzle the honey"
-  }
- ],
- "chef_tip": "Cook the oats in milk, not water, and add the yogurt cold on top: you get 20+ grams of protein a bowl and a creamy-cool contrast.",
- "make_ahead": "Cook a double batch; it keeps 4 days. Reheat with a splash of milk.",
- "leftovers": "Cold leftover oats make a great base for Overnight Oats tomorrow.",
- "swaps": [
-  "Almonds or walnuts for pumpkin seeds",
-  "Frozen berries, warmed in the microwave"
- ],
- "serve_with": "Orange juice or a glass of milk",
- "gear": [
-  "Medium pot",
-  "Wooden spoon"
- ],
- "heads_up": "Milk on the stove first.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Sunday",
-   "what": "Optional: cook a double batch; it keeps 4 days."
-  },
-  {
-   "when": "15 min out",
-   "what": "Milk, salt and cinnamon on to a gentle simmer."
-  },
-  {
-   "when": "12 min",
-   "what": "Oats in; stir now and then. Kids slice bananas, rinse berries."
-  },
-  {
-   "when": "3 min",
-   "what": "Off the heat, stir in the peanut butter."
-  },
-  {
-   "when": "Breakfast",
-   "what": "Yogurt dollop, fruit, seeds, honey. Done."
-  }
- ]
+ "key": "Cook the oats in milk, not water, and add the yogurt cold on top.",
+ "done": "Thick and creamy, and a spoon leaves a trail.",
+ "plan_b": "No oats? Yogurt bowls: yogurt, peanut butter, fruit and granola.",
+ "draft": true
 }

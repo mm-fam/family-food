@@ -2,138 +2,48 @@
  "id": "m22",
  "name": "🍌 Banana Egg Pancakes",
  "kind": "breakfast",
- "tagline": "Three-ingredient pancakes: banana, eggs and oats. Naturally sweet, high in protein.",
+ "what": "Pancakes made from blended banana, eggs and oats.",
+ "minutes": 20,
  "serves": "4",
- "prep": 5,
- "cook": 15,
- "level": "Easy weekend breakfast",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "3",
-     "name": "Ripe bananas",
-     "item": "i001"
-    },
-    {
-     "qty": "6",
-     "name": "Eggs, pasture-raised",
-     "item": "i093"
-    },
-    {
-     "qty": "½ cup",
-     "name": "Old fashioned oats",
-     "item": "i128"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Blueberries or raspberries",
-     "item": "i017"
-    },
-    {
-     "qty": "to serve",
-     "name": "Nounos Greek yogurt, vanilla",
-     "item": "i005"
-    }
-   ]
+   "name": "Ripe bananas",
+   "item": "i001",
+   "out": "no bananas: make regular pancakes or see Plan B"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "½ tsp",
-     "name": "Baking powder"
-    },
-    {
-     "qty": "½ tsp",
-     "name": "Cinnamon"
-    },
-    {
-     "qty": "pinch",
-     "name": "Salt"
-    },
-    {
-     "qty": "",
-     "name": "Butter for the pan"
-    },
-    {
-     "qty": "",
-     "name": "Maple syrup or honey"
-    }
-   ]
+   "name": "Eggs",
+   "item": "i093",
+   "out": "no eggs: this one needs them"
+  },
+  {
+   "name": "Old fashioned oats",
+   "item": "i128",
+   "out": "¼ cup flour"
   }
  ],
- "steps": [
+ "extras": "berries, vanilla yogurt, maple syrup, cinnamon, baking powder",
+ "moves": [
   {
-   "text": "Blend the bananas, eggs, oats, baking powder, cinnamon and salt until smooth. Let it sit 5 minutes to thicken.",
-   "kid": true,
+   "text": "Pull the must-haves onto the counter."
+  },
+  {
+   "text": "Blend 3 bananas, 6 eggs, ½ cup oats, baking powder, cinnamon and salt. Rest it.",
    "time": "5 min"
   },
   {
-   "text": "Heat a nonstick skillet or griddle over medium-low with a little butter."
+   "text": "Butter a nonstick pan on medium-low."
   },
   {
-   "text": "Pour small pancakes (about 3 inches). They're delicate, so keep them small."
+   "text": "Small pancakes, about 3 inches. Flip when the edges look set and bubbles show.",
+   "time": "3 min each"
   },
   {
-   "text": "Drop a few berries on each. Cook until the edges look set and bubbles appear, then flip.",
-   "time": "2 min a side",
-   "kid": true
-  },
-  {
-   "text": "Serve with a spoon of vanilla yogurt and a drizzle of syrup."
+   "text": "Serve with yogurt and syrup."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Peel and break up the bananas"
-  },
-  {
-   "job": "Run the blender"
-  },
-  {
-   "job": "Drop berries on each pancake"
-  },
-  {
-   "job": "Set the table with yogurt and syrup"
-  }
- ],
- "chef_tip": "The oats and a 5-minute rest give the batter body, so the pancakes flip like real pancakes instead of falling apart.",
- "make_ahead": "Cook, cool and freeze flat; toast from frozen on school mornings.",
- "leftovers": "Good cold with peanut butter as a snack.",
- "swaps": [
-  "Add a scoop of cottage cheese for even more protein",
-  "Chocolate chips for a treat day"
- ],
- "serve_with": "Breakfast sausage or bacon",
- "gear": [
-  "Blender",
-  "Nonstick skillet or griddle",
-  "Spatula"
- ],
- "heads_up": "Spotty, very ripe bananas work best.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Sunday",
-   "what": "Optional: cook a big batch, freeze flat for school mornings."
-  },
-  {
-   "when": "20 min out",
-   "what": "Kids blend bananas, eggs, oats, cinnamon; batter rests 5 min."
-  },
-  {
-   "when": "15 min",
-   "what": "Skillet on medium-low with a little butter."
-  },
-  {
-   "when": "12 min",
-   "what": "Small pancakes in batches; berries on, flip when set."
-  },
-  {
-   "when": "Breakfast",
-   "what": "Vanilla yogurt and a drizzle of syrup on top."
-  }
- ]
+ "key": "Keep them small and let the batter rest, or they fall apart.",
+ "done": "Golden on both sides and springy in the middle.",
+ "plan_b": "Pancakes falling apart? Scramble the batter in the pan: banana \"French toast\" bites.",
+ "draft": true
 }

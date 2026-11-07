@@ -2,129 +2,49 @@
  "id": "m31",
  "name": "🥕 Greek Yogurt Veggie Dip",
  "kind": "snack",
- "tagline": "Creamy tzatziki-style dip made with plain Greek yogurt, cucumber and garlic, with crunchy veggies.",
+ "what": "Garlicky cucumber yogurt dip with crunchy veggies.",
+ "minutes": 10,
  "serves": "4",
- "prep": 10,
- "cook": 0,
- "level": "After-school snack",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1½ cups",
-     "name": "Nounos Greek yogurt, plain",
-     "item": "i004"
-    },
-    {
-     "qty": "½",
-     "name": "Mini cucumber, grated",
-     "item": "i183"
-    },
-    {
-     "qty": "1 small clove",
-     "name": "Garlic, grated",
-     "item": "i153"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Baby carrots",
-     "item": "i003"
-    },
-    {
-     "qty": "1",
-     "name": "Bell pepper, in strips",
-     "item": "i150"
-    },
-    {
-     "qty": "1 cup",
-     "name": "Sugar snap peas",
-     "item": "i316"
-    }
-   ]
+   "name": "Plain Greek yogurt",
+   "item": "i004",
+   "out": "sour cream"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "1 Tbsp",
-     "name": "Olive oil"
-    },
-    {
-     "qty": "1 tsp",
-     "name": "Lemon juice",
-     "item": "i096"
-    },
-    {
-     "qty": "",
-     "name": "Salt, and dill if we have it"
-    }
-   ]
+   "name": "Cucumber",
+   "item": "i183",
+   "out": "skip it, still a good dip"
+  },
+  {
+   "name": "Garlic",
+   "item": "i153",
+   "out": "a pinch of garlic powder"
+  },
+  {
+   "name": "Veggies to dip",
+   "item": "i003",
+   "out": "any crunchy veggie, or pita chips"
   }
  ],
- "steps": [
+ "extras": "lemon, olive oil, dill, snap peas, bell pepper",
+ "moves": [
   {
-   "text": "Grate the cucumber and squeeze it dry in a paper towel.",
-   "kid": true
+   "text": "Pull the must-haves onto the counter."
   },
   {
-   "text": "Stir it into the yogurt with the garlic, lemon, olive oil and a big pinch of salt.",
-   "kid": true
+   "text": "Grate half a cucumber. Squeeze it dry in a paper towel."
   },
   {
-   "text": "Rest 5 minutes so the garlic mellows.",
+   "text": "Stir into 1½ cups yogurt with a little grated garlic, lemon, olive oil and salt. Rest.",
    "time": "5 min"
   },
   {
-   "text": "Cut the pepper into strips and arrange all the veggies around the dip.",
-   "kid": true
+   "text": "Cut the veggies and set them around the dip."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Grate and squeeze the cucumber"
-  },
-  {
-   "job": "Stir the dip"
-  },
-  {
-   "job": "Build the veggie rainbow platter"
-  }
- ],
- "chef_tip": "Squeeze the cucumber dry. Skip that and the dip turns watery in 20 minutes.",
- "make_ahead": "Dip keeps 3 days; veggies cut ahead keep in water in the fridge.",
- "leftovers": "Perfect sauce for Greek Chicken Naan night.",
- "swaps": [
-  "Ranch seasoning instead of garlic and dill",
-  "Pita chips or naan dippers"
- ],
- "serve_with": "Naan dippers (i086)",
- "gear": [
-  "Box grater",
-  "Small bowl"
- ],
- "heads_up": "",
- "draft": true,
- "game_plan": [
-  {
-   "when": "Ahead",
-   "what": "Dip keeps 3 days; cut veggies keep in water in the fridge."
-  },
-  {
-   "when": "10 min out",
-   "what": "Grate the cucumber; kids squeeze it dry in a towel."
-  },
-  {
-   "when": "7 min",
-   "what": "Stir into yogurt with garlic, lemon, oil and salt; rest 5 min."
-  },
-  {
-   "when": "3 min",
-   "what": "Cut pepper strips; arrange the veggies around the dip."
-  },
-  {
-   "when": "Snack",
-   "what": "Dig in."
-  }
- ]
+ "key": "Squeeze the cucumber dry, or the dip gets watery.",
+ "done": "Thick enough to stay on a carrot.",
+ "plan_b": "Short on time? Stir ranch seasoning into yogurt.",
+ "draft": true
 }

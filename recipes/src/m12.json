@@ -2,152 +2,53 @@
  "id": "m12",
  "name": "🧀 Loaded Nachos",
  "kind": "dinner",
- "tagline": "A sheet pan of crunchy, cheesy, everything-on-it nachos. Dinner on one tray.",
+ "what": "A sheet pan of chips, beef, beans and cheese, baked and loaded with toppings.",
+ "minutes": 30,
  "serves": "4",
- "prep": 15,
- "cook": 15,
- "level": "Fun and fast",
- "ingredients": [
+ "core": [
   {
-   "group": "From the store",
-   "items": [
-    {
-     "qty": "1 large bag",
-     "name": "Tortilla chips",
-     "item": "i163"
-    },
-    {
-     "qty": "1 lb",
-     "name": "Ground beef (optional)",
-     "item": "i091"
-    },
-    {
-     "qty": "1 packet",
-     "name": "Taco seasoning",
-     "item": "i056"
-    },
-    {
-     "qty": "1 can",
-     "name": "Bush's black beans, drained",
-     "item": "i061"
-    },
-    {
-     "qty": "3 cups",
-     "name": "Mexican blend shredded cheese",
-     "item": "i039"
-    },
-    {
-     "qty": "1 jar",
-     "name": "365 chunky salsa, mild",
-     "item": "i113"
-    },
-    {
-     "qty": "to serve",
-     "name": "Sour cream",
-     "item": "i159"
-    },
-    {
-     "qty": "2",
-     "name": "Avocados",
-     "item": "i042"
-    }
-   ]
+   "name": "Tortilla chips",
+   "item": "i163",
+   "out": "tortillas cut in triangles, baked 8 minutes"
   },
   {
-   "group": "From the pantry",
-   "items": [
-    {
-     "qty": "",
-     "name": "Oil"
-    },
-    {
-     "qty": "optional",
-     "name": "Pickled jalapeños, green onions, lime"
-    }
-   ]
+   "name": "Mexican blend cheese",
+   "item": "i039",
+   "out": "any shredded cheese"
+  },
+  {
+   "name": "Black beans",
+   "item": "i061",
+   "out": "skip them, add more meat"
+  },
+  {
+   "name": "Salsa",
+   "item": "i113",
+   "out": "taco sauce or diced tomatoes"
   }
  ],
- "steps": [
+ "extras": "ground beef + taco seasoning, sour cream, avocado, jalapeños, green onions, lime",
+ "moves": [
   {
-   "text": "Oven to 400°F. Line a big sheet pan with foil."
+   "text": "Pull the must-haves onto the counter. Oven to 400°F. Foil on a big sheet pan."
   },
   {
-   "text": "Brown the beef, drain, and stir in taco seasoning with ⅓ cup water. Simmer until saucy.",
+   "text": "If using beef: brown it, drain, add taco seasoning and a little water.",
    "time": "10 min"
   },
   {
-   "text": "Spread half the chips on the pan in one layer. Top with half the cheese, beans and beef.",
-   "kid": true
-  },
-  {
-   "text": "Add the rest of the chips, beef, beans and cheese on top so every chip gets some.",
-   "kid": true
+   "text": "Half the chips in one layer, then half the cheese, beans and beef. Repeat."
   },
   {
    "text": "Bake until the cheese is fully melted.",
    "time": "6–8 min"
   },
   {
-   "text": "Meanwhile mash the avocado with lime and salt.",
-   "kid": true
-  },
-  {
-   "text": "Top with salsa, sour cream and avocado. Eat straight off the pan."
+   "text": "Top with salsa, sour cream and avocado. Eat off the pan."
   }
  ],
- "kid_jobs": [
-  {
-   "job": "Layer the chips and cheese"
-  },
-  {
-   "job": "Mash the guacamole"
-  },
-  {
-   "job": "Drain and rinse the beans"
-  },
-  {
-   "job": "Spoon on salsa and sour cream"
-  }
- ],
- "chef_tip": "Build two layers, not a mountain. Every chip gets cheese, and the bottom chips don't turn into a soggy pile.",
- "make_ahead": "Cook the taco meat ahead; it keeps 3 days.",
- "leftovers": "Nachos don't keep, but the taco meat does: taco bowls for lunch.",
- "swaps": [
-  "Skip the beef for a meatless night",
-  "Rotisserie chicken + salsa verde"
- ],
- "serve_with": "Cut veggies or fruit to round it out",
- "gear": [
-  "Big sheet pan + foil",
-  "Skillet",
-  "Fork for mashing"
- ],
- "heads_up": "Oven to 400°F.",
- "draft": true,
- "game_plan": [
-  {
-   "when": "30 min out",
-   "what": "Oven to 400°F; foil on the sheet pan."
-  },
-  {
-   "when": "25 min",
-   "what": "Brown the beef, then taco seasoning and water."
-  },
-  {
-   "when": "15 min",
-   "what": "Kids layer chips, cheese, beans and beef."
-  },
-  {
-   "when": "8 min",
-   "what": "Nachos into the oven."
-  },
-  {
-   "when": "5 min",
-   "what": "Kids mash the avocado with lime and salt."
-  },
-  {
-   "when": "Dinner",
-   "what": "Salsa, sour cream, avocado on top. Dig in."
-  }
- ]
+ "key": "Two thin layers, not a mountain, so every chip gets cheese.",
+ "done": "All the cheese is melted.",
+ "plan_b": "No chips? Quesadillas with the same filling.",
+ "draft": true
 }
