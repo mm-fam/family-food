@@ -1975,7 +1975,10 @@
     }
     if (r.going.length || r.leaving.length) return { cls: 'wait', text: '⏳ ' + todo.join(', ') + ' not sent yet.' };
     if (last && last.status === 'failed') return { cls: 'fail', text: '⚠ The last update didn’t work: ' + (last.result || 'no reason given') + '.' };
-    if (r.failed.length) return { cls: 'fail', text: '⚠ ' + r.failed.length + ' couldn’t be added. Tap to see why.' };
+    // Nov 6 (Mike: "it says tap to see why but nothing happens"): this line is now a button that jumps to the
+    // ⚠ COULDN'T ADD list (now right under this card), and one item is named with its reason.
+    if (r.failed.length === 1) { const f = cartState(r.failed[0]); return { cls: 'fail', jump: true, text: '⚠ ' + r.failed[0].name + ' couldn’t be added' + (f.note ? ' (' + f.note + ')' : '') + '. Tap to see it.' }; }
+    if (r.failed.length) return { cls: 'fail', jump: true, text: '⚠ ' + r.failed.length + ' couldn’t be added. Tap to see why.' };
     return { cls: 'ok', text: '✓ Up to date' };
   }
   function totalLine(code) {
@@ -2055,7 +2058,7 @@
     const s2 = cartStatus(code);
     const done = lastDone(code);
     html += '<section class="card store-card"><div class="cart-card-top"><b class="head-' + st.cls + '">' + esc(st.name) + '</b><span class="cart-money">' + t.money + '</span></div>' +
-      '<div class="cart-sub">' + esc(t.sub) + '</div><div class="cart-status st-' + s2.cls + '">' + esc(s2.text) + '</div>' +
+      '<div class="cart-sub">' + esc(t.sub) + '</div>' + (s2.jump ? '<button class="cart-status st-' + s2.cls + ' cart-jump" data-act="cart-jump">' + esc(s2.text) + '</button>' : '<div class="cart-status st-' + s2.cls + '">' + esc(s2.text) + '</div>') +
       (done && done.result ? '<div class="cart-sub">Last update ' + esc(fmtWhen(done.finished_at || done.at)) + ': ' + esc(done.result) + '</div>' : '');
     if (!kid) {
       html += cheaperNote(code);
@@ -2063,12 +2066,12 @@
         '</div>';
     }
     html += '</section>';
-    const sect = (label, rows, empty) => rows.length ? '<section class="card"><div class="card-head">' + label + ' · ' + rows.length + '</div>' +
+    const sect = (label, rows, empty, id) => rows.length ? '<section class="card"' + (id ? ' id="' + id + '"' : '') + '><div class="card-head">' + label + ' · ' + rows.length + '</div>' +
       rows.slice().sort((a, b) => groupOf(a).localeCompare(groupOf(b)) || String(a.name).localeCompare(String(b.name))).map((x) => listRow(x, code)).join('') + '</section>' : (empty || '');
+    html += sect('⚠ COULDN’T ADD', r.failed, '', 'cart-failed');
     html += sect('⏳ GOING IN', r.going);
     html += sect('🛒 IN THE CART', r.in, '<div class="empty">Nothing in the ' + esc(st.name) + ' cart that Poppy knows about.' + (kid ? '' : ' Check the cart reads what’s really there.') + '</div>');
     html += sect('⏳ COMING OUT', r.leaving);
-    html += sect('⚠ COULDN’T ADD', r.failed);
     const lined = r.in.concat(r.going);
     const unpriced = lined.filter((x) => !linePrice(x, code)).length;
     if (lined.length) html += '<p class="hint">Item prices are ' + esc(st.name) + '’s latest price for what we buy, times the quantity; the total at the top is the cart’s own.' + (unpriced ? ' ' + unpriced + ' without a price yet (—) get one on the next update.' : '') + '</p>';
@@ -3784,6 +3787,7 @@
     },
     'open-me': () => { S.sheet = { type: 'me' }; render(); },
     'cart-open': (el) => { S.cartOpen = el.dataset.store || ''; S.tab = 'carts'; store.set('ff_tab', 'carts'); S.sheet = null; render(); window.scrollTo(0, 0); },
+    'cart-jump': () => { const box = document.getElementById('cart-failed'); if (box && box.scrollIntoView) { box.scrollIntoView({ block: 'start', behavior: 'smooth' }); box.classList.add('flash'); setTimeout(() => box.classList.remove('flash'), 1600); } },
     'cart-back': () => { S.cartOpen = ''; render(); window.scrollTo(0, 0); },
     'cart-pick': (el) => { if (S.sheet) { S.sheet.cartPick = el.dataset.store; S.sheet.move = false; render(); } },
     'cart-put': (el) => {

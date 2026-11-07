@@ -766,6 +766,7 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .cart-status.st-wait { background: var(--req-bg); color: var(--req-ink); }
 .cart-status.st-run { background: var(--accent-soft); color: var(--accent-deep); }
 .cart-status.st-fail { background: #FDE8E8; color: #8A1C1C; }
+button.cart-status { display: block; width: 100%; text-align: left; border: 0; font: inherit; cursor: pointer; }
 .cart-status.st-ok { background: var(--accent-soft); color: var(--accent-deep); }
 
 /* Item screen cleanup (Nov 2): quick things up top, folded sections below */
@@ -1038,3 +1039,4 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 .wc-cost { flex: none; font-variant-numeric: tabular-nums; }
 /* api 61: "Not what we had" on cards about last night's meal */
 .qcard .not-had { align-self: stretch; margin-top: 10px; padding: 10px 14px; border: 1px dashed var(--line, #ccc); border-radius: 12px; text-decoration: none; text-align: center; font-size: 15px; }
+.card.flash { animation: is-flash 1.6s ease-out; }
