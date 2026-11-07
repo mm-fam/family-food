@@ -2354,7 +2354,7 @@
     // Meal ideas section removed Nov 4 (owner: it clogs the tab). Meals that came from an idea carry a 💡 tag instead.
 
     html += viewOurMeals(meals);
-    html += '<p class="hint">Tap a meal to put it on a day, see its ingredients or edit it.' + (canSlots() ? ' Tap a day for breakfast, lunch and snack.' : '') + '' + (canIdeas() ? ' Found a good one online? Tap 💡 Idea and paste it; Poppy adds it to Our meals.' : '') + '</p>';
+    html += '<p class="hint">Tap a meal to put it on a day, see its ingredients or edit it.' + (canSlots() ? ' Tap a day for breakfast, lunch and snack.' : '') + '' + (canIdeas() ? ' Found a good one online? Tap 💡 at the top → Meal idea and paste it; Poppy adds it to Our meals.' : '') + '</p>';
     return html;
   }
 
@@ -2418,8 +2418,9 @@
     const on = mealFiltersOn();
     const open = !!S.mealFiltersOpen;
     let h = '<section class="card"><div class="card-head"><span>OUR MEALS · ' + meals.length + '</span><span class="head-btns">' +
-      // 💡 Idea covers new meals (Nov 1); + New stays only for backends without meal ideas.
-      (canIdeas() ? '<button class="btn btn-outline" data-act="new-idea">💡 Meal idea</button>' : '<button class="btn btn-outline" data-act="new-meal">+ New</button>') + '</span></div>';
+      // New meals come in through the header's 💡 → Meal idea (Nov 7, owner: the Our meals button went unused);
+      // + New stays only for backends without meal ideas.
+      (canIdeas() ? '' : '<button class="btn btn-outline" data-act="new-meal">+ New</button>') + '</span></div>';
     h += '<div class="meal-tools"><div class="shop-search"><form class="addbar" data-form="meal-q" autocomplete="off"><label class="sr" for="meal-q">Search meals</label>' +
       '<input id="meal-q" class="field" type="search" data-input="meal-q" placeholder="Meal or ingredient…" value="' + esc(S.mealQuery) + '" enterkeyhint="search">' +
       (S.mealQuery ? '<button type="button" class="search-x" data-act="meal-clear-q" aria-label="Clear the search">✕</button>' : '') + '</form>' +
