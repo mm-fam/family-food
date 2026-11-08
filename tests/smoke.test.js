@@ -526,3 +526,34 @@ test('calmer Inbox: answeredToday, inbox_daily and item_parent in state (api 64)
   assert.strictEqual(s.settings.inbox_daily, 0, '0 turns the batch off');
   assert.strictEqual(s.settings.item_parent, 'Sam');
 });
+
+test('pick-up / eat out fills a slot with a place, not a meal (api 65)', () => {
+  const b = fresh();
+  const iso = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const day = iso(new Date(Date.now() + 3 * 86400000));
+  const row = (r) => r.state.plan.find((x) => String(x.date).slice(0, 10) === day && x.slot === 'dinner');
+  let r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day, meal_id: 'm01', slot: 'dinner' });
+  assert.strictEqual(r.ok, true, r.error);
+  r = b.call({ action: 'planSet', pass: PASS, by: 'Sam', date: day, slot: 'dinner', meal_id: '', out: 'pickup', place: '  Moonlit   Burgers ' });
+  assert.strictEqual(r.ok, true, r.error);
+  let p = row(r);
+  assert.strictEqual(p.meal_id, '');
+  assert.strictEqual(p.out, 'pickup');
+  assert.strictEqual(p.place, 'Moonlit Burgers');
+  assert.strictEqual(p.planned_by, 'Sam');
+  assert.deepStrictEqual(r.state.outPlaces.map((x) => [x.place, x.out, x.n]), [['Moonlit Burgers', 'pickup', 1]]);
+  // A lunch out somewhere else, no place given.
+  r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day, slot: 'lunch', out: 'eatout' });
+  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === day && x.slot === 'lunch').out, 'eatout');
+  // Kids can't plan it.
+  assert.ok(b.call({ action: 'planSet', pass: PASS, by: 'Kim', date: day, slot: 'dinner', out: 'pickup', place: 'X' }).error);
+  // Planning a meal there again clears out / place.
+  r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day, meal_id: 'm01', slot: 'dinner', note: '' });
+  p = row(r);
+  assert.strictEqual(p.meal_id, 'm01');
+  assert.strictEqual(p.out, '');
+  assert.strictEqual(p.place, '');
+  // Clearing the slot removes the row.
+  r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day, meal_id: '', slot: 'dinner', note: '' });
+  assert.strictEqual(row(r), undefined);
+});

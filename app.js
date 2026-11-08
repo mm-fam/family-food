@@ -338,9 +338,19 @@
     D().plan.forEach((p) => { if (planDate(p) === date) o[slotOf(p)] = p; });
     return o;
   }
-  // What a plan row says: the meal's name, "Leftover <meal>" or its note.
-  function planText(p) {
+  // Pick-up / eat out (api 65, Joni's idea Nov 8): a slot can hold a place instead of a meal.
+  const canOut = () => Number(D().api || 0) >= 65;
+  const OUTS = { pickup: ['🥡', 'Pick-up'], eatout: ['🍴', 'Eat out'] };
+  const planOut = (p) => (p && !p.meal_id && !p.item_id && OUTS[String(p.out || '')] ? String(p.out) : '');
+  // In the app: "🥡 Moonlit Burgers" (the emoji says pick-up or eat out); for Hearth: "🥡 Pick-up: Moonlit Burgers".
+  function outText(kind, place, long) {
+    const o = OUTS[kind];
+    return o[0] + ' ' + (!place ? o[1] : long ? o[1] + ': ' + place : place);
+  }
+  // What a plan row says: the meal's name, "Leftover <meal>", "🥡 Pick-up: <place>" or its note.
+  function planText(p, long) {
     if (!p) return '';
+    if (planOut(p)) return outText(planOut(p), String(p.place || '').trim(), long);
     const m = mealById(p.meal_id || '');
     if (isLeftover(p)) return m ? 'Leftover ' + m.name : String(p.note);
     const it = !m && p.item_id ? itemById(p.item_id) : null; // a planned item, e.g. a snack we just buy (api 30)
@@ -2271,13 +2281,16 @@
   function slotOptions(meals, slot, p) {
     const m = p && mealById(p.meal_id || '');
     let html = mealOptions(meals, slot, m ? m.id : '');
-    if (!canPlanItems() || slot === 'dinner') return html;
+    const ok = planOut(p);
+    const outs = canOut() ? '<optgroup label="Not cooking">' + Object.keys(OUTS).map((k) =>
+      '<option value="out:' + k + '"' + (ok === k ? ' selected' : '') + '>' + OUTS[k][0] + ' ' + OUTS[k][1] + '…</option>').join('') + '</optgroup>' : '';
+    if (!canPlanItems() || slot === 'dinner') return html + outs;
     const cur = planItem(p);
     const pool = D().items.filter((i) => i.status !== 'Drop' && (slot === 'snack' && i.group === 'Snacks' || (cur && i.id === cur.id)))
       .sort((a, b) => String(a.name).localeCompare(b.name));
     html += '<optgroup label="Something we buy">' + pool.map((i) => '<option value="i:' + i.id + '"' + (cur && cur.id === i.id ? ' selected' : '') + '>' + esc(i.name) + '</option>').join('') +
       '<option value="find">🔎 Something else we buy…</option></optgroup>';
-    return html;
+    return html + outs;
   }
 
   // Picker options: meals of this slot's kind first, the rest under "Other meals".
@@ -2302,7 +2315,8 @@
         const pi = planItem(p);
         const t = planText(p);
         const open = m ? '<button class="btn btn-plain slot-open" data-act="open-meal" data-id="' + m.id + '" aria-label="Open ' + esc(m.name) + '">↗</button>'
-          : pi ? '<button class="btn btn-plain slot-open" data-act="open-item" data-id="' + pi.id + '" aria-label="Open ' + esc(pi.name) + '">↗</button>' : '<span class="slot-open"></span>';
+          : pi ? '<button class="btn btn-plain slot-open" data-act="open-item" data-id="' + pi.id + '" aria-label="Open ' + esc(pi.name) + '">↗</button>'
+          : planOut(p) && !readOnly ? '<button class="btn btn-plain slot-open" data-act="slot-out-edit" data-slot="' + x[0] + '" aria-label="Change where from">✎</button>' : '<span class="slot-open"></span>';
         const cb = x[0] === 'dinner' ? cookBlock(sh.day, 'dinner', p) : '';
         if (readOnly) {
           return '<div class="slot-row"><div class="slot-label">' + x[1] + '</div>' +
@@ -2312,9 +2326,32 @@
           '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '+ Pick ' + x[1].toLowerCase()) + '</span>' +
           '<label class="sr" for="slot-' + x[0] + '">' + x[1] + '</label><select id="slot-' + x[0] + '" data-input="slot-plan" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
           slotOptions(meals, x[0], p) + '</select></div>' + open + '</div>' + cb +
-          (sh.find === x[0] ? slotFind(sh, x[0]) : '');
+          (sh.find === x[0] ? slotFind(sh, x[0]) : '') + (sh.out && sh.out.slot === x[0] ? slotOut(sh, x[0]) : '');
       }).join('') +
-      '<p class="note">' + (readOnly ? 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.' : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.') + '</p>';
+      '<p class="note">' + (readOnly ? 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.' : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.' + (canOut() ? ' Not cooking? Pick 🥡 Pick-up or 🍴 Eat out at the bottom of the list.' : '')) + '</p>';
+  }
+
+  // Pick-up / eat out on a day-sheet row (api 65): where from, with the places we've used before as one-tap chips.
+  function slotOut(sh, slot) {
+    const o = sh.out;
+    const v = String(sh.place || '');
+    const lc = v.trim().toLowerCase();
+    const past = (D().outPlaces || []).filter((x) => !lc || String(x.place).toLowerCase().indexOf(lc) >= 0).slice(0, 8);
+    return '<div class="slot-find slot-out">' +
+      '<div class="seg">' + Object.keys(OUTS).map((k) => '<button type="button" data-act="slot-out-kind" data-v="' + k + '" class="' + (o.kind === k ? 'on' : '') + '">' + OUTS[k][0] + ' ' + OUTS[k][1] + '</button>').join('') + '</div>' +
+      '<label class="sr" for="slot-place">Where from?</label>' +
+      '<input id="slot-place" class="field" style="width:100%" data-input="draft" data-field="place" value="' + esc(v) + '" placeholder="Where from? e.g. Moonlit Burgers" autocomplete="off" enterkeyhint="done">' +
+      (past.length ? '<div class="out-chips">' + past.map((x) => '<button type="button" class="cook-chip' + (x.place.toLowerCase() === lc ? ' on' : '') + '" data-act="slot-out-place" data-v="' + esc(x.place) + '">' + OUTS[x.out][0] + ' ' + esc(x.place) + '</button>').join('') + '</div>' : '') +
+      '<div class="slot-out-btns"><button type="button" class="btn btn-primary" data-act="slot-out-save" data-slot="' + slot + '">Save</button>' +
+      '<button type="button" class="link-btn" data-act="slot-out-close">Cancel</button></div></div>';
+  }
+  function planSlotOut(day, slot, kind, place) {
+    const wk = addDays(day, -DAYS.indexOf(dayName(day)));
+    place = String(place || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    act('planSet', { date: day, day: dayName(day), week_of: wk, meal_id: '', item_id: '', slot: slot, note: '', out: kind, place: place }, () => {
+      D().plan = D().plan.filter((p) => !(planDate(p) === day && slotOf(p) === slot));
+      D().plan.push({ date: day, week_of: wk, day: dayName(day), meal_id: '', item_id: '', slot: slot, out: kind, place: place, planned_by: S.me });
+    });
   }
 
   // "Something else we buy…" on a day-sheet row: search the catalog and plan the item itself.
@@ -2363,7 +2400,7 @@
       const rows = planDay(d);
       const lines = SLOTS.map((x) => {
         const p = rows[x[0]];
-        const t = planText(p);
+        const t = planText(p, true);
         if (!t) return '';
         const ck = canCook() ? cookShort(p).replace(' & ', ', ') : '';
         const nt = hearthNote(p, x[0]);
@@ -3880,6 +3917,15 @@
     'ing-add': (el) => { S.sheet.item_ids.push(el.dataset.id); S.sheet.q = ''; render(); const f = document.getElementById('sh-mq'); if (f) f.focus(); },
     'slot-item': (el) => { const sh = S.sheet; sh.find = null; sh.fq = ''; planSlotItem(sh.day, el.dataset.slot, el.dataset.id); },
     'slot-find-close': () => { S.sheet.find = null; S.sheet.fq = ''; render(); },
+    'slot-out-kind': (el) => { S.sheet.out.kind = el.dataset.v; render(); },
+    'slot-out-place': (el) => { const sh = S.sheet; const slot = sh.out.slot, kind = sh.out.kind; sh.out = null; sh.place = ''; planSlotOut(sh.day, slot, kind, el.dataset.v); },
+    'slot-out-save': (el) => { const sh = S.sheet; const kind = sh.out.kind; const place = sh.place; sh.out = null; sh.place = ''; planSlotOut(sh.day, el.dataset.slot, kind, place); },
+    'slot-out-close': () => { S.sheet.out = null; S.sheet.place = ''; render(); },
+    'slot-out-edit': (el) => {
+      const sh = S.sheet; const p = planDay(sh.day)[el.dataset.slot];
+      sh.find = null; sh.out = { slot: el.dataset.slot, kind: planOut(p) || 'pickup' }; sh.place = String((p && p.place) || ''); render();
+      const f = document.getElementById('slot-place'); if (f) f.focus();
+    },
     'ing-clear': () => { S.sheet.q = ''; render(); },
     // Meal card ingredients (parents): add / take off / new item, saved right away.
     'mc-ing-add': (el) => {
@@ -4294,7 +4340,7 @@
     if (kind === 'draft' && S.sheet) {
       S.sheet[el.dataset.field] = el.value;
       // Only the meal search and name-gated Save buttons need a redraw while typing.
-      if (el.dataset.field === 'q' || el.dataset.field === 'name' || el.dataset.field === 'fq' || el.dataset.field === 'iq') render();
+      if (el.dataset.field === 'q' || el.dataset.field === 'name' || el.dataset.field === 'fq' || el.dataset.field === 'iq' || el.dataset.field === 'place') render();
       if (el.dataset.field === 'text') { const b = document.querySelector('[data-act="save-idea"], [data-act="save-feedback"]'); if (b) b.disabled = !el.value.trim(); }
     }
   });
@@ -4326,7 +4372,13 @@
     }
     if (el.dataset && el.dataset.input === 'slot-plan') {
       const day = el.dataset.day; const slot = el.dataset.slot; const mealId = el.value;
-      if (mealId === 'find') { S.sheet.find = slot; S.sheet.fq = ''; render(); const f = document.getElementById('slot-fq'); if (f) f.focus(); return; }
+      if (mealId === 'find') { S.sheet.find = slot; S.sheet.out = null; S.sheet.fq = ''; render(); const f = document.getElementById('slot-fq'); if (f) f.focus(); return; }
+      if (mealId.indexOf('out:') === 0) {
+        const cur = planDay(day)[slot];
+        S.sheet.find = null; S.sheet.out = { slot: slot, kind: mealId.slice(4) }; S.sheet.place = planOut(cur) ? String(cur.place || '') : '';
+        render(); const f = document.getElementById('slot-place'); if (f) f.focus(); return;
+      }
+      if (S.sheet) S.sheet.out = null;
       if (mealId.indexOf('i:') === 0) { S.sheet.find = null; planSlotItem(day, slot, mealId.slice(2)); return; }
       const wk = addDays(day, -DAYS.indexOf(dayName(day)));
       act('planSet', { date: day, day: dayName(day), week_of: wk, meal_id: mealId, slot: slot, note: '' }, () => {
@@ -4429,6 +4481,7 @@
   document.addEventListener('pointercancel', endDrag);
 
   document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && ev.target && ev.target.id === 'slot-place') { ev.preventDefault(); const b = document.querySelector('[data-act="slot-out-save"]'); if (b) b.click(); return; }
     if (ev.key === 'Escape') {
       if (S.sheet) { S.sheet = null; render(); }
       else if (S.query) { S.query = ''; render(); }

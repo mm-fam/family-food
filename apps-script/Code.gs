@@ -358,7 +358,13 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      parent who gets the shared item-detail cards: which product, store brand, same kind, best price, try…). The app
 //      shows each person a daily batch, most important first; the rest wait for tomorrow or "Keep going". Every
 //      answer still scores the same (no rule makes an answer worth 0).
-const API_VERSION = 64;
+// 65 = pick-up / eat out (Nov 8, Joni's idea: "We need a takeout option for meals. Like next Thursday I'll pick up
+//      Moonlit burgers."). planSet {date, slot, out: 'pickup' | 'eatout', place?} fills a slot with a night we don't
+//      cook: Plan `out` + `place` (added at the end on first use); meal_id / item_id are cleared. Such rows add no
+//      ingredients and get no How was it? / Kitchen help cards (they carry no meal). Planning a meal or item there
+//      clears out / place. state.outPlaces = [{place, out, last, n}] from Plan + Plan Archive, most recent first.
+const API_VERSION = 65;
+const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
 // Cards answered today per person: the "(Name)" at the end of the answer, else the card's audience.
 function answeredToday(review, today) {
@@ -723,6 +729,7 @@ function buildState() {
       .map((p) => Object.assign(stripRow(p), { date: planDate(p), slot: planSlot(p) }))
       .filter((p) => p.date && daysBetween(today, p.date) >= 0 && daysBetween(today, p.date) < PLAN_DAYS),
     planDays: PLAN_DAYS,
+    outPlaces: outPlaces(),
     weekOf: weekOf(today),
     review: reviewAll.filter((r) => r.status === 'open').map(stripRow),
     answeredToday: answeredToday(reviewAll, today),
@@ -1315,12 +1322,18 @@ function setPlan(req) {
     if (!readTab(TABS.items).some((it) => it.id === itemId)) throw new Error('Item not found');
     ensureColumn(TABS.plan, 'item_id');
   }
-  const keep = req.meal_id || itemId || (note !== null ? note : existing && existing.note);
-  const what = { meal_id: req.meal_id || '' };
+  // api 65: pick-up or eat out. The slot holds a place instead of a meal or an item.
+  const out = req.meal_id || itemId ? '' : (OUT_KINDS.indexOf(String(req.out || '').toLowerCase()) >= 0 ? String(req.out).toLowerCase() : '');
+  const place = out ? String(req.place || '').replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+  if (out) { ensureColumn(TABS.plan, 'out'); ensureColumn(TABS.plan, 'place'); }
+  const keep = req.meal_id || itemId || out || (note !== null ? note : existing && existing.note);
+  const what = { meal_id: out ? '' : (req.meal_id || '') };
   if (itemId || headers(TABS.plan).indexOf('item_id') >= 0) what.item_id = itemId;
+  if (headers(TABS.plan).indexOf('out') >= 0) { what.out = out; what.place = place; }
   // api 60: who planned it (and who asked for it) whenever what's in the slot changes. A swap clears the cook.
-  const changed = !existing || String(existing.meal_id || '') !== what.meal_id || String(existing.item_id || '') !== itemId;
-  if (keep && changed && (what.meal_id || itemId)) {
+  const changed = !existing || String(existing.meal_id || '') !== what.meal_id || String(existing.item_id || '') !== itemId ||
+    String(existing.out || '') !== out || String(existing.place || '') !== place;
+  if (keep && changed && (what.meal_id || itemId || out)) {
     ['planned_by', 'planned_at', 'asked_by', 'cook'].forEach((c) => ensureColumn(TABS.plan, c));
     what.planned_by = String(req.by || '');
     what.planned_at = "'" + nowStamp();
@@ -1334,6 +1347,23 @@ function setPlan(req) {
     appendObj(TABS.plan, Object.assign(fields, what));
   }
   return { date: date, day: fields.day, slot: slot };
+}
+
+// api 65: places we've picked up from or eaten out at, most recent first (for quick picks in the day sheet).
+function outPlaces() {
+  if (headers(TABS.plan).indexOf('out') < 0) return [];
+  let plan = readTab(TABS.plan);
+  if (tab('Plan Archive')) plan = plan.concat(readTab('Plan Archive'));
+  const by = {};
+  plan.forEach((p) => {
+    const place = String(p.place || '').trim();
+    if (!place || OUT_KINDS.indexOf(String(p.out || '')) < 0) return;
+    const k = place.toLowerCase(), d = planDate(p) || '';
+    const o = by[k] = by[k] || { place: place, out: String(p.out), last: '', n: 0 };
+    o.n++;
+    if (d >= o.last) { o.last = d; o.place = place; o.out = String(p.out); }
+  });
+  return Object.keys(by).map((k) => by[k]).sort((a, b) => (a.last < b.last ? 1 : a.last > b.last ? -1 : b.n - a.n)).slice(0, 12);
 }
 
 // Who asked for this meal: the app sends asked_by when a parent plans from a request; otherwise any open

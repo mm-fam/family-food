@@ -1043,3 +1043,9 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 .wk-fold { border: 0; background: transparent; padding: 4px 0; font: inherit; color: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; white-space: nowrap; }
 .wk-fold.rest { flex: 1; display: flex; align-items: center; justify-content: flex-end; }
 .wk-head .btn-sm { flex: none; }
+/* Pick-up / eat out on the day sheet (api 65) */
+.slot-out .seg { margin-bottom: 8px; }
+.slot-out .seg button { flex: 1; }
+.out-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.slot-out-btns { display: flex; gap: 14px; align-items: center; margin-top: 10px; }
+.slot-out-btns .link-btn { margin-top: 0; }
