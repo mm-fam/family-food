@@ -557,3 +557,28 @@ test('pick-up / eat out fills a slot with a place, not a meal (api 65)', () => {
   r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day, meal_id: '', slot: 'dinner', note: '' });
   assert.strictEqual(row(r), undefined);
 });
+
+test('Inbox dashboard: cardStats counts cards done and missions per person (api 66)', () => {
+  const t = tabs();
+  const iso = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const today = iso(new Date());
+  t.Review.push(
+    ['r961', today, 'check', 'Go check the milk (i001): how much do we have? Options: Plenty; Some; Out', 'open', '', 'Kim', '', '', '', '', '', '', '', '', '', ''],
+    ['r962', today, 'check', 'Go check the bread (i002): how much do we have? Options: Plenty; Some; Out', 'closed', '', 'Kim', '', '', '', '', '', '', '', '', '', ''],
+    ['r963', today, 'clarify', 'Which bread? Options: White; Wheat', 'open', '', 'Kim', '', '', '', '', '', '', '', '', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  let s = b.call({ action: 'state', pass: PASS, by: 'Kim' }).state;
+  assert.ok(s.cardStats && s.cardStats.people.Kim, 'cardStats in state');
+  assert.strictEqual(s.cardStats.people.Kim.week, 0);
+  let r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: 'r961', answer: 'Plenty (Kim)' });
+  assert.strictEqual(r.ok, true, r.error);
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: 'r963', answer: 'Wheat (Kim)' });
+  const K = r.state.cardStats.people.Kim;
+  assert.strictEqual(K.today, 2);
+  assert.strictEqual(K.week, 2);
+  assert.strictEqual(K.kinds.mission, 1);
+  assert.strictEqual(K.kinds.other, 1);
+  assert.strictEqual(K.days.reduce((a, x) => a + x, 0), 2);
+  assert.deepStrictEqual(K.missions, { given: 2, done: 1, expired: 1 });
+  assert.strictEqual(r.state.cardStats.people.Lee.week, 0);
+});

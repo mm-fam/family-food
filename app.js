@@ -3219,8 +3219,62 @@
     const st = D().points && D().points.start;
     return st ? 'Scoring started ' + fmtDate(st) + '; everyone began at 0 and nothing before that day counts.' : 'Points started Nov 1, 2026; answers before that have none.';
   }
+  /* 📊 Inbox dashboard (Nov 8, owner: "a view on the scoreboard that shows what's open in the kids inbox and how many
+     cards they've done… less rules/text and more data"). Parents only: a Board / 📊 Data switch on the scoreboard
+     (remembered on the phone). Open cards are worked out here, as each kid's own phone would see them (same daily
+     batch, sections and school-hours rule); cards done come from state.cardStats (api 66). */
+  const scoreViewKey = 'ff_scoreview';
+  const dashOn = () => amParent() && store.get(scoreViewKey) === 'data';
+  function asPerson(name, fn) { const me = S.me; S.me = name; try { return fn(); } finally { S.me = me; } }
+  function inboxOf(name) {
+    return asPerson(name, () => {
+      const all = myQuestionsAll().filter((r) => !snoozed(r));
+      const school = atSchool();
+      const home = school ? all.filter(homeOnly) : [];
+      const split = batchSplit(all.filter((r) => !(school && homeOnly(r))));
+      const secs = {};
+      all.forEach((r) => { const k = sectionOf(r); secs[k] = (secs[k] || 0) + 1; });
+      const ages = all.map((r) => r.created ? Math.max(0, Math.round((new Date(D().today + 'T12:00:00') - new Date(String(r.created).slice(0, 10) + 'T12:00:00')) / 86400000)) : 0);
+      return { open: all.length, today: split.show.length, wait: split.wait.length, home: home.length, secs: secs,
+        order: sectionOrder(), oldest: ages.length ? Math.max.apply(null, ages) : 0, later: all.filter((r) => Number(r.later_count || 0) > 0).length };
+    });
+  }
+  function viewDashboard() {
+    const st = D().settings, kids = st.kids || [], everyone = kids.concat(st.parents || []);
+    const CS = D().cardStats, P = D().points || {};
+    const kidSecs = ['due', 'mission', 'settle', 'rate', 'question'];
+    const cell = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + (v ? v : '<span class="dz">·</span>') + '</td>';
+    const inbox = kids.map((k) => [k, inboxOf(k)]);
+    let h = '<div class="dash-h">📥 Kids’ Inbox now</div><table class="dash"><thead><tr><th></th><th>Open</th><th>Today</th><th>Waits</th>' +
+      kidSecs.map((x) => '<th title="' + SECTIONS[x].label + '">' + SECTIONS[x].icon + '</th>').join('') + '<th>Oldest</th></tr></thead><tbody>' +
+      inbox.map((x) => { const I = x[1]; return '<tr><th>' + esc(x[0]) + '</th>' + cell('<b>' + I.open + '</b>') + cell(I.today) + cell(I.wait + I.home) +
+        kidSecs.map((k) => cell(I.secs[k] || 0)).join('') + cell(I.oldest ? I.oldest + 'd' : I.open ? 'new' : 0) + '</tr>'; }).join('') + '</tbody></table>';
+    const homeN = inbox.reduce((t, x) => t + x[1].home, 0);
+    h += '<div class="dash-key">Today = in today’s batch · Waits = tomorrow' + (homeN ? ' or after school (🏠 ' + homeN + ')' : '') + '</div>';
+    if (!CS) return h + '<p class="note">Cards done shows after the next server update.</p>';
+    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const ti = (new Date(D().today + 'T12:00:00').getDay() + 6) % 7;
+    const maxDay = Math.max(1, ...everyone.map((p) => Math.max(...((CS.people[p] || {}).days || [0]))));
+    const spark = (arr) => '<span class="spark">' + arr.map((n, i) => '<i class="' + (i === ti ? 'td' : i > ti ? 'fut' : '') + '" style="height:' + (i > ti ? 2 : Math.max(2, Math.round(22 * n / maxDay))) + 'px" title="' + days[i] + ' ' + n + '"></i>').join('') + '</span>';
+    h += '<div class="dash-h">✅ Cards done</div><table class="dash"><thead><tr><th></th><th>Today</th><th>Week</th><th class="sp">' + days.map((d, i) => '<span' + (i === ti ? ' class="td"' : '') + '>' + d + '</span>').join('') + '</th><th>Last wk</th><th>Pts</th></tr></thead><tbody>' +
+      everyone.map((p) => { const X = CS.people[p] || { days: [] }; return '<tr' + (kids.indexOf(p) < 0 ? ' class="par"' : '') + '><th>' + esc(p) + '</th>' + cell(X.today) + cell('<b>' + (X.week || 0) + '</b>') +
+        '<td class="sp">' + spark(X.days || []) + '</td>' + cell(X.lastWeek) + cell((P.week || {})[p] || 0) + '</tr>'; }).join('') + '</tbody></table>';
+    h += '<div class="dash-h">🔎 Kids this week</div><table class="dash"><thead><tr><th></th><th title="Missions">🔎</th><th title="Did we get it?">🧾</th><th title="How was it?">🍽</th><th title="Other cards">💬</th><th>Missions done</th><th>Expired</th></tr></thead><tbody>' +
+      kids.map((k) => { const X = CS.people[k] || {}, K = X.kinds || {}, M = X.missions || {};
+        const pct = M.given ? Math.round(100 * M.done / M.given) : 0;
+        return '<tr><th>' + esc(k) + '</th>' + cell(K.mission) + cell(K.settle) + cell(K.rate) + cell(K.other) +
+          '<td><span class="meter"><i style="width:' + pct + '%"></i></span>' + (M.done || 0) + '/' + (M.given || 0) + '</td>' + cell(M.expired) + '</tr>'; }).join('') + '</tbody></table>';
+    return h;
+  }
+  function viewScoreToggle() {
+    if (!amParent()) return '';
+    const on = dashOn();
+    return '<div class="seg score-seg"><button type="button" data-act="score-view" data-v="board" class="' + (on ? '' : 'on') + '">🏆 Board</button>' +
+      '<button type="button" data-act="score-view" data-v="data" class="' + (on ? 'on' : '') + '">📊 Data</button></div>';
+  }
   function viewScoreboard() {
     if (!canPoints()) return '';
+    if (dashOn() && !preStart()) return '<section class="card score">' + viewScoreToggle() + viewDashboard() + '</section>';
     if (preStart()) {
       return '<section class="card score"><div class="score-me"><div class="ring" style="--p:0"><b>0</b><span>/' + (D().points.goal || 10) + '</span></div>' +
         '<div><b>🏁 Scoring starts ' + (addDays(D().today, 1) === D().points.start ? 'tomorrow' : fmtDate(D().points.start)) + '</b><span class="note">Everyone starts at 0. Read the rules now so you’re ready.</span></div></div>' +
@@ -3231,7 +3285,7 @@
     const pct = Math.min(100, Math.round(100 * mine / goal));
     const people = Object.keys(P.week || {}).sort((a, b) => (P.week[b] || 0) - (P.week[a] || 0));
     const winners = String(P.lastWeekWinner || '').split(' + ');
-    return '<section class="card score"><div class="score-me">' +
+    return '<section class="card score">' + viewScoreToggle() + '<div class="score-me">' +
       '<div class="ring" style="--p:' + pct + '"><b>' + mine + '</b><span>/' + goal + '</span></div>' +
       '<div><b>' + (mine >= goal ? '🎉 Daily goal done!' : (goal - mine) + (goal - mine === 1 ? ' point' : ' points') + ' to today’s goal') + '</b>' +
       '<span class="note">' + (streak ? '🔥 ' + streak + '-day streak' : 'Hit ' + goal + ' today to start a streak') + '</span></div></div>' +
@@ -3897,6 +3951,7 @@
     'cart-sort': (el) => { S.cartSort = el.dataset.v; render(); },
     'cart-filters-clear': () => { S.cartShow = 'all'; S.cartSort = 'aisle'; render(); },
     'open-day': (el) => { S.sheet = { type: 'day', day: el.dataset.day }; render(); },
+    'score-view': (el) => { store.set(scoreViewKey, el.dataset.v); render(); },
     'points-open': (el) => { S.sheet = { type: 'points', tab: el.dataset.tab || 'rules', who: '' }; if (S.sheet.tab === 'history') loadPointsLog(); render(); },
     'points-tab': (el) => { const sh = S.sheet; if (!sh || sh.type !== 'points') return; sh.tab = el.dataset.tab; if (sh.tab === 'history' && !sh.log) loadPointsLog(); render(); const b = document.querySelector('.sheet'); if (b) b.scrollTop = 0; },
     'points-who': (el) => { if (S.sheet && S.sheet.type === 'points') { S.sheet.who = el.dataset.v; render(); } },

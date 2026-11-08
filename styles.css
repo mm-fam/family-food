@@ -639,6 +639,26 @@ nav.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); 
 .board-foot { margin-top: 6px; font-size: 12px; }
 
 /* How points work + Points history (api 14) */
+.score-seg { margin-bottom: 10px; }
+.score-seg button { flex: 1; min-height: 32px; font-size: 13px; }
+.dash-h { font-size: 13px; font-weight: 700; margin: 10px 0 4px; }
+.dash-h:first-of-type { margin-top: 0; }
+.dash { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.dash th, .dash td { padding: 5px 3px; text-align: center; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.dash thead th { font-size: 11px; font-weight: 600; color: var(--muted); }
+.dash tbody th { text-align: left; font-weight: 600; }
+.dash tr.par th, .dash tr.par td { color: var(--muted); }
+.dash b { font-size: 15px; color: var(--ink); }
+.dash .dz { color: var(--field); }
+.dash-key { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.dash .sp { padding-left: 6px; padding-right: 6px; }
+.dash thead .sp { display: flex; gap: 3px; justify-content: center; }
+.dash thead .sp span { width: 7px; font-size: 10px; text-align: center; } .dash thead .sp span.td { color: var(--accent); font-weight: 800; }
+.spark { display: inline-flex; align-items: flex-end; gap: 3px; height: 22px; }
+.spark i { width: 7px; border-radius: 2px; background: var(--accent); opacity: .55; }
+.spark i.td { opacity: 1; } .spark i.fut { background: var(--line); opacity: 1; }
+.meter { display: inline-block; width: 34px; height: 6px; border-radius: 3px; background: var(--line); margin-right: 5px; vertical-align: middle; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--accent); }
 .score-links { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
 .score-links .link-btn { font-size: 13px; padding: 4px 0; }
 .link-btn.inline { display: inline; padding: 0; font-size: inherit; }

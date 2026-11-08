@@ -363,7 +363,12 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      cook: Plan `out` + `place` (added at the end on first use); meal_id / item_id are cleared. Such rows add no
 //      ingredients and get no How was it? / Kitchen help cards (they carry no meal). Planning a meal or item there
 //      clears out / place. state.outPlaces = [{place, out, last, n}] from Plan + Plan Archive, most recent first.
-const API_VERSION = 65;
+// 66 = Inbox dashboard (Nov 8, owner: "a view on the scoreboard that shows what's open in the kids inbox and how many
+//      cards they've done… less rules/text and more data"). state.cardStats = {weekStart, people: {name: {today, week,
+//      lastWeek, days: [Mon..Sun counts], kinds: {mission, settle, rate, other} this week, missions: {given, done,
+//      expired} for missions made this week}}}. Every answered card counts (time-sensitive ones too), credited to the
+//      "(Name)" at the end of the answer, else the card's audience. Expired = closed with no answer and no outcome.
+const API_VERSION = 66;
 const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
 // Cards answered today per person: the "(Name)" at the end of the answer, else the card's audience.
@@ -376,6 +381,42 @@ function answeredToday(review, today) {
     const who = (String(r.answer || '').match(/\(([^)]+)\)\s*$/) || [])[1] || String(r.audience || '');
     if (!who || who === 'parents' || who === 'all') return;
     out[who] = (out[who] || 0) + 1;
+  });
+  return out;
+}
+// api 66: cards done per person (this week by day, last week, by kind) and missions given / done / expired this week.
+function cardStats(review, today, everyone) {
+  const dow = new Date(today + 'T12:00:00').getDay();
+  const mon = addDays(today, -((dow + 6) % 7)), lastMon = addDays(mon, -7), sun = addDays(mon, 6);
+  const key = (n) => everyone.find((p) => p.toLowerCase() === String(n || '').trim().toLowerCase());
+  const kindOf = (t) => t === 'check' ? 'mission' : /^settle/.test(t) ? 'settle' : (t === 'rate' || t === 'still') ? 'rate' : 'other';
+  const out = { weekStart: mon, people: {} };
+  everyone.forEach((p) => (out.people[p] = { today: 0, week: 0, lastWeek: 0, days: [0, 0, 0, 0, 0, 0, 0],
+    kinds: { mission: 0, settle: 0, rate: 0, other: 0 }, missions: { given: 0, done: 0, expired: 0 } }));
+  review.forEach((r) => {
+    const t = String(r.type || '').toLowerCase();
+    const ans = String(r.answer || '').trim();
+    if (t === 'check') { // missions handed out this week, and what became of them
+      const made = String(stampOf(r.created)).slice(0, 10);
+      const k = key(r.audience);
+      if (k && made >= mon && made <= sun) {
+        const m = out.people[k].missions;
+        m.given++;
+        if (r.answered_at || ans) m.done++;
+        else if (r.status === 'closed' && !String(r.outcome || '').trim()) m.expired++;
+      }
+    }
+    if (!r.answered_at) return;
+    const d = String(stampOf(r.answered_at)).slice(0, 10);
+    if (d < lastMon || d > sun) return;
+    const k = key((ans.match(/\(([^)]+)\)\s*$/) || [])[1]) || key(r.audience);
+    if (!k) return;
+    const P = out.people[k];
+    if (d < mon) { P.lastWeek++; return; }
+    P.week++;
+    P.days[daysBetween(mon, d)]++;
+    if (d === today) P.today++;
+    P.kinds[kindOf(t)]++;
   });
   return out;
 }
@@ -733,6 +774,7 @@ function buildState() {
     weekOf: weekOf(today),
     review: reviewAll.filter((r) => r.status === 'open').map(stripRow),
     answeredToday: answeredToday(reviewAll, today),
+    cardStats: cardStats(reviewAll, today, people()),
     due: due,
     freshness: buys.freshness,
     useSoon: useSoonList(today, items, list, stockRows, onList),
