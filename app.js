@@ -527,7 +527,15 @@
   }
 
   /* ------------------------------------------------------------ views */
+  // iPhone pickers (Nov 8, owner: the aisle and meal pickers closed by themselves right after opening, and stayed
+  // open after a pick). Rebuilding the screen under an open <select> closes the phone's picker, and focusing the
+  // rebuilt <select> from inside the pick re-opened it. So: while a picker is open, redraws wait until it closes
+  // (focusout below); a pick closes the picker before anything redraws; and a redraw never re-focuses a picker.
+  let renderWaiting = false;
+  function pickerOpen() { const a = document.activeElement; return !!(a && a.tagName === 'SELECT'); }
   function render() {
+    if (pickerOpen()) { renderWaiting = true; return; }
+    renderWaiting = false;
     if (S.deepMeal && S.data && S.pass && S.me) {
       const id = S.deepMeal; S.deepMeal = '';
       try { history.replaceState(null, '', location.pathname); } catch (e) { /* fine */ }
@@ -554,7 +562,7 @@
 
   function captureFocus() {
     const el = document.activeElement;
-    if (!el || !el.id) return null;
+    if (!el || !el.id || el.tagName === 'SELECT') return null; // re-focusing a picker re-opens it on an iPhone
     return { id: el.id, start: el.selectionStart, end: el.selectionEnd };
   }
   function restoreFocus(f) {
@@ -4291,8 +4299,20 @@
     }
   });
 
+  // A picker that closes lets any redraw that waited go through.
+  document.addEventListener('focusout', (ev) => {
+    if (ev.target && ev.target.tagName === 'SELECT' && renderWaiting) setTimeout(() => { if (renderWaiting) render(); }, 0);
+  });
+  // Tapping anything else while a picker still holds focus closes it first, so that tap's redraw isn't held back.
+  document.addEventListener('pointerdown', (ev) => {
+    const a = document.activeElement;
+    if (a && a.tagName === 'SELECT' && ev.target !== a && !(ev.target.closest && ev.target.closest('label[for="' + a.id + '"]'))) a.blur();
+  }, true);
+
   document.addEventListener('change', (ev) => {
     const el = ev.target;
+    // A pick closes the picker with the choice made (Nov 8: it used to stay open until tapped away).
+    if (el && el.tagName === 'SELECT') el.blur();
     if (el.dataset && el.dataset.input === 'plan') {
       const day = el.dataset.day; const mealId = el.value;
       S.openDay = mealId ? day : null;
