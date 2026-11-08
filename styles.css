@@ -1069,3 +1069,7 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 .out-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .slot-out-btns { display: flex; gap: 14px; align-items: center; margin-top: 10px; }
 .slot-out-btns .link-btn { margin-top: 0; }
+
+/* api 67: already ordered */
+.meal-tag.ordered { background: #E0F2FE; color: #075985; }
+.is-ordered { margin: 4px 0 10px; padding: 8px 12px; border-radius: 12px; background: #E0F2FE; color: #075985; font-size: 14px; }

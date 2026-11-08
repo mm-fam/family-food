@@ -368,7 +368,15 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      lastWeek, days: [Mon..Sun counts], kinds: {mission, settle, rate, other} this week, missions: {given, done,
 //      expired} for missions made this week}}}. Every answered card counts (time-sensitive ones too), credited to the
 //      "(Name)" at the end of the answer, else the card's audience. Expired = closed with no answer and no outcome.
-const API_VERSION = 66;
+// 67 = just ordered counts as covered (Nov 8, owner: the Giant Eagle order for Monday's chicken was placed, then a
+//      mission found no chicken in the house and Gianna's "Out" put chicken back on the List as a request: "this is a
+//      double order… we need a way to make sure we're tracking … the purchase and ordering of food and its association
+//      to the need for a meal"). An item with a List row set `bought` in the last ORDERED_DAYS (an order placed, an
+//      In-store tap, a receipt) is on its way or in the house. Missions still go out and still score, the card says
+//      "🚚 Coming in Sat's Giant Eagle order", and a Low / Out answer logs Stock but adds nothing to the List
+//      (result.ordered). A parent can still add it on purpose. state.ordered = {item_id: {date, store, id}}.
+const API_VERSION = 67;
+const ORDERED_DAYS = 3; // a row bought (order placed) this recently covers its item
 const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
 // Cards answered today per person: the "(Name)" at the end of the answer, else the card's audience.
@@ -771,6 +779,7 @@ function buildState() {
       .filter((p) => p.date && daysBetween(today, p.date) >= 0 && daysBetween(today, p.date) < PLAN_DAYS),
     planDays: PLAN_DAYS,
     outPlaces: outPlaces(),
+    ordered: recentlyOrdered(today, list), // api 67
     weekOf: weekOf(today),
     review: reviewAll.filter((r) => r.status === 'open').map(stripRow),
     answeredToday: answeredToday(reviewAll, today),
@@ -1554,6 +1563,24 @@ function staplesList(today, items, stockRows) {
   }).sort((a, b) => b.age - a.age);
 }
 
+// api 67: items with a List row (or archived row) bought in the last ORDERED_DAYS: {item_id: {date, store, id}}, newest wins.
+function recentlyOrdered(today, listRows) {
+  const out = {};
+  (listRows || readTab(TABS.list)).forEach((r) => {
+    if (!r.item_id || r.status !== 'bought') return;
+    const d = stampOf(r.updated_at).slice(0, 10);
+    if (!d || d > today || daysBetween(d, today) > ORDERED_DAYS) return;
+    if (!out[r.item_id] || d > out[r.item_id].date) out[r.item_id] = { date: d, store: String(r.cart || r.store || ''), id: r.id };
+  });
+  return out;
+}
+function orderedText(o) {
+  const d = new Date(o.date + 'T12:00:00');
+  const day = isNaN(d) ? o.date : DAY_NAMES[d.getDay()];
+  const st = STORE_NAMES[o.store];
+  return st ? 'Coming in ' + day + '\'s ' + st + ' order' : 'Bought ' + day;
+}
+
 function makeMissions(today, kids, review, plan, mealOf) {
   if (!kids.length) return [];
   const items = readTab(TABS.items).filter((i) => i.status !== 'Drop');
@@ -1570,6 +1597,7 @@ function makeMissions(today, kids, review, plan, mealOf) {
   review.forEach((r) => {
     if (r.type === 'check' && r.status === 'open') { const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) seen[m[1]] = true; }
   });
+  const ordered = recentlyOrdered(today, listRows); // api 67
   const ok = (id) => byId[id] && !onList[id] && !seen[id];
   const picks = [];
   const take = (id, why) => { if (ok(id) && picks.every((p) => p.id !== id)) picks.push({ id: id, why: why }); };
@@ -1602,7 +1630,7 @@ function makeMissions(today, kids, review, plan, mealOf) {
       given[kid] = (given[kid] || 0) + 1;
       const extra = race.behind.indexOf(kid) >= 0 && given[kid] > KID_MISSIONS.lead;
       out.push({ type: 'check', audience: kid,
-        detail: (extra ? '⚡ Catch-up mission! ' : '') + (staple[p.id] && !p.why ? '🧺 Staples check: go check the ' : 'Go check the ') + byId[p.id].name + ': how much do we have?' + (p.why ? ' It\'s for ' + p.why + '.' : '') + ' (' + p.id + ') Options: ' + MISSION_OPTIONS });
+        detail: (extra ? '⚡ Catch-up mission! ' : '') + (staple[p.id] && !p.why ? '🧺 Staples check: go check the ' : 'Go check the ') + byId[p.id].name + ': how much do we have?' + (p.why ? ' It\'s for ' + p.why + '.' : '') + (ordered[p.id] ? ' 🚚 ' + orderedText(ordered[p.id]) + ', so just tell us what\'s here now.' : '') + ' (' + p.id + ') Options: ' + MISSION_OPTIONS });
     });
   }
   return out;
@@ -1617,6 +1645,9 @@ function missionAnswer(r, answer, who) {
   const level = /^\d{1,3}$/.test(a) ? a : MISSION_LEVEL[a];
   if (!level) return null;
   logStock({ item_id: id, level: level, who: who, source: 'mission' });
+  // api 67: just ordered or bought → it's on its way; the sighting counts, a second order doesn't happen.
+  const ordered = recentlyOrdered(isoDate(new Date()))[id];
+  if (ordered && (level === 'low' || level === 'out' || level === '0')) return { level: level, ordered: ordered };
   if (level === 'low' || level === 'out' || level === '0') {
     const res = addToList({ item_id: id, by: who, _noPoints: true, note: 'Mission: ' + (level === 'low' ? 'a little left' : 'out') });
     return { level: level, list: res.id };

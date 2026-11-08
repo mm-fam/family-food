@@ -428,11 +428,15 @@
       }, isHeld ? item.name + ' is back on the list' : others.join(' + ') + ' already asked. Added you too.' + (amParent() ? ptsTag('list_add') : ''));
       return;
     }
+    // api 67: just ordered or bought → ask before ordering it twice.
+    if (!(extra && (extra._anyway || extra._ordered)) && orderedOf(item.id)) {
+      S.sheet = { type: 'ordered', item_id: item.id, meal_id: (extra && extra.meal_id) || '' }; render(); return;
+    }
     // api 62: something of the same kind is already on the List → ask before adding a second one.
     const anyway = !!(extra && extra._anyway);
     const peer = canV62() && !anyway ? sameKindRow(item) : null;
     if (peer) { S.sheet = { type: 'samekind', item_id: item.id, row_id: peer.id, meal_id: (extra && extra.meal_id) || '' }; render(); return; }
-    extra = Object.assign({}, extra || {}); delete extra._anyway;
+    extra = Object.assign({}, extra || {}); delete extra._anyway; delete extra._ordered;
     const status = isKid(S.me) ? 'requested' : 'needed';
     const row = Object.assign({ id: tmpId(), item_id: item.id, name: item.name, store: item.store || 'Either', qty: 1, note: '', added_by: S.me, wanted_by: S.me, status: status }, extra);
     act('add', Object.assign({ item_id: item.id, qty: row.qty, meal_id: row.meal_id || '' }, anyway ? { anyway: true } : {}), () => { D().list.push(row); },
@@ -771,6 +775,29 @@
     return f.planned ? '<span class="meal-tag soft">🍽 ' + esc(shortDay(f.date).split(' ')[0]) + ' · ' + esc(f.meal.name) + '</span>'
       : '<span class="meal-tag">🍽 ' + esc(f.meal.name) + '</span>';
   }
+  // api 67 (owner, Nov 8: chicken for Monday was already in the Giant Eagle order, a mission found none in the
+  // house and it came back as a request: a double order). Bought or ordered in the last 3 days = on its way or
+  // here. state.ordered from the backend; older backends: worked out from recent bought rows.
+  function orderedOf(id) {
+    if (!id) return null;
+    if (D().ordered) return D().ordered[id] || null;
+    let best = null;
+    (D().recent || []).forEach((r) => {
+      if (r.item_id !== id || r.status !== 'bought') return;
+      const d = String(r.updated_at || '').slice(0, 10);
+      if (d && addDays(d, 3) >= D().today && (!best || d > best.date)) best = { date: d, store: r.cart || r.store || '', id: r.id };
+    });
+    return best;
+  }
+  function orderedText(o) {
+    const day = shortDay(o.date).split(' ')[0];
+    const st = STORES[o.store] && !isDelivery(o.store) && o.store !== 'Either' ? storeOf(o.store).name : '';
+    return st ? 'Ordered ' + day + ' · ' + st : 'Bought ' + day;
+  }
+  function orderedTag(id) {
+    const o = orderedOf(id);
+    return o ? '<span class="meal-tag ordered">🚚 ' + esc(orderedText(o)) + '</span>' : '';
+  }
   // List filter pills: All · Needs a cart · For meals · Stock (not tied to a meal). Starts on All each time the
   // app opens. One List (owner, Nov 2): rows in a cart stay in their aisle with their 🛒 tag; "Needs a cart"
   // narrows to the rows no online cart has yet. needsCart is defined below; kindOk only runs at render time.
@@ -808,13 +835,31 @@
   const lbText = (q) => { const n = Number(q) || 0.5; return (n % 1 ? String(n).replace(/\.5$/, '½').replace(/^0½/, '½') : String(n)) + ' lb'; };
   function rowMeta(r) {
     const meta = [];
-    if (byLb(r.item_id)) { meta.push('<span class="pack">⚖ ' + esc(lbText(r.qty)) + '</span>'); if (r.note) meta.push(esc(r.note)); return meta; }
+    if (byLb(r.item_id)) { meta.push('<span class="pack">⚖ ' + esc(lbText(r.qty)) + '</span>'); if (r.note) meta.push(noteHtml(r)); return meta; }
     const pk = r.item_id ? packOf(r.item_id, cartStore(r) || r.store) : null;
     if (pk && pk.count) { if (Number(r.qty) > 1) meta.push('×' + r.qty); meta.push(packHtml(pk)); }
     else if (pk) meta.push((Number(r.qty) > 1 ? '×' + r.qty + ' ' : '') + '<span class="pack">' + esc(Number(r.qty) > 1 ? '(' + pk.text + ' each)' : pk.text) + '</span>');
     else if (Number(r.qty) > 1) meta.push('×' + r.qty);
-    if (r.note) meta.push(esc(r.note));
+    if (r.note) meta.push(noteHtml(r));
     return meta;
+  }
+  // Owner, Nov 8: a mission's result should say when it was found ("Mission: out · Sun 8:06 am").
+  function noteHtml(r) {
+    const n = String(r.note || '');
+    if (!/^Mission:/.test(n) || !r.added_at) return esc(n);
+    const m = n.match(/^(Mission:[^;]*)(.*)$/);
+    return esc(m[1].trim()) + ' · <span class="when">' + esc(dayTime(r.added_at)) + '</span>' + esc(m[2]);
+  }
+  // "Sun 8:06 am" within the past week, else "Nov 1, 8:06 am".
+  function dayTime(iso) {
+    const s = String(iso || '');
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{1,2}):(\d{2}))?/);
+    if (!m) return '';
+    if (addDays(m[1], 6) < D().today) return fmtWhen(s);
+    const day = m[1] === D().today ? 'Today' : DAYS[new Date(m[1] + 'T12:00:00').getDay()];
+    if (m[2] == null) return day;
+    const h = Number(m[2]);
+    return day + ' ' + (h % 12 || 12) + ':' + m[3] + ' ' + (h >= 12 ? 'pm' : 'am');
   }
 
   // Store-only items (Items.store_only = Y): the one thing about stores the List still shows loudly.
@@ -1142,12 +1187,14 @@
   }
 
   function requestRow(r) {
+    const ord = orderedTag(r.item_id); // api 67: already ordered → Skip is the obvious tap
     const btns = amParent()
-      ? '<button class="btn btn-primary" data-act="approve" data-id="' + r.id + '">Approve</button><button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Skip</button>'
+      ? (ord ? '<button class="btn btn-quiet" data-act="approve" data-id="' + r.id + '">Approve</button><button class="btn btn-primary" data-act="skip" data-id="' + r.id + '">Skip</button>'
+        : '<button class="btn btn-primary" data-act="approve" data-id="' + r.id + '">Approve</button><button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Skip</button>')
       : (iWant(r) ? '<button class="btn btn-quiet" data-act="skip" data-id="' + r.id + '">Cancel</button>' : '');
     return '<div class="row"><button class="row-main" data-act="open-row" data-id="' + r.id + '"><span class="row-name">' + esc(r.name) + fridgeTag(r.item_id) + '</span>' +
       '<span class="row-meta">' + ['asked by ' + esc(wantedBy(r).join(' + '))].concat(rowMeta(r)).join(' · ') + '</span>' +
-      (mealTag(r) ? '<span class="tags">' + mealTag(r) + '</span>' : '') + '</button>' + btns + '</div>';
+      (mealTag(r) || ord ? '<span class="tags">' + ord + mealTag(r) + '</span>' : '') + '</button>' + btns + '</div>';
   }
 
   // Opened from a link in a browser (not the home-screen app): show how to add it, once, dismissible.
@@ -1332,6 +1379,15 @@
       '<p class="note">' + esc(row.name) + ' is on the List' + (meal ? ' for ' + esc(meal.name) : '') + '.' + esc(where) + ' One should cover both, so we don’t end up with two.</p>' +
       '<div class="sheet-actions"><button class="btn btn-primary" data-act="sk-use">Use ' + esc(row.name) + '</button>' +
       '<button class="btn btn-plain" data-act="sk-anyway">Add ' + esc(it.name) + ' anyway</button></div>';
+  }
+  function viewOrdered(sh) {
+    const it = itemById(sh.item_id), o = orderedOf(sh.item_id);
+    if (!it || !o) return '<div class="is-head"><div><h2>All set</h2></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
+    const kid = isKid(S.me);
+    return '<div class="is-head"><div><h2>Already ordered</h2><div class="is-sub">🚚 ' + esc(it.name) + ' · ' + esc(orderedText(o)) + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      '<p class="note">' + esc(it.name) + (/^Ordered/.test(orderedText(o)) ? ' is coming in that order' : ' was just bought') + '. If it isn’t in the house yet, it’s probably on its way. Only add it again if we really need more.</p>' +
+      '<div class="sheet-actions"><button class="btn btn-primary" data-act="close-x">Never mind</button>' +
+      '<button class="btn btn-plain" data-act="ord-anyway">' + (kid ? 'Ask anyway' : 'Add it anyway') + '</button></div>';
   }
   function viewMealGaps() {
     const m = missingForMeals();
@@ -1756,6 +1812,7 @@
     } else if (isDelivery(storeCode)) {
       h += '<div class="dlv-note">🧊 ' + esc(storeOf(storeCode).delivery) + ' Nothing to buy; say how much is left below.</div>';
     } else {
+      if (orderedOf(sh.item_id)) h += '<div class="is-ordered">🚚 <b>' + esc(orderedText(orderedOf(sh.item_id))) + '</b>' + (/^Ordered/.test(orderedText(orderedOf(sh.item_id))) ? ', on its way' : '') + '</div>';
       h += '<button class="btn btn-primary btn-block" data-act="add-item" data-id="' + esc(sh.item_id) + '">' + (kid ? 'Ask for it' : 'Add to the List') + '</button>';
     }
 
@@ -3761,6 +3818,7 @@
     if (sh.type === 'pushall') inner = viewPushSheet(sh);
     if (sh.type === 'mealgaps') inner = viewMealGaps();
     if (sh.type === 'samekind') inner = viewSameKind(sh);
+    if (sh.type === 'ordered') inner = viewOrdered(sh);
     if (sh.type === 'misshave') inner = viewMissHave(sh);
     if (sh.type === 'staples') inner = viewStaplesSheet();
     if (sh.type === 'me') inner = viewMeSheet();
@@ -4171,6 +4229,12 @@
       if (!it || !row) { render(); return; }
       // The backend sees the same-kind row and adds us to it with a note, instead of a new row.
       act('add', { item_id: it.id, qty: 1, meal_id: sh.meal_id || '' }, () => { if (!iWant(row)) row.wanted_by = wantedBy(row).concat([S.me]).join(';'); });
+    },
+    'ord-anyway': () => {
+      const sh = S.sheet; if (!sh || sh.type !== 'ordered') return;
+      const it = itemById(sh.item_id);
+      S.sheet = null;
+      if (it) addItem(it, Object.assign({ _ordered: true }, sh.meal_id ? { meal_id: sh.meal_id } : {})); else render();
     },
     'sk-anyway': () => {
       const sh = S.sheet; if (!sh || sh.type !== 'samekind') return;

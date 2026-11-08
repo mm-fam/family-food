@@ -582,3 +582,25 @@ test('Inbox dashboard: cardStats counts cards done and missions per person (api 
   assert.deepStrictEqual(K.missions, { given: 2, done: 1, expired: 1 });
   assert.strictEqual(r.state.cardStats.people.Lee.week, 0);
 });
+
+test('just ordered counts as covered: a mission Out adds nothing to the List (api 67)', () => {
+  const t = tabs();
+  const iso = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const today = iso(new Date());
+  t.Review.push(
+    ['r971', today, 'check', 'Go check the milk: how much do we have? (i001) Options: Plenty; Some; A little; Out', 'open', '', 'Kim', '', '', '', '', '', '', '', '', '', ''],
+    ['r972', today, 'check', 'Go check the bread: how much do we have? (i002) Options: Plenty; Some; A little; Out', 'open', '', 'Kim', '', '', '', '', '', '', '', '', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  // The order went in: i001's row is bought.
+  let r = b.call({ action: 'add', pass: PASS, by: 'Pat', item_id: 'i001' });
+  r = b.call({ action: 'update', pass: PASS, by: 'Pat', id: r.result.id, fields: { status: 'bought' } });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.ok(r.state.ordered && r.state.ordered.i001, 'state.ordered has the item');
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: 'r971', answer: 'Out (Kim)' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.ok(!r.state.list.some((x) => x.item_id === 'i001'), 'no second row for an item just ordered');
+  assert.ok(rows(b, 'Stock').some((x) => x[1] === 'i001' && x[2] === 'out'), 'the sighting still counts');
+  // Nothing ordered → the usual request.
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: 'r972', answer: 'Out (Kim)' });
+  assert.strictEqual(r.state.list.find((x) => x.item_id === 'i002').status, 'requested');
+});
