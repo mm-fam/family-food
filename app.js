@@ -1454,7 +1454,6 @@
     let html = '';
 
     html += viewInstallTip();
-    html += viewSigninWarn();
     if (!canCarts()) html += viewJobBanner();
     html += viewTodoTiles(); // Nov 9: Use soon, Must-haves, Missing for meals, Staples as one row of tiles
     if (requests.length) {
@@ -3738,13 +3737,6 @@
     const fresh = checked && (Date.now() - new Date(checked.replace(' ', 'T')).getTime()) < 2 * 86400000;
     const out = CART_STORES.filter((k) => ok[k] === 'out');
     return { ok: ok, checked: checked, open: open, fresh: fresh, out: fresh ? out : [] };
-  }
-  // On the List, for parents: a store is signed out on the cart computer (tap → Carts, where Check sign-ins is).
-  function viewSigninWarn() {
-    if (Number(D().api || 0) < 42 || !amParent() || !canCarts()) return '';
-    const si = signinState();
-    if (!si.out.length || si.open) return '';
-    return '<button class="job-banner warn" data-act="cart-open" data-store="">' + esc('⚠ ' + si.out.map((k) => storeOf(k).name).join(', ') + ' signed out on the home computer. Sign in there, then tap Laptop’s on on the Carts screen.') + '</button>';
   }
   function viewSignins() {
     if (Number(D().api || 0) < 42) return '';
