@@ -1338,18 +1338,7 @@
     const sweep = rows.filter((x) => x.age >= STAPLE_SWEEP && !x.onList && !x.checking).map((x) => ({ id: x.id }));
     return { rows: rows, sweep: sweep, low: rows.filter((x) => x.low && !x.onList), due: rows.filter((x) => x.due && !x.checking && !x.onList), checking: rows.filter((x) => x.checking) };
   }
-  function viewStaplesLine() {
-    if (!canStaples() || isKid(S.me)) return '';
-    const st = staplesInfo();
-    if (!st.rows.length) return '';
-    const bits = [];
-    if (st.low.length) bits.push('<b>' + st.low.length + ' low</b>');
-    if (st.checking.length) bits.push('🔎 ' + st.checking.length + ' out for checking');
-    if (st.due.length) bits.push(st.due.length + ' due for a look');
-    if (!bits.length) bits.push('all checked');
-    return '<div class="miss-line">🧺 Staples · ' + bits.join(' · ') + ' · <button class="link-btn miss-link" data-act="staples">See all ›</button></div>';
-  }
-  function viewStaplesSheet() {
+  function viewStaplesSheet(bare) {
     const st = staplesInfo();
     const kids = (D().settings.kids || []).length;
     const order = st.rows.slice().sort((a, b) => (b.low - a.low) || (b.age - a.age));
@@ -1358,7 +1347,7 @@
           '<p class="note">Before an order: sends every staple nobody has looked at in ' + STAPLE_SWEEP + '+ days. Low or out goes on the List for you to OK.</p>'
         : '<p class="note">Everything has had a look in the last ' + STAPLE_SWEEP + ' days.</p>')
       : '';
-    return '<div class="is-head"><div><h2>🧺 Staples</h2><div class="is-sub">Never run out of these · ' + st.rows.length + ' items</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+    return (bare ? '<p class="note todo-lead">Never run out of these · ' + st.rows.length + ' items. The girls check each one every week.</p>' : '<div class="is-head"><div><h2>🧺 Staples</h2><div class="is-sub">Never run out of these · ' + st.rows.length + ' items</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>') +
       send +
       order.map((x) => {
         const it = itemById(x.id);
@@ -1409,27 +1398,18 @@
     return { rows: rows, miss: rows.filter((x) => !x.ok) };
   }
   function levelWord(l) { return { plenty: 'Plenty', some: 'Some', low: 'A little', out: 'Out', waste: 'Tossed', '0': 'Out' }[l] || (l ? l + ' left' : ''); }
-  // Red card when something isn't covered (List and Carts screen, parents); one quiet line when all are.
-  function viewMustHaves() {
-    if (!canMustHave() || isKid(S.me)) return '';
-    const m = mustHaveInfo();
-    if (!m.rows.length) return '';
-    if (!m.miss.length) return '<div class="miss-line">🥚 Must-haves · all ' + m.rows.length + ' covered · <button class="link-btn miss-link" data-act="musthaves">See all ›</button></div>';
-    const send = m.miss.filter((x) => !x.checking).map((x) => ({ id: x.id }));
-    return '<section class="card must"><div class="card-head"><span>🥚 MUST-HAVES · ' + m.miss.length + ' not covered</span><span class="sub"><button class="link-btn miss-link" data-act="musthaves">All ' + m.rows.length + ' ›</button></span></div>' +
-      '<p class="note must-note">Put these in a cart or on the List, or say we have plenty, before the order goes in.</p>' +
-      (canMissionsAsk() && (D().settings.kids || []).length && send.length > 1 ? '<div class="miss-send"><button class="btn btn-outline btn-sm" data-act="must-send" data-items="' + esc(JSON.stringify(send)) + '">🔎 Have the girls check ' + send.length + '</button></div>' : '') +
-      m.miss.map(mustRow).join('') + '</section>';
-  }
   function mustRow(x) {
     return '<div class="miss-row"><div class="miss-main"><div class="miss-items"><button class="link-btn" data-act="open-item" data-id="' + esc(x.id) + '">' + esc(x.it.name) + '</button>' +
       (x.checking ? '<span class="miss-chk"> 🔎 ' + esc(x.checking) + '</span>' : '') + '</div><div class="row-meta">' + esc(x.ok || x.why) + '</div></div>' +
       (x.ok ? '' : '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="must-add" data-id="' + esc(x.id) + '">Add</button>' +
         '<button class="btn btn-plain btn-sm" data-act="must-have" data-id="' + esc(x.id) + '">Have plenty</button></div>') + '</div>';
   }
-  function viewMustSheet() {
+  function viewMustSheet(bare) {
     const m = mustHaveInfo();
-    return '<div class="is-head"><div><h2>🥚 Must-haves</h2><div class="is-sub">Covered at every order · ' + (m.miss.length ? m.miss.length + ' not yet' : 'all set') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+    const send = m.miss.filter((x) => !x.checking).map((x) => ({ id: x.id }));
+    return (bare ? '<p class="note todo-lead">' + (m.miss.length ? 'Put these in a cart or on the List, or say we have plenty, before the order goes in.' : 'All covered for the next order.') + '</p>'
+        : '<div class="is-head"><div><h2>🥚 Must-haves</h2><div class="is-sub">Covered at every order · ' + (m.miss.length ? m.miss.length + ' not yet' : 'all set') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>') +
+      (bare && canMissionsAsk() && (D().settings.kids || []).length && send.length > 1 ? '<div class="miss-send"><button class="btn btn-outline btn-sm" data-act="must-send" data-items="' + esc(JSON.stringify(send)) + '">🔎 Have the girls check ' + send.length + '</button></div>' : '') +
       m.rows.map(mustRow).join('') +
       '<p class="note">Covered = on the List or in a cart, ordered in the last 3 days, or seen Plenty today. Change the list on an item: Details → Must-have?</p>';
   }
@@ -1476,7 +1456,7 @@
     html += viewInstallTip();
     html += viewSigninWarn();
     if (!canCarts()) html += viewJobBanner();
-    html += viewUseSoon();
+    html += viewTodoTiles(); // Nov 9: Use soon, Must-haves, Missing for meals, Staples as one row of tiles
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
         requests.map(requestRow).join('') + '</section>';
@@ -1499,9 +1479,6 @@
       html += '<div class="list-sum">' + bits.join(' · ') + '</div>';
     }
 
-    html += viewMustHaves();
-    html += viewMissing();
-    html += viewStaplesLine();
 
     // One List by aisle (owner, Nov 2): in-cart rows sit with the rest and show their 🛒 tag.
     // Pills: All · 🛒 Needs a cart · 🍽 Meals · 🧺 Stock.
@@ -1534,7 +1511,7 @@
             '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    html += '<p class="hint">The List is what’s still open. 🍽 Missing for meals = things this week’s meals use that aren’t on the List or seen at home. ' +
+    html += '<p class="hint">The List is what’s still open. The tiles on top (⏳ Use soon, 🥚 Must-haves, 🍽 For meals, 🧺 Staples) show what to deal with before an order; tap one to open it. ' +
       (canCarts() ? '🛒 tags show what’s already in an online cart; Needs a cart = the rest. ' : '') + '⏸ Later = we need it, just not this order (tap an item → Later). Search and browse everything in Shop.</p>';
     return html;
   }
@@ -1552,18 +1529,53 @@
     if (x.left === 0) return 'last good day today';
     return 'probably past it · still there?';
   }
+  // Nov 9 (owner: "the list is buried, you have to scroll to even get to the list"): Use soon, Must-haves, Missing
+  // for meals and Staples sit in one row of small tiles at the top of the List. Each shows its count (colored when
+  // there's something to do, a grey ✓ when not); a tap opens one sheet with a switcher across all four, so the List
+  // itself starts right under the row. Kids see only Use soon.
+  function todoCounts() {
+    const kid = isKid(S.me);
+    const t = [];
+    if (canUseSoon()) t.push({ k: 'usesoon', icon: '⏳', label: 'Use soon', n: (D().useSoon || []).length, cls: 'warn' });
+    if (!kid && canMustHave() && (D().items || []).some(isMustHave)) t.push({ k: 'must', icon: '🥚', label: 'Must-haves', n: mustHaveInfo().miss.length, cls: 'bad' });
+    if (!kid) { const m = missingForMeals(); t.push({ k: 'meals', icon: '🍽', label: 'For meals', n: m.groups.reduce((a, g) => a + g.ids.length, 0), cls: 'warn' }); }
+    if (!kid && canStaples() && (D().staples || []).length) t.push({ k: 'staples', icon: '🧺', label: 'Staples', n: staplesInfo().low.length, cls: 'warn' });
+    return t;
+  }
+  function viewTodoTiles() {
+    const t = todoCounts();
+    if (!t.length || (isKid(S.me) && !t.some((x) => x.n))) return '';
+    return '<div class="todo-tiles">' + t.map((x) => '<button class="todo-tile' + (x.n ? ' on ' + x.cls : '') + '" data-act="todo" data-k="' + x.k + '" aria-label="' + esc(x.label + ': ' + (x.n || 'nothing to do')) + '">' +
+      '<span class="tt-top"><span class="tt-icon" aria-hidden="true">' + x.icon + '</span><b class="tt-n">' + (x.n || '✓') + '</b></span><span class="tt-label">' + esc(x.label) + '</span></button>').join('') + '</div>';
+  }
+  function viewTodoSheet(sh) {
+    const t = todoCounts();
+    const cur = t.find((x) => x.k === sh.k) || t[0];
+    if (!cur) return '';
+    let body = '';
+    if (cur.k === 'usesoon') { const rows = D().useSoon || []; body = rows.length ? '<p class="note todo-lead">Perishables near their last good day. Tell Poppy what happened to them.</p>' + useSoonRows(rows) : '<p class="note todo-lead">Nothing needs using up right now.</p>'; }
+    if (cur.k === 'must') body = viewMustSheet(true);
+    if (cur.k === 'meals') body = viewMissing() || '<p class="note todo-lead">Nothing missing for the next 7 days of meals.</p>';
+    if (cur.k === 'staples') body = viewStaplesSheet(true);
+    return '<div class="is-head"><div><h2>' + cur.icon + ' ' + esc(cur.label) + '</h2></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      (t.length > 1 ? '<div class="todo-switch">' + t.map((x) => '<button class="' + (x.k === cur.k ? 'on' : '') + '" data-act="todo" data-k="' + x.k + '" aria-pressed="' + (x.k === cur.k) + '">' + x.icon + ' ' + (x.n ? '<b>' + x.n + '</b>' : '✓') + '</button>').join('') + '</div>' : '') +
+      '<div class="todo-body">' + body + '</div>';
+  }
   function viewUseSoon() {
     if (!canUseSoon()) return '';
     const rows = D().useSoon || [];
     if (!rows.length) return '';
-    return '<section class="card use-soon"><div class="card-head">⏳ USE SOON · ' + rows.length + '</div>' + rows.map((x) => {
+    return '<section class="card use-soon"><div class="card-head">⏳ USE SOON · ' + rows.length + '</div>' + useSoonRows(rows) + '</section>';
+  }
+  function useSoonRows(rows) {
+    return rows.map((x) => {
       const past = x.left < 0;
       return '<div class="us-row' + (past ? ' past' : '') + '"><button class="row-main" data-act="open-item" data-id="' + esc(x.item_id) + '"><span class="row-name">' + esc(x.name) + '</span>' +
         '<span class="row-meta">' + esc(useSoonWhen(x)) + ' · bought ' + esc(daysAgo(x.bought)) + '</span></button>' +
         '<div class="us-btns"><button class="btn btn-outline btn-sm" data-act="use-soon" data-id="' + esc(x.item_id) + '" data-what="used">Used it</button>' +
         '<button class="btn btn-outline btn-sm" data-act="use-soon" data-id="' + esc(x.item_id) + '" data-what="tossed">Tossed</button>' +
         '<button class="btn btn-plain btn-sm" data-act="use-soon" data-id="' + esc(x.item_id) + '" data-what="good">Still good</button></div></div>';
-    }).join('') + '</section>';
+    }).join('');
   }
 
   /* ---------- in-store mode (on the List) ---------- */
@@ -2226,7 +2238,6 @@
       '<div class="carts-summary cs-' + sum1.cls + '"><span class="cdot cd-' + ({ off: 'wait', run: 'wait' }[sum1.cls] || sum1.cls) + '" aria-hidden="true"></span>' + esc(sum1.text) + '</div>' +
       (amParent() && Number(D().api || 0) >= 50 ? '<button class="btn btn-primary btn-block" data-act="cart-job" data-kind="all" data-store="ALL">Update carts</button>' : '') +
       '</section>';
-    html += viewMustHaves(); // api 68: right where a parent decides it's order time
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
       const t = lastTotal(code);
@@ -3879,6 +3890,7 @@
     if (sh.type === 'misshave') inner = viewMissHave(sh);
     if (sh.type === 'staples') inner = viewStaplesSheet();
     if (sh.type === 'musthaves') inner = viewMustSheet();
+    if (sh.type === 'todo') inner = viewTodoSheet(sh);
     if (sh.type === 'me') inner = viewMeSheet();
     if (sh.type === 'feedback') {
       inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
@@ -4272,6 +4284,7 @@
     'meal-gaps': () => { S.sheet = { type: 'mealgaps' }; render(); },
     'staples': () => { S.sheet = { type: 'staples' }; render(); },
     'musthaves': () => { S.sheet = { type: 'musthaves' }; render(); },
+    todo: (el) => { S.sheet = { type: 'todo', k: el.dataset.k }; render(); },
     'must-add': (el) => { const it = itemById(el.dataset.id); if (it && !isKid(S.me)) addItem(it); },
     'must-have': (el) => {
       const id = el.dataset.id, it = itemById(id);

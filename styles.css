@@ -1078,3 +1078,19 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 .must .card-head { display: flex; justify-content: space-between; align-items: center; color: #A32D2D; }
 .must .card-head .miss-link { color: #A32D2D; text-transform: none; letter-spacing: 0; }
 .must .must-note { margin: 2px 0 6px; }
+/* Nov 9: Use soon / Must-haves / For meals / Staples as one row of tiles at the top of the List */
+.todo-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
+.todo-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--field); background: var(--card); color: var(--muted); text-align: left; min-height: 56px; }
+.todo-tile .tt-top { display: flex; align-items: center; gap: 6px; width: 100%; }
+.todo-tile .tt-icon { font-size: 16px; }
+.todo-tile .tt-n { font-size: 18px; line-height: 1; color: var(--muted); font-weight: 700; }
+.todo-tile .tt-label { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.todo-tile.on.warn { border-color: #E9C46A; background: #FFF9E8; color: #8A6100; }
+.todo-tile.on.warn .tt-n { color: #8A6100; }
+.todo-tile.on.bad { border-color: #E5A0A0; background: #FFF3F2; color: #A32D2D; }
+.todo-tile.on.bad .tt-n { color: #A32D2D; }
+.todo-switch { display: flex; gap: 6px; margin: 4px 0 10px; }
+.todo-switch button { flex: 1 1 0; min-height: 38px; border-radius: 9px; border: 1px solid var(--field); background: var(--card); font-size: 14px; }
+.todo-switch button.on { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
+.todo-lead { margin: 0 0 8px; }
+.todo-body .card.missing { margin-bottom: 0; }
