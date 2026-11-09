@@ -1382,9 +1382,8 @@
   }
   // api 68: must-haves (owner, Nov 8: the weekend order went in with no eggs and no mozzarella: "certain things like
   // eggs, milk, cheese … no-brainers we have to have in one of the carts"). A short list (Items must_have = Y), each
-  // accounted for before any order: on the List or in a cart, ordered in the last 3 days, or seen Plenty in the last
-  // 2 days / Some today or yesterday. A "plenty" from days ago isn't enough (eggs were "plenty" Friday, gone Sunday).
-  const MUST_PLENTY_DAYS = 2, MUST_SOME_DAYS = 1;
+  // accounted for before any order: on the List or in a cart, ordered in the last 3 days, or seen Plenty today.
+  // A "plenty" from days ago isn't enough (eggs were "plenty" Friday, gone Sunday), and Some means buy more.
   const isMustHave = (it) => !!it && it.status !== 'Drop' && /^y/i.test(String(it.must_have || ''));
   function mustHaveInfo() {
     const today = D().today;
@@ -1403,8 +1402,7 @@
       else if (r && r.status === 'requested') ok = '🙋 Asked for';
       else if (r) ok = '✓ On the List';
       else if (o) ok = '🚚 ' + orderedText(o);
-      else if (s && at && lvl === 'plenty' && addDays(at, MUST_PLENTY_DAYS) >= today) ok = '🏠 ' + seen;
-      else if (s && at && (lvl === 'some' || Number(lvl) > 0) && addDays(at, MUST_SOME_DAYS) >= today) ok = '🏠 ' + seen;
+      else if (s && at === today && lvl === 'plenty') ok = '🏠 ' + seen;
       else why = s && at ? (/^(low|out|0)$/.test(lvl) ? '⚠️ ' + seen : 'Last look: ' + seen) : 'Nobody has looked';
       return { id: it.id, it: it, ok: ok, why: why, checking: checking[it.id] || '' };
     }).sort((a, b) => (!!a.ok - !!b.ok) || (a.it.name < b.it.name ? -1 : 1));
@@ -1433,7 +1431,7 @@
     const m = mustHaveInfo();
     return '<div class="is-head"><div><h2>🥚 Must-haves</h2><div class="is-sub">Covered at every order · ' + (m.miss.length ? m.miss.length + ' not yet' : 'all set') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
       m.rows.map(mustRow).join('') +
-      '<p class="note">Covered = on the List or in a cart, ordered in the last 3 days, or seen Plenty in the last ' + MUST_PLENTY_DAYS + ' days (Some: today or yesterday). Change the list on an item: Details → Must-have?</p>';
+      '<p class="note">Covered = on the List or in a cart, ordered in the last 3 days, or seen Plenty today. Change the list on an item: Details → Must-have?</p>';
   }
   function viewOrdered(sh) {
     const it = itemById(sh.item_id), o = orderedOf(sh.item_id);
@@ -2009,7 +2007,7 @@
           (canPantry() ? (canStaples()
             ? '<div><label>Staple?</label>' + seg('pantry', [['', 'No'], ['Y', '🧺 Never run out']]) + '<p class="note">Yes = Missing for meals assumes we have it, and the girls check it every week (things we buy rarely, every 3 weeks) and before orders.</p></div>'
             : '<div><label>Pantry staple?</label>' + seg('pantry', [['', 'No'], ['Y', '🫙 We always have it']]) + '<p class="note">Yes = Missing for meals assumes we have it, unless someone marks it low or out.</p></div>') : '') +
-          (canMustHave() ? '<div><label>Must-have?</label>' + seg('must_have', [['', 'No'], ['Y', '🥚 Every order']]) + '<p class="note">Yes = before any order it has to be on the List, in a cart, or seen Plenty at home in the last 2 days. If not, it shows in red on the List and Carts.</p></div>' : '') +
+          (canMustHave() ? '<div><label>Must-have?</label>' + seg('must_have', [['', 'No'], ['Y', '🥚 Every order']]) + '<p class="note">Yes = before any order it has to be on the List, in a cart, just ordered, or seen Plenty at home today. If not, it shows in red on the List and Carts.</p></div>' : '') +
           (canV46() ? '<div><label>If the store is out of it</label>' + seg('ok_swap', [['Y', 'Let the store pick'], ['N', 'Don’t substitute'], ['', 'Ask me']]) + '<p class="note">Claude sets this on each line of the online cart. A backup we picked (shown under What we buy) comes first. Ask me = the store’s default, and you get a ⚖ Decisions card if it swaps something.</p></div>'
             : '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>') +
           (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +

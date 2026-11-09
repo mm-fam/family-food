@@ -378,8 +378,7 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 // 68 = must-haves (Nov 8, owner: the weekend order went in with no eggs and no mozzarella: "certain things like eggs,
 //      milk, cheese … no-brainers we have to have in one of the carts"). Items `must_have` (Y / blank, added at the
 //      end on first use); itemSave accepts it (parents only). The app works out, for every must-have, whether it's
-//      covered right now: on the List or in a cart, ordered in the last ORDERED_DAYS, or seen Plenty in the last 2
-//      days / Some today or yesterday. Anything not covered shows as a red card on the List and the Carts screen.
+//      covered right now: on the List or in a cart, ordered in the last ORDERED_DAYS, or seen Plenty today. Anything not covered shows as a red card on the List and the Carts screen.
 //      missionsAsk {kind: 'musthave'} = "🥚 Must-have check before the order: …".
 const API_VERSION = 68;
 const ORDERED_DAYS = 3; // a row bought (order placed) this recently covers its item
