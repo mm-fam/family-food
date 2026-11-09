@@ -604,3 +604,16 @@ test('just ordered counts as covered: a mission Out adds nothing to the List (ap
   r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: 'r972', answer: 'Out (Kim)' });
   assert.strictEqual(r.state.list.find((x) => x.item_id === 'i002').status, 'requested');
 });
+
+test('must-haves: parents set Items must_have; kids can’t; a before-the-order check (api 68)', () => {
+  const b = loadBackend(tabs(), { FAMILY_PASSCODE: PASS });
+  let r = b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i002', fields: { must_have: 'yes' } });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.state.items.find((x) => x.id === 'i002').must_have, 'Y');
+  assert.ok(!b.call({ action: 'itemSave', pass: PASS, by: 'Kim', id: 'i004', fields: { must_have: 'Y' } }).ok, 'kids can’t');
+  r = b.call({ action: 'itemSave', pass: PASS, by: 'Pat', id: 'i002', fields: { must_have: '' } });
+  assert.strictEqual(r.state.items.find((x) => x.id === 'i002').must_have, '');
+  r = b.call({ action: 'missionsAsk', pass: PASS, by: 'Pat', kind: 'musthave', items: [{ id: 'i005' }] });
+  assert.strictEqual(r.result.sent, 1);
+  assert.ok(r.state.review.some((x) => /Must-have check before the order: go check the .*\(i005\)/.test(x.detail)));
+});

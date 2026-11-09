@@ -1073,3 +1073,8 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 /* api 67: already ordered */
 .meal-tag.ordered { background: #E0F2FE; color: #075985; }
 .is-ordered { margin: 4px 0 10px; padding: 8px 12px; border-radius: 12px; background: #E0F2FE; color: #075985; font-size: 14px; }
+/* api 68: must-haves not covered before an order */
+.must { border-color: #E5A0A0; background: #FFF3F2; margin-bottom: 12px; }
+.must .card-head { display: flex; justify-content: space-between; align-items: center; color: #A32D2D; }
+.must .card-head .miss-link { color: #A32D2D; text-transform: none; letter-spacing: 0; }
+.must .must-note { margin: 2px 0 6px; }

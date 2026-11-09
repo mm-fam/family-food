@@ -375,7 +375,13 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      In-store tap, a receipt) is on its way or in the house. Missions still go out and still score, the card says
 //      "🚚 Coming in Sat's Giant Eagle order", and a Low / Out answer logs Stock but adds nothing to the List
 //      (result.ordered). A parent can still add it on purpose. state.ordered = {item_id: {date, store, id}}.
-const API_VERSION = 67;
+// 68 = must-haves (Nov 8, owner: the weekend order went in with no eggs and no mozzarella: "certain things like eggs,
+//      milk, cheese … no-brainers we have to have in one of the carts"). Items `must_have` (Y / blank, added at the
+//      end on first use); itemSave accepts it (parents only). The app works out, for every must-have, whether it's
+//      covered right now: on the List or in a cart, ordered in the last ORDERED_DAYS, or seen Plenty in the last 2
+//      days / Some today or yesterday. Anything not covered shows as a red card on the List and the Carts screen.
+//      missionsAsk {kind: 'musthave'} = "🥚 Must-have check before the order: …".
+const API_VERSION = 68;
 const ORDERED_DAYS = 3; // a row bought (order placed) this recently covers its item
 const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
@@ -1495,7 +1501,7 @@ function saveItem(req) {
   }
   const item = readTab(TABS.items).find((it) => it.id === req.id);
   if (!item) throw new Error('Item not found');
-  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by', 'mini_fridge', 'pantry', 'kind'];
+  const allowed = ['name', 'store', 'group', 'brand_size', 'ok_swap', 'status', 'notes', 'store_only', 'shelf_days', 'open_to_try', 'best_price', 'sold_by', 'mini_fridge', 'pantry', 'kind', 'must_have'];
   const f = {};
   allowed.forEach((k) => req.fields && req.fields[k] !== undefined && (f[k] = req.fields[k]));
   // api 45: sold by the pound (List qty in lb, ½ lb steps) or each (blank).
@@ -1511,6 +1517,8 @@ function saveItem(req) {
   if (f.mini_fridge !== undefined) { f.mini_fridge = /^y/i.test(String(f.mini_fridge)) ? 'Y' : ''; ensureColumn(TABS.items, 'mini_fridge'); }
   // api 54: pantry staple (Y / blank): assumed on hand for Missing for meals and meal missions.
   if (f.pantry !== undefined) { f.pantry = /^y/i.test(String(f.pantry)) ? 'Y' : ''; ensureColumn(TABS.items, 'pantry'); }
+  // api 68: must-have (Y / blank): accounted for at every order (List, cart, just ordered, or seen at home lately).
+  if (f.must_have !== undefined) { f.must_have = /^y/i.test(String(f.must_have)) ? 'Y' : ''; ensureColumn(TABS.items, 'must_have'); }
   // api 62: same kind (a short word like "cheddar"); blank takes the item out of its group.
   if (f.kind !== undefined) { f.kind = String(f.kind || '').trim().toLowerCase().replace(/[()]/g, '').slice(0, 30); ensureColumn(TABS.items, 'kind'); }
   if (f.store_only !== undefined) { f.store_only = /^y/i.test(String(f.store_only)) ? 'Y' : ''; ensureColumn(TABS.items, 'store_only'); }
@@ -2412,7 +2420,7 @@ function missionsAsk(req) {
     const kid = order[turn++ % order.length];
     const why = String((x && x.why) || '').replace(/[()]/g, '').slice(0, 80);
     appendObj(TABS.review, { id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), type: 'check', status: 'open', answer: '', audience: kid, asked_by: who,
-      detail: (req.kind === 'staples' ? '🧺 Staples check before the order: go check the ' : '🍽 For the meal plan: go check the ') + it.name + ': how much do we have?' + (why ? ' It\'s for ' + why + '.' : '') + ' (' + id + ') Options: ' + MISSION_OPTIONS });
+      detail: (req.kind === 'staples' ? '🧺 Staples check before the order: go check the ' : req.kind === 'musthave' ? '🥚 Must-have check before the order: go check the ' : '🍽 For the meal plan: go check the ') + it.name + ': how much do we have?' + (why ? ' It\'s for ' + why + '.' : '') + ' (' + id + ') Options: ' + MISSION_OPTIONS });
     sent.push({ id: id, to: kid });
   });
   return { sent: sent.length, to: kids.map((k) => ({ kid: k, n: sent.filter((s) => s.to === k).length })) };

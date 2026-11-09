@@ -1380,6 +1380,61 @@
       '<div class="sheet-actions"><button class="btn btn-primary" data-act="sk-use">Use ' + esc(row.name) + '</button>' +
       '<button class="btn btn-plain" data-act="sk-anyway">Add ' + esc(it.name) + ' anyway</button></div>';
   }
+  // api 68: must-haves (owner, Nov 8: the weekend order went in with no eggs and no mozzarella: "certain things like
+  // eggs, milk, cheese … no-brainers we have to have in one of the carts"). A short list (Items must_have = Y), each
+  // accounted for before any order: on the List or in a cart, ordered in the last 3 days, or seen Plenty in the last
+  // 2 days / Some today or yesterday. A "plenty" from days ago isn't enough (eggs were "plenty" Friday, gone Sunday).
+  const MUST_PLENTY_DAYS = 2, MUST_SOME_DAYS = 1;
+  const isMustHave = (it) => !!it && it.status !== 'Drop' && /^y/i.test(String(it.must_have || ''));
+  function mustHaveInfo() {
+    const today = D().today;
+    const rowOf = {};
+    D().list.forEach((r) => { if (r.item_id && (!rowOf[r.item_id] || r.status === 'carted')) rowOf[r.item_id] = r; });
+    const stock = D().stock || {};
+    const checking = {};
+    (D().review || []).forEach((r) => { if (r.type === 'check' && r.status === 'open') { const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) checking[m[1]] = r.audience; } });
+    const rows = (D().items || []).filter(isMustHave).map((it) => {
+      const r = rowOf[it.id], o = orderedOf(it.id), s = stock[it.id];
+      const at = s ? String(s.at).slice(0, 10) : '';
+      const lvl = s ? String(s.level) : '';
+      const seen = s ? levelWord(lvl) + ' · ' + (at === today ? 'today' : shortDay(at).split(' ')[0]) + (s.who ? ' (' + s.who + ')' : '') : '';
+      let ok = '', why = '';
+      if (r && r.status === 'carted' && r.cart) ok = '🛒 In the ' + storeOf(r.cart).name + ' cart';
+      else if (r && r.status === 'requested') ok = '🙋 Asked for';
+      else if (r) ok = '✓ On the List';
+      else if (o) ok = '🚚 ' + orderedText(o);
+      else if (s && at && lvl === 'plenty' && addDays(at, MUST_PLENTY_DAYS) >= today) ok = '🏠 ' + seen;
+      else if (s && at && (lvl === 'some' || Number(lvl) > 0) && addDays(at, MUST_SOME_DAYS) >= today) ok = '🏠 ' + seen;
+      else why = s && at ? (/^(low|out|0)$/.test(lvl) ? '⚠️ ' + seen : 'Last look: ' + seen) : 'Nobody has looked';
+      return { id: it.id, it: it, ok: ok, why: why, checking: checking[it.id] || '' };
+    }).sort((a, b) => (!!a.ok - !!b.ok) || (a.it.name < b.it.name ? -1 : 1));
+    return { rows: rows, miss: rows.filter((x) => !x.ok) };
+  }
+  function levelWord(l) { return { plenty: 'Plenty', some: 'Some', low: 'A little', out: 'Out', waste: 'Tossed', '0': 'Out' }[l] || (l ? l + ' left' : ''); }
+  // Red card when something isn't covered (List and Carts screen, parents); one quiet line when all are.
+  function viewMustHaves() {
+    if (!canMustHave() || isKid(S.me)) return '';
+    const m = mustHaveInfo();
+    if (!m.rows.length) return '';
+    if (!m.miss.length) return '<div class="miss-line">🥚 Must-haves · all ' + m.rows.length + ' covered · <button class="link-btn miss-link" data-act="musthaves">See all ›</button></div>';
+    const send = m.miss.filter((x) => !x.checking).map((x) => ({ id: x.id }));
+    return '<section class="card must"><div class="card-head"><span>🥚 MUST-HAVES · ' + m.miss.length + ' not covered</span><span class="sub"><button class="link-btn miss-link" data-act="musthaves">All ' + m.rows.length + ' ›</button></span></div>' +
+      '<p class="note must-note">Put these in a cart or on the List, or say we have plenty, before the order goes in.</p>' +
+      (canMissionsAsk() && (D().settings.kids || []).length && send.length > 1 ? '<div class="miss-send"><button class="btn btn-outline btn-sm" data-act="must-send" data-items="' + esc(JSON.stringify(send)) + '">🔎 Have the girls check ' + send.length + '</button></div>' : '') +
+      m.miss.map(mustRow).join('') + '</section>';
+  }
+  function mustRow(x) {
+    return '<div class="miss-row"><div class="miss-main"><div class="miss-items"><button class="link-btn" data-act="open-item" data-id="' + esc(x.id) + '">' + esc(x.it.name) + '</button>' +
+      (x.checking ? '<span class="miss-chk"> 🔎 ' + esc(x.checking) + '</span>' : '') + '</div><div class="row-meta">' + esc(x.ok || x.why) + '</div></div>' +
+      (x.ok ? '' : '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="must-add" data-id="' + esc(x.id) + '">Add</button>' +
+        '<button class="btn btn-plain btn-sm" data-act="must-have" data-id="' + esc(x.id) + '">Have plenty</button></div>') + '</div>';
+  }
+  function viewMustSheet() {
+    const m = mustHaveInfo();
+    return '<div class="is-head"><div><h2>🥚 Must-haves</h2><div class="is-sub">Covered at every order · ' + (m.miss.length ? m.miss.length + ' not yet' : 'all set') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
+      m.rows.map(mustRow).join('') +
+      '<p class="note">Covered = on the List or in a cart, ordered in the last 3 days, or seen Plenty in the last ' + MUST_PLENTY_DAYS + ' days (Some: today or yesterday). Change the list on an item: Details → Must-have?</p>';
+  }
   function viewOrdered(sh) {
     const it = itemById(sh.item_id), o = orderedOf(sh.item_id);
     if (!it || !o) return '<div class="is-head"><div><h2>All set</h2></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
@@ -1446,6 +1501,7 @@
       html += '<div class="list-sum">' + bits.join(' · ') + '</div>';
     }
 
+    html += viewMustHaves();
     html += viewMissing();
     html += viewStaplesLine();
 
@@ -1750,12 +1806,13 @@
   const canPantry = () => Number(D().api || 0) >= 54;
   const canMissionsAsk = () => Number(D().api || 0) >= 55;
   const canStaples = () => Number(D().api || 0) >= 63;
+  const canMustHave = () => Number(D().api || 0) >= 68;
 
   function openItemSheet(itemId, rowId, name) {
     const it = itemById(itemId);
     S.sheet = {
       type: 'item', item_id: itemId || '', row_id: rowId || '', name: (it && it.name) || name || '', level: '', count: 1, details: false, info: null,
-      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}, canFridge() ? { mini_fridge: isFridge(it.id) ? 'Y' : '' } : {}, canPantry() ? { pantry: isPantry(it.id) ? 'Y' : '' } : {}, canV45() ? { sold_by: it.sold_by === 'lb' ? 'lb' : '', spoken: String(it.aliases || '').split(';').map((x) => x.trim()).filter((x) => /[a-z]/.test(x)).join(', ') } : {}) : null,
+      d: it ? Object.assign({ store: it.store || 'Either', ok_swap: it.ok_swap || '', status: it.status || '', brand_size: it.brand_size || '', notes: it.notes || '', group: it.group || 'Other' }, canV9() ? { store_only: /^y/i.test(String(it.store_only || '')) ? 'Y' : '' } : {}, canUseSoon() ? { shelf_days: it.shelf_days ? String(it.shelf_days) : '' } : {}, canTry() ? { open_to_try: /^y/i.test(String(it.open_to_try || '')) ? 'Y' : '' } : {}, canBest() ? { best_price: isBest(it) ? 'Y' : '' } : {}, canFridge() ? { mini_fridge: isFridge(it.id) ? 'Y' : '' } : {}, canPantry() ? { pantry: isPantry(it.id) ? 'Y' : '' } : {}, canMustHave() ? { must_have: isMustHave(it) ? 'Y' : '' } : {}, canV45() ? { sold_by: it.sold_by === 'lb' ? 'lb' : '', spoken: String(it.aliases || '').split(';').map((x) => x.trim()).filter((x) => /[a-z]/.test(x)).join(', ') } : {}) : null,
     };
     render();
     if (itemId && canInfo() && String(itemId).indexOf('tmp') !== 0) {
@@ -1943,7 +2000,7 @@
     if (it && sh.d) {
       const swap = canV46() ? ({ Y: 'store may substitute', N: 'don’t substitute' }[sh.d.ok_swap] || 'ask about substitutes') : ({ Y: 'swap OK', N: 'no swaps' }[sh.d.ok_swap] || 'ask before swapping');
       const keep = { Always: 'always keep it', Sometimes: 'now and then', Drop: 'stopped buying' }[sh.d.status] || '';
-      more += acc('details', 'Details', esc([keep, swap, sh.d.pantry === 'Y' ? (canStaples() ? 'staple' : 'pantry staple') : '', sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
+      more += acc('details', 'Details', esc([keep, swap, sh.d.must_have === 'Y' ? 'must-have' : '', sh.d.pantry === 'Y' ? (canStaples() ? 'staple' : 'pantry staple') : '', sh.d.open_to_try === 'Y' ? 'open to something else' : ''].filter(String).join(' · ')) + (kid ? '' : ' · edit'), () => {
         const seg = (field, opts) => '<div class="seg' + (opts.length > 4 ? ' seg-grid' : '') + '">' + opts.map((o) => '<button type="button" data-act="d-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (String(sh.d[field]) === String(o[0]) ? 'on' : '') + '"' + (kid ? ' disabled' : '') + '>' + esc(o[1]) + '</button>').join('') + '</div>';
         return '<div class="is-details">' + (sh.fresh && !kid ? '<p class="note fresh-note">✨ New to Poppy. Fill in the brand and size, the aisle, where we get it and how it’s sold, so search, Siri and the carts get it right.</p>' : '') +
           '<div><label>Store we use</label>' + seg('store', [['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon'], ['Either', 'Either']].concat(DELIVERY_OPTS)) + '</div>' +
@@ -1952,6 +2009,7 @@
           (canPantry() ? (canStaples()
             ? '<div><label>Staple?</label>' + seg('pantry', [['', 'No'], ['Y', '🧺 Never run out']]) + '<p class="note">Yes = Missing for meals assumes we have it, and the girls check it every week (things we buy rarely, every 3 weeks) and before orders.</p></div>'
             : '<div><label>Pantry staple?</label>' + seg('pantry', [['', 'No'], ['Y', '🫙 We always have it']]) + '<p class="note">Yes = Missing for meals assumes we have it, unless someone marks it low or out.</p></div>') : '') +
+          (canMustHave() ? '<div><label>Must-have?</label>' + seg('must_have', [['', 'No'], ['Y', '🥚 Every order']]) + '<p class="note">Yes = before any order it has to be on the List, in a cart, or seen Plenty at home in the last 2 days. If not, it shows in red on the List and Carts.</p></div>' : '') +
           (canV46() ? '<div><label>If the store is out of it</label>' + seg('ok_swap', [['Y', 'Let the store pick'], ['N', 'Don’t substitute'], ['', 'Ask me']]) + '<p class="note">Claude sets this on each line of the online cart. A backup we picked (shown under What we buy) comes first. Ask me = the store’s default, and you get a ⚖ Decisions card if it swaps something.</p></div>'
             : '<div><label>OK to swap if it’s out?</label>' + seg('ok_swap', [['Y', 'Yes'], ['N', 'No, skip it'], ['', 'Ask me']]) + '</div>') +
           (canBest() ? '<div><label>Shop for the best price?</label>' + seg('best_price', [['', 'No, our usual store'], ['Y', 'Yes, any store']]) + '<p class="note">Yes = Claude checks this product’s price at all four stores. When it’s on the List and another store is cheaper, you get a ⚖ Decisions card with every price, and pick the cart.</p></div>' : '') +
@@ -2170,6 +2228,7 @@
       '<div class="carts-summary cs-' + sum1.cls + '"><span class="cdot cd-' + ({ off: 'wait', run: 'wait' }[sum1.cls] || sum1.cls) + '" aria-hidden="true"></span>' + esc(sum1.text) + '</div>' +
       (amParent() && Number(D().api || 0) >= 50 ? '<button class="btn btn-primary btn-block" data-act="cart-job" data-kind="all" data-store="ALL">Update carts</button>' : '') +
       '</section>';
+    html += viewMustHaves(); // api 68: right where a parent decides it's order time
     CART_STORES.forEach((code) => {
       const st = storeOf(code);
       const t = lastTotal(code);
@@ -3821,6 +3880,7 @@
     if (sh.type === 'ordered') inner = viewOrdered(sh);
     if (sh.type === 'misshave') inner = viewMissHave(sh);
     if (sh.type === 'staples') inner = viewStaplesSheet();
+    if (sh.type === 'musthaves') inner = viewMustSheet();
     if (sh.type === 'me') inner = viewMeSheet();
     if (sh.type === 'feedback') {
       inner = '<h2>💡 Idea for Poppy</h2><p class="note">Something confusing, missing, or a great idea? Say it any way you like. Every one gets read.</p>' +
@@ -4213,6 +4273,24 @@
     'have-count-save': () => haveDone(String(S.sheet.count)),
     'meal-gaps': () => { S.sheet = { type: 'mealgaps' }; render(); },
     'staples': () => { S.sheet = { type: 'staples' }; render(); },
+    'musthaves': () => { S.sheet = { type: 'musthaves' }; render(); },
+    'must-add': (el) => { const it = itemById(el.dataset.id); if (it && !isKid(S.me)) addItem(it); },
+    'must-have': (el) => {
+      const id = el.dataset.id, it = itemById(id);
+      if (!it || isKid(S.me)) return;
+      act('stockLog', { item_id: id, level: 'plenty' }, () => {
+        (D().stock = D().stock || {})[id] = { level: 'plenty', at: D().today, who: S.me };
+      }, '🥚 ' + it.name + ': we have plenty');
+    },
+    'must-send': (el) => {
+      if (isKid(S.me)) return;
+      let items = []; try { items = JSON.parse(el.dataset.items || '[]'); } catch (e) { items = []; }
+      if (!items.length) return;
+      const kids = D().settings.kids || [];
+      act('missionsAsk', { items: items, kind: 'musthave' }, () => {
+        items.forEach((x, i) => (D().review = D().review || []).push({ id: tmpId(), type: 'check', status: 'open', audience: kids[i % kids.length], detail: '(' + x.id + ')' }));
+      }, '🔎 Sent ' + items.length + ' must-have checks to the girls');
+    },
     'staples-send': (el) => {
       if (isKid(S.me)) return;
       let items = []; try { items = JSON.parse(el.dataset.items || '[]'); } catch (e) { items = []; }
