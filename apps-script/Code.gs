@@ -380,7 +380,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      end on first use); itemSave accepts it (parents only). The app works out, for every must-have, whether it's
 //      covered right now: on the List or in a cart, ordered in the last ORDERED_DAYS, or seen Plenty today. Anything not covered shows as a red card on the List and the Carts screen.
 //      missionsAsk {kind: 'musthave'} = "🥚 Must-have check before the order: …".
-const API_VERSION = 68;
+// 69 = Bought takes it out of the online cart (Nov 9, owner: Reynolds foil bought in store at Target was marked bought
+//      but stayed in the Target cart: "if there is something in the cart and we … said it was bought … take that out
+//      of the cart"). update {status: 'bought'} on a carted row always sets cart_want = out and queues that store's
+//      build (before, only the In-store tap sent cart_out). cart_keep: true opts out.
+const API_VERSION = 69;
 const ORDERED_DAYS = 3; // a row bought (order placed) this recently covers its item
 const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
@@ -1234,8 +1238,10 @@ function updateListRow(req) {
   if (f.status && ACTIVE.concat(DONE).indexOf(f.status) < 0) throw new Error('Bad status');
   if (f.status === 'needed' && row.status === 'requested' && isKid(req.by)) throw new Error('Only parents can approve');
   f.updated_at = nowStamp();
-  // A carted row taken off the List (or grabbed in the store) comes out of the online cart too.
-  if (row.status === 'carted' && (f.status === 'skipped' || f.status === 'have' || (f.status === 'bought' && req.cart_out))) Object.assign(f, cartOutFields(row, req.by));
+  // A carted row taken off the List, or marked Bought any way (In-store tap, the item screen's Bought), comes out of
+  // the online cart too (api 69, Nov 9: foil bought at Target stayed in the Target cart). An order that was placed
+  // empties the cart on its own; the runner just finds no line. cart_keep: true leaves the line in.
+  if (row.status === 'carted' && (f.status === 'skipped' || f.status === 'have' || (f.status === 'bought' && !req.cart_keep))) Object.assign(f, cartOutFields(row, req.by));
   // api 34: a parent changing how many of a carted row → that cart line's qty gets changed too.
   else if (f.qty !== undefined) Object.assign(f, cartQtyFields(row, f.qty, req.by));
   setFields(TABS.list, row._row, f);

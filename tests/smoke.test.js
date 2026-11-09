@@ -90,6 +90,23 @@ test('the List update path works (In store tap)', () => {
   assert.ok(!r.state.list.some((x) => x.id === id && x.status === 'needed'));
 });
 
+test('marking a carted row Bought takes it out of the online cart (api 69)', () => {
+  const b = fresh();
+  const id = b.call({ action: 'add', pass: PASS, by: 'Sam', item_id: 'i005' }).result.id;
+  const data = rows(b, 'List');
+  const h = data[0];
+  const row = data.find((x) => x[0] === id);
+  row[h.indexOf('status')] = 'carted';
+  row[h.indexOf('cart')] = 'TGT';
+  const r = b.call({ action: 'update', pass: PASS, by: 'Sam', id: id, fields: { status: 'bought' } });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(row[h.indexOf('status')], 'bought');
+  assert.strictEqual(row[h.indexOf('cart_want')], 'out');
+  const jobs = rows(b, 'Cart Jobs');
+  const jh = jobs[0];
+  assert.ok(jobs.some((j) => j[jh.indexOf('store')] === 'TGT' && j[jh.indexOf('kind')] === 'build' && j[jh.indexOf('status')] === 'queued'), 'a TGT build is queued');
+});
+
 test('app.js and Code.gs parse', () => {
   const fs = require('fs');
   const path = require('path');
