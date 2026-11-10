@@ -53,6 +53,10 @@
     cartShow: 'all',   // a store cart's filter: all / meals / site / poppy
     cartSort: 'aisle', // aisle / az / price
     cartFiltersOpen: false,
+    listQuery: '',     // List search (Nov 10, owner: search + Filter like the other tabs)
+    listStore: 'all',  // List filter: store (all / GE / WF / TGT / AMZ)
+    listWho: 'all',    // List filter: who asked
+    listFiltersOpen: false,
     mealFiltersOpen: false,
     mealSort: 'top',   // Our meals order: top (sections by rating, default since Nov 4) / az / cost / stale
     sheet: null,       // bottom sheet { type, ...draft }
@@ -688,6 +692,7 @@
     else if (S.stale) top += '<div class="stale-pill" role="status">Updating…</div>';
     if (instore) top += viewStorePicker();
     else if (S.tab === 'shop') top += viewShopTop();
+    else if (S.tab === 'list') top += viewListTop();
     top += '</header>';
 
     let body = '';
@@ -803,6 +808,20 @@
   // narrows to the rows no online cart has yet. needsCart is defined below; kindOk only runs at render time.
   S.listKind = 'all';
   const kindOk = (r) => S.listKind === 'all' || (S.listKind === 'cart' ? (canCarts() && needsCart(r)) : S.listKind === 'meal' ? forMeal(r) : !forMeal(r));
+  // List search + Filter (Nov 10, owner: "the List tab needs a search bar and filter button just like all the other
+  // pages"). Every typed word must be in the row's name, note, aisle, brand, aliases or a store's product name.
+  // The Filter panel holds Show (the old pills), Store and Asked by. Requests and Later are narrowed by the search too.
+  const listWords = () => String(S.listQuery || '').trim().toLowerCase().split(/\s+/).filter(String);
+  const listHay = (r) => {
+    const it = itemById(r.item_id) || {};
+    const prods = (D().products || {})[r.item_id] || {};
+    return [r.name, r.note, groupOf(r), it.brand_size, it.aliases, it.spoken].concat(Object.keys(prods).map((k) => (prods[k] || {}).name)).join(' ').toLowerCase();
+  };
+  const listQOk = (r) => { const w = listWords(); if (!w.length) return true; const h = listHay(r); return w.every((x) => h.indexOf(x) >= 0); };
+  const listStoreOk = (r) => S.listStore === 'all' || r.store === S.listStore || (r.store === 'Either' && takesEither(S.listStore));
+  const listWhoOk = (r) => S.listWho === 'all' || wantedBy(r).map((x) => x.toLowerCase()).indexOf(S.listWho.toLowerCase()) >= 0;
+  const listKeep = (r) => kindOk(r) && listQOk(r) && listStoreOk(r) && listWhoOk(r);
+  const listNarrowed = () => !!(listWords().length || S.listKind !== 'all' || S.listStore !== 'all' || S.listWho !== 'all');
   // Pack sizes (Nov 3, the owner's idea): how many come in one package. Products `pack` when Claude filled it,
   // else read from the store's product name ("… Frozen - 8 Count", "8 Cups", "Pack of 12") or a size like "14 each".
   const PACK_WORDS = 'count|ct|cups?|bars?|pouches|pouch|sandwiche?s|rolls?|bottles?|cans?|pieces?|pcs|each|packs?|pk|pods?|sticks?|cakes?|pies?|bags?|boxes?|cartons?|links?|patties|eggs?';
@@ -1430,13 +1449,13 @@
   }
 
   // Aisle accordions for a set of rows (faded rows keep their aisle open so Undo shows).
-  function aisleCards(all, fadedIds) {
+  function aisleCards(all, fadedIds, forceOpen) {
     let html = '';
     groupsIn(all).forEach((g) => {
       const rows = all.filter((r) => groupOf(r) === g);
       const live = rows.filter((r) => !fadedIds[r.id]);
       const key = 'a:' + g;
-      const closed = isClosed(key) && !rows.some((r) => fadedIds[r.id]);
+      const closed = !forceOpen && isClosed(key) && !rows.some((r) => fadedIds[r.id]);
       html += '<section class="card acc"><button class="card-head acc-head" data-act="fold" data-key="' + esc(key) + '" aria-expanded="' + !closed + '">' +
         '<span>' + esc(g.toUpperCase()) + ' · ' + live.length + '</span>' + chev(closed) + '</button>';
       if (closed) html += '<button class="peek" data-act="fold" data-key="' + esc(key) + '">' + esc(live.slice(0, 6).map((r) => r.name).join(', ')) + (live.length > 6 ? '…' : '') + '</button>';
@@ -1446,16 +1465,58 @@
     return html;
   }
 
+  const LIST_SHOW = [['all', 'All'], ['cart', '🛒 Needs a cart'], ['meal', '🍽 Meals'], ['stock', '🧺 Stock']];
+  const LIST_STORES = [['all', 'All'], ['GE', 'Giant Eagle'], ['WF', 'Whole Foods'], ['TGT', 'Target'], ['AMZ', 'Amazon']];
+  function listFiltersOn() {
+    const on = [];
+    if (S.listKind !== 'all') on.push((LIST_SHOW.find((x) => x[0] === S.listKind) || [])[1]);
+    if (S.listStore !== 'all') on.push(storeOf(S.listStore).name);
+    if (S.listWho !== 'all') on.push('Asked by ' + S.listWho);
+    return on.filter(Boolean);
+  }
+  function viewListTop() {
+    const active = D().list.filter((r) => r.status !== 'requested');
+    const on = listFiltersOn();
+    const open = !!S.listFiltersOpen;
+    let h = '<div class="shop-search"><form class="addbar" data-form="list-q" autocomplete="off"><label class="sr" for="list-q">Search the List</label>' +
+      '<input id="list-q" class="field" type="search" data-input="list-q" placeholder="Search the List…" value="' + esc(S.listQuery) + '" enterkeyhint="search">' +
+      (S.listQuery ? '<button type="button" class="search-x" data-act="list-clear-q" aria-label="Clear the search">✕</button>' : '') + '</form>' +
+      '<button type="button" class="filter-btn' + (open ? ' open' : '') + (on.length ? ' active' : '') + '" data-act="list-filters" aria-expanded="' + open + '" aria-controls="list-filters">' +
+      '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+      '<span>Filter</span>' + (on.length ? '<span class="filter-n">' + on.length + '</span>' : '') + '</button></div>';
+    if (open) {
+      const n = { all: active.length, cart: canCarts() ? active.filter(needsCart).length : 0, meal: active.filter(forMeal).length };
+      n.stock = active.length - n.meal;
+      const pill = (v, label) => '<button type="button" class="pill small' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n[v] + '</span></button>';
+      const seg = (act, cur, v, label, cls) => '<button type="button" class="' + (cls || '') + (cur === v ? ' on' : '') + '" data-act="' + act + '" data-v="' + esc(v) + '" aria-pressed="' + (cur === v) + '">' + esc(label) + '</button>';
+      const stores = LIST_STORES.filter((x) => x[0] === 'all' || x[0] === S.listStore || active.some((r) => r.store === x[0] || (r.store === 'Either' && takesEither(x[0]))));
+      const who = [];
+      active.forEach((r) => wantedBy(r).forEach((w) => { if (w && who.indexOf(w) < 0 && w !== 'Cart') who.push(w); }));
+      if (S.listWho !== 'all' && who.indexOf(S.listWho) < 0) who.push(S.listWho);
+      h += '<div class="filter-panel" id="list-filters">' +
+        '<div class="fp-label">Show</div><div class="chips-row">' + LIST_SHOW.filter((x) => x[0] !== 'cart' || canCarts()).map((x) => pill(x[0], x[1])).join('') + '</div>' +
+        '<div class="fp-label">Store</div><div class="seg seg-stores">' + stores.map((x) => seg('list-store', S.listStore, x[0], x[1], x[0] === 'all' ? '' : storeOf(x[0]).cls)).join('') + '</div>' +
+        (who.length > 1 ? '<div class="fp-label">Asked by</div><div class="seg seg-fit">' + seg('list-who', S.listWho, 'all', 'Anyone') + who.map((w) => seg('list-who', S.listWho, w, w)).join('') + '</div>' : '') +
+        '<div class="fp-foot">' + (on.length ? '<button type="button" class="link-btn" data-act="list-filters-clear">Clear filters</button>' : '<span></span>') +
+        '<button type="button" class="btn btn-primary small" data-act="list-filters">Done</button></div></div>';
+    } else if (on.length) {
+      h += '<div class="filter-sum"><span>' + esc(on.join(' · ')) + '</span><button type="button" class="link-btn" data-act="list-filters-clear">Clear</button></div>';
+    }
+    return h;
+  }
+
   function viewList() {
     const list = D().list;
-    const requests = list.filter((r) => r.status === 'requested');
+    const requests0 = list.filter((r) => r.status === 'requested');
     const active = list.filter((r) => r.status !== 'requested');
-    const held = D().held || [];
+    const held0 = D().held || [];
+    const held = held0.filter((r) => listQOk(r) && listStoreOk(r) && listWhoOk(r));
     let html = '';
 
     html += viewInstallTip();
     if (!canCarts()) html += viewJobBanner();
     html += viewTodoTiles(); // Nov 9: Use soon, Must-haves, Missing for meals, Staples as one row of tiles
+    const requests = requests0.filter((r) => listQOk(r) && listStoreOk(r) && listWhoOk(r));
     if (requests.length) {
       html += '<section class="card requests"><div class="card-head">' + (amParent() ? 'REQUESTS · ' + requests.length : 'WAITING FOR A PARENT · ' + requests.length) + '</div>' +
         requests.map(requestRow).join('') + '</section>';
@@ -1468,7 +1529,7 @@
     const open = active.filter((r) => !inCartNow(r));
 
     // Summary: what still needs a cart, and how much is already in one (tap → Carts screen).
-    if (active.length || held.length) {
+    if (!listNarrowed() && (active.length || held.length)) {
       const bits = [];
       if (canCarts()) {
         bits.push('<b>' + open.length + ' need' + (open.length === 1 ? 's' : '') + ' a cart</b>');
@@ -1480,25 +1541,23 @@
 
 
     // One List by aisle (owner, Nov 2): in-cart rows sit with the rest and show their 🛒 tag.
-    // Pills: All · 🛒 Needs a cart · 🍽 Meals · 🧺 Stock.
-    const shown = active.filter(kindOk);
-    const all = shown.concat(faded.map((f) => f.row).filter(kindOk));
+    // Show (All · 🛒 Needs a cart · 🍽 Meals · 🧺 Stock), Store and Asked by live in the Filter panel (Nov 10).
+    const shown = active.filter(listKeep);
+    const all = shown.concat(faded.map((f) => f.row).filter(listKeep));
+    const narrowed = listNarrowed();
     if (active.length || faded.length) {
-      const nMeal = active.filter(forMeal).length;
-      const pill = (v, label, n) => '<button class="pill small' + (S.listKind === v ? ' on' : '') + '" data-act="list-kind" data-v="' + v + '" aria-pressed="' + (S.listKind === v) + '">' + label + ' <span class="pill-n">' + n + '</span></button>';
-      const nNeed = canCarts() ? active.filter(needsCart).length : 0;
       const push = canCarts() && amParent() ? shown.filter(needsCart).length : 0;
       const allClosed = groupsIn(all).every((g) => isClosed('a:' + g));
-      html += '<div class="sec-head"><span class="sec-title">On the List · ' + shown.length +
-        ' <button class="link-btn inline fold-link" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button></span>' +
-        (push ? '<button class="btn btn-outline btn-sm" data-act="push-all">🛒 Put ' + push + ' in carts</button>' : '') + '</div>' +
-        '<div class="list-tools"><span class="chips-row tight">' + pill('all', 'All', active.length) + (canCarts() ? pill('cart', '🛒 Needs a cart', nNeed) : '') +
-        pill('meal', '🍽 Meals', nMeal) + pill('stock', '🧺 Stock', active.length - nMeal) + '</span></div>';
-      if (!shown.length && !faded.length) html += '<div class="empty small">' + ({ cart: 'Everything on the List is in a cart.', meal: 'Nothing here is for a planned meal this week.', stock: 'Everything here is for a meal.' }[S.listKind] || '') + '</div>';
-      html += aisleCards(all, fadedIds);
+      html += '<div class="sec-head"><span class="sec-title">On the List · ' + shown.length + (narrowed && shown.length !== active.length ? ' of ' + active.length : '') +
+        (narrowed ? '' : ' <button class="link-btn inline fold-link" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button>') + '</span>' +
+        (push ? '<button class="btn btn-outline btn-sm" data-act="push-all">🛒 Put ' + push + ' in carts</button>' : '') + '</div>';
+      if (!shown.length && !faded.length) html += '<div class="empty small">' + (listWords().length ? 'Nothing on the List matches “' + esc(S.listQuery.trim()) + '”.' + (S.listQuery ? '<br><button class="btn btn-outline" style="margin-top:12px" data-act="list-to-shop">Look for it in Shop</button>' : '')
+        : S.listStore !== 'all' || S.listWho !== 'all' ? 'Nothing on the List matches these filters.'
+        : ({ cart: 'Everything on the List is in a cart.', meal: 'Nothing here is for a planned meal this week.', stock: 'Everything here is for a meal.' }[S.listKind] || '')) + '</div>';
+      html += aisleCards(all, fadedIds, narrowed);
     }
 
-    if (!list.length && !faded.length && !held.length) html += '<div class="empty">The list is empty.<br><button class="btn btn-outline" style="margin-top:12px" data-act="tab" data-tab="shop">Add things in Shop</button></div>';
+    if (!list.length && !faded.length && !held0.length) html += '<div class="empty">The list is empty.<br><button class="btn btn-outline" style="margin-top:12px" data-act="tab" data-tab="shop">Add things in Shop</button></div>';
 
     // Later: we need it, just not this order.
     if (held.length) {
@@ -1511,7 +1570,7 @@
     }
 
     html += '<p class="hint">The List is what’s still open. The tiles on top (⏳ Use soon, 🥚 Must-haves, 🍽 For meals, 🧺 Staples) show what to deal with before an order; tap one to open it. ' +
-      (canCarts() ? '🛒 tags show what’s already in an online cart; Needs a cart = the rest. ' : '') + '⏸ Later = we need it, just not this order (tap an item → Later). Search and browse everything in Shop.</p>';
+      (canCarts() ? '🛒 tags show what’s already in an online cart; Needs a cart = the rest. ' : '') + '⏸ Later = we need it, just not this order (tap an item → Later). The search box looks through the List; Filter narrows it by type, store or who asked. Shop has everything we buy.</p>';
     return html;
   }
 
@@ -4065,6 +4124,12 @@
     'meal-filters': () => { S.mealFiltersOpen = !S.mealFiltersOpen; render(); },
     'meal-filters-clear': () => { S.mealKind = 'all'; S.mealSort = 'top'; render(); },
     'meal-clear-q': () => { S.mealQuery = ''; render(); const f = document.getElementById('meal-q'); if (f) f.focus(); },
+    'list-clear-q': () => { S.listQuery = ''; render(); const f = document.getElementById('list-q'); if (f) f.focus(); },
+    'list-filters': () => { S.listFiltersOpen = !S.listFiltersOpen; render(); },
+    'list-store': (el) => { S.listStore = el.dataset.v || 'all'; render(); },
+    'list-who': (el) => { S.listWho = el.dataset.v || 'all'; render(); },
+    'list-filters-clear': () => { S.listKind = 'all'; S.listStore = 'all'; S.listWho = 'all'; render(); },
+    'list-to-shop': () => { S.query = S.listQuery; S.listQuery = ''; S.tab = 'shop'; render(); window.scrollTo(0, 0); },
     'cart-clear-q': () => { S.cartQuery = ''; render(); const f = document.getElementById('cart-q'); if (f) f.focus(); },
     'cart-filters': () => { S.cartFiltersOpen = !S.cartFiltersOpen; render(); },
     'cart-show': (el) => { S.cartShow = el.dataset.v; render(); },
@@ -4217,7 +4282,7 @@
         if (c.kind === 'in') { r.cart_want = 'out'; queueLocal(c.store); } else { r.cart_want = ''; r.cart_note = ''; }
       }, c.kind === 'in' ? '⏳ ' + r.name + ' is coming out of the ' + storeOf(c.store).name + ' cart. It stays on the List.' : 'Won’t add ' + r.name);
     },
-    'push-all': () => openPushSheet(D().list.filter((r) => r.status !== 'requested' && kindOk(r) && needsCart(r))),
+    'push-all': () => openPushSheet(D().list.filter((r) => r.status !== 'requested' && listKeep(r) && needsCart(r))),
     'push-store': (el) => openPushSheet(D().list.filter((r) => needsCart(r) && pickCart(r).store === el.dataset.store)),
     'push-go': () => {
       const sh = S.sheet; if (!sh || sh.type !== 'pushall') return;
@@ -4535,6 +4600,7 @@
     if (kind === 'staples-q') { S.staplesQuery = el.value; render(); }
     if (kind === 'meal-q') { S.mealQuery = el.value; render(); return; }
     if (kind === 'cart-q') { S.cartQuery = el.value; render(); return; }
+    if (kind === 'list-q') { S.listQuery = el.value; render(); return; }
     if (kind === 'ask-draft') { S.askDraft = el.value; if (el.tagName === 'TEXTAREA') { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; } }
     if (kind === 'd' && S.sheet && S.sheet.d) S.sheet.d[el.dataset.field] = el.value;
     if (kind === 'draft' && S.sheet) {
@@ -4601,6 +4667,7 @@
     ev.preventDefault();
     if (form.dataset.form === 'meal-q') { if (document.activeElement) document.activeElement.blur(); return; }
     if (form.dataset.form === 'cart-q') { if (document.activeElement) document.activeElement.blur(); return; }
+    if (form.dataset.form === 'list-q') { if (document.activeElement) document.activeElement.blur(); return; }
     if (form.dataset.form === 'unlock') {
       const v = document.getElementById('pass').value.trim();
       if (!v) return;
@@ -4704,7 +4771,7 @@
   }, { passive: true });
   setInterval(() => {
     // Don't redraw under someone mid-edit.
-    if (document.hidden || S.sheet || S.query || S.mealQuery || S.cartQuery) return;
+    if (document.hidden || S.sheet || S.query || S.mealQuery || S.cartQuery || S.listQuery) return;
     if (Date.now() - stripTouched < 3000) return; // mid-swipe through a week strip
     const a = document.activeElement;
     if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')) return;
