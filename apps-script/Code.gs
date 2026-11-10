@@ -384,7 +384,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      but stayed in the Target cart: "if there is something in the cart and we … said it was bought … take that out
 //      of the cart"). update {status: 'bought'} on a carted row always sets cart_want = out and queues that store's
 //      build (before, only the In-store tap sent cart_out). cart_keep: true opts out.
-const API_VERSION = 69;
+// 70 = send the girls to check one item (Nov 10, owner: "whenever you go into any item … you should be able to just
+//      send the girls on a mission"). missionsAsk {kind: 'item'} = "🔎 Go check the …" (one item from its item screen
+//      or a must-have / staple row). App: List tiles ⏳ · 🥚 (must-haves + staples) · 🍽 · 🛒 Needs a cart; the List
+//      tab's badge counts those to-dos instead of the rows on the List.
+const API_VERSION = 70;
 const ORDERED_DAYS = 3; // a row bought (order placed) this recently covers its item
 const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
@@ -2425,7 +2429,7 @@ function missionsAsk(req) {
     const kid = order[turn++ % order.length];
     const why = String((x && x.why) || '').replace(/[()]/g, '').slice(0, 80);
     appendObj(TABS.review, { id: 'r' + String(n++).padStart(3, '0'), created: nowStamp(), type: 'check', status: 'open', answer: '', audience: kid, asked_by: who,
-      detail: (req.kind === 'staples' ? '🧺 Staples check before the order: go check the ' : req.kind === 'musthave' ? '🥚 Must-have check before the order: go check the ' : '🍽 For the meal plan: go check the ') + it.name + ': how much do we have?' + (why ? ' It\'s for ' + why + '.' : '') + ' (' + id + ') Options: ' + MISSION_OPTIONS });
+      detail: (req.kind === 'staples' ? '🧺 Staples check before the order: go check the ' : req.kind === 'musthave' ? '🥚 Must-have check before the order: go check the ' : req.kind === 'item' ? '🔎 Go check the ' : '🍽 For the meal plan: go check the ') + it.name + ': how much do we have?' + (why ? ' It\'s for ' + why + '.' : '') + ' (' + id + ') Options: ' + MISSION_OPTIONS });
     sent.push({ id: id, to: kid });
   });
   return { sent: sent.length, to: kids.map((k) => ({ kid: k, n: sent.filter((s) => s.to === k).length })) };

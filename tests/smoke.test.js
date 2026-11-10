@@ -634,3 +634,14 @@ test('must-haves: parents set Items must_have; kids can’t; a before-the-order 
   assert.strictEqual(r.result.sent, 1);
   assert.ok(r.state.review.some((x) => /Must-have check before the order: go check the .*\(i005\)/.test(x.detail)));
 });
+
+test('missionsAsk kind item: send the girls to check one item (api 70)', () => {
+  const b = loadBackend(tabs(), { FAMILY_PASSCODE: PASS });
+  const r = b.call({ action: 'missionsAsk', pass: PASS, by: 'Pat', kind: 'item', items: [{ id: 'i005' }] });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.result.sent, 1);
+  const card = r.state.review.find((x) => /\(i005\)/.test(x.detail) && x.type === 'check');
+  assert.ok(card && /^🔎 Go check the /.test(card.detail), card && card.detail);
+  assert.ok(!/meal plan/.test(card.detail));
+  assert.ok(!b.call({ action: 'missionsAsk', pass: PASS, by: 'Kim', kind: 'item', items: [{ id: 'i004' }] }).ok, 'kids can’t');
+});

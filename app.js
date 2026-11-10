@@ -709,9 +709,10 @@
   function viewNav() {
     const req = D().list.filter((r) => r.status === 'requested').length;
     const review = myQuestions().length + myApprovals();
-    // List badge = everything still on the list (held "Next week" rows live in D().held, so they don't count).
-    // Green for a count; orange when a parent has kids' requests waiting.
-    const onList = D().list.filter((r) => r.status === 'requested' || r.status === 'needed' || r.status === 'carted').length;
+    // List badge (Nov 10, owner): not how many things are on the List, but how many to-dos sit at its top: the
+    // tiles (Use soon, Must-haves + staples, For meals, Needs a cart) plus kids' requests waiting for a parent.
+    // Orange when a parent has requests waiting.
+    const onList = todoTotal() + (amParent() ? req : 0);
     const tab = (id, label, badge, cls) => '<button data-act="tab" data-tab="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + esc(label) +
       (badge ? '<span class="dot' + (cls ? ' ' + cls : '') + '">' + badge + '</span>' : '') + '</button>';
     return '<nav class="tabs" aria-label="Sections"><div class="inner">' +
@@ -1372,7 +1373,7 @@
         const it = itemById(x.id);
         const lv = { plenty: 'Plenty', some: 'Some', low: 'A little', out: 'Out', waste: 'Tossed' }[x.level] || (x.level ? x.level + ' left' : '');
         const meta = x.onList ? '🛒 On the List' : x.checking ? '🔎 ' + x.checking + ' is checking' : x.last ? lv + ' · ' + daysAgo(x.last) : 'Never checked';
-        return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + esc(x.id) + '"><span class="row-name">' + (x.low && !x.onList ? '⚠️ ' : '') + esc(it.name) + '</span><span class="row-meta">' + esc(meta) + '</span></button></div>';
+        return '<div class="row"><button class="row-main" data-act="open-item" data-id="' + esc(x.id) + '"><span class="row-name">' + (x.low && !x.onList ? '⚠️ ' : '') + esc(it.name) + '</span><span class="row-meta">' + esc(meta) + '</span></button>' + missionBtn(x.id, 'staples') + '</div>';
       }).join('') +
       '<p class="note">The girls check each staple about once a week (things we buy rarely, every 3 weeks). Add or remove one on its item screen → Details → Staple?</p>';
   }
@@ -1416,12 +1417,26 @@
     }).sort((a, b) => (!!a.ok - !!b.ok) || (a.it.name < b.it.name ? -1 : 1));
     return { rows: rows, miss: rows.filter((x) => !x.ok) };
   }
+  // Nov 10 (owner): send the girls to check any one item, from its row or its item screen. Parents only; not for
+  // things already on the List (the backend skips those) or already out for checking. `kind` picks the card wording.
+  function girlsChecking(id) {
+    const r = (D().review || []).find((x) => x.type === 'check' && x.status === 'open' && String(x.detail).indexOf('(' + id + ')') >= 0);
+    return r ? (r.audience || 'A girl') : '';
+  }
+  function canSendGirls(id) {
+    const it = itemById(id);
+    return !!it && canMissionsAsk() && !isKid(S.me) && (D().settings.kids || []).length > 0 && it.status !== 'Drop' && !isDelivery(it.store) && !listRowFor(id);
+  }
+  function missionBtn(id, kind, big) {
+    if (!canSendGirls(id) || girlsChecking(id)) return '';
+    return '<button class="btn ' + (big ? 'btn-outline' : 'btn-plain btn-sm') + '" data-act="item-mission" data-id="' + esc(id) + '" data-kind="' + esc(kind || 'item') + '" aria-label="Send the girls to check ' + esc(itemById(id).name) + '">🔎' + (big ? ' Send the girls to check' : '') + '</button>';
+  }
   function levelWord(l) { return { plenty: 'Plenty', some: 'Some', low: 'A little', out: 'Out', waste: 'Tossed', '0': 'Out' }[l] || (l ? l + ' left' : ''); }
   function mustRow(x) {
     return '<div class="miss-row"><div class="miss-main"><div class="miss-items"><button class="link-btn" data-act="open-item" data-id="' + esc(x.id) + '">' + esc(x.it.name) + '</button>' +
       (x.checking ? '<span class="miss-chk"> 🔎 ' + esc(x.checking) + '</span>' : '') + '</div><div class="row-meta">' + esc(x.ok || x.why) + '</div></div>' +
       (x.ok ? '' : '<div class="miss-btns"><button class="btn btn-outline btn-sm" data-act="must-add" data-id="' + esc(x.id) + '">Add</button>' +
-        '<button class="btn btn-plain btn-sm" data-act="must-have" data-id="' + esc(x.id) + '">Have plenty</button></div>') + '</div>';
+        '<button class="btn btn-plain btn-sm" data-act="must-have" data-id="' + esc(x.id) + '">Have plenty</button>' + missionBtn(x.id, 'musthave') + '</div>') + '</div>';
   }
   function viewMustSheet(bare) {
     const m = mustHaveInfo();
@@ -1430,7 +1445,7 @@
         : '<div class="is-head"><div><h2>🥚 Must-haves</h2><div class="is-sub">Covered at every order · ' + (m.miss.length ? m.miss.length + ' not yet' : 'all set') + '</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>') +
       (bare && canMissionsAsk() && (D().settings.kids || []).length && send.length > 1 ? '<div class="miss-send"><button class="btn btn-outline btn-sm" data-act="must-send" data-items="' + esc(JSON.stringify(send)) + '">🔎 Have the girls check ' + send.length + '</button></div>' : '') +
       m.rows.map(mustRow).join('') +
-      '<p class="note">Covered = on the List or in a cart, ordered in the last 3 days, or seen Plenty today. Change the list on an item: Details → Must-have?</p>';
+      '<p class="note">Covered = on the List or in a cart, ordered in the last 3 days, or seen Plenty today. 🔎 sends one of the girls to check that one. Change the list on an item: Details → Must-have?</p>';
   }
   function viewOrdered(sh) {
     const it = itemById(sh.item_id), o = orderedOf(sh.item_id);
@@ -1528,17 +1543,7 @@
     const carts = active.filter(inCartNow);
     const open = active.filter((r) => !inCartNow(r));
 
-    // Summary: what still needs a cart, and how much is already in one (tap → Carts screen).
-    if (!listNarrowed() && (active.length || held.length)) {
-      const bits = [];
-      if (canCarts()) {
-        bits.push('<b>' + open.length + ' need' + (open.length === 1 ? 's' : '') + ' a cart</b>');
-        if (carts.length) bits.push('<button class="link-btn inline" data-act="tab" data-tab="carts">' + carts.length + ' in carts ›</button>');
-      } else bits.push('<b>' + active.length + ' on the List</b>');
-      if (held.length) bits.push(held.length + ' later');
-      html += '<div class="list-sum">' + bits.join(' · ') + '</div>';
-    }
-
+    // Nov 10 (owner): the "N needs a cart · N in carts" line is gone; 🛒 Needs a cart is a tile now.
 
     // One List by aisle (owner, Nov 2): in-cart rows sit with the rest and show their 🛒 tag.
     // Show (All · 🛒 Needs a cart · 🍽 Meals · 🧺 Stock), Store and Asked by live in the Filter panel (Nov 10).
@@ -1569,8 +1574,8 @@
             '<button class="btn btn-plain" data-act="unhold" data-id="' + r.id + '">Need it now</button></div>').join('')) + '</section>';
     }
 
-    html += '<p class="hint">The List is what’s still open. The tiles on top (⏳ Use soon, 🥚 Must-haves, 🍽 For meals, 🧺 Staples) show what to deal with before an order; tap one to open it. ' +
-      (canCarts() ? '🛒 tags show what’s already in an online cart; Needs a cart = the rest. ' : '') + '⏸ Later = we need it, just not this order (tap an item → Later). The search box looks through the List; Filter narrows it by type, store or who asked. Shop has everything we buy.</p>';
+    html += '<p class="hint">The List is what’s still open. The tiles on top are the to-do, in order: ⏳ use these up, 🥚 must-haves and staples to cover, 🍽 missing for meals' +
+      (canCarts() ? ', 🛒 what still needs a cart (tap it to show just those). The List tab’s number counts these. 🛒 tags show what’s already in an online cart. ' : '. ') + '⏸ Later = we need it, just not this order (tap an item → Later). The search box looks through the List; Filter narrows it by type, store or who asked. Shop has everything we buy.</p>';
     return html;
   }
 
@@ -1591,30 +1596,43 @@
   // for meals and Staples sit in one row of small tiles at the top of the List. Each shows its count (colored when
   // there's something to do, a grey ✓ when not); a tap opens one sheet with a switcher across all four, so the List
   // itself starts right under the row. Kids see only Use soon.
+  // Nov 10 (owner): the tiles are the List's to-do, in the order we work it: ⏳ use these up → 🥚 must-haves (with
+  // staples folded in: one "never run out" list) → 🍽 missing for meals → 🛒 what still needs a cart (was the
+  // "N needs a cart · N in carts" line). The List tab's badge is the sum of these counts.
   function todoCounts() {
     const kid = isKid(S.me);
     const t = [];
     if (canUseSoon()) t.push({ k: 'usesoon', icon: '⏳', label: 'Use soon', n: (D().useSoon || []).length, cls: 'warn' });
-    if (!kid && canMustHave() && (D().items || []).some(isMustHave)) t.push({ k: 'must', icon: '🥚', label: 'Must-haves', n: mustHaveInfo().miss.length, cls: 'bad' });
+    const hasMust = canMustHave() && (D().items || []).some(isMustHave);
+    const hasStaples = canStaples() && (D().staples || []).length;
+    if (!kid && (hasMust || hasStaples)) {
+      const ids = {};
+      if (hasMust) mustHaveInfo().miss.forEach((x) => (ids[x.id] = 1));
+      if (hasStaples) staplesInfo().low.forEach((x) => (ids[x.id] = 1));
+      t.push({ k: 'must', icon: '🥚', label: 'Must-haves', n: Object.keys(ids).length, cls: 'bad' });
+    }
     if (!kid) { const m = missingForMeals(); t.push({ k: 'meals', icon: '🍽', label: 'For meals', n: m.groups.reduce((a, g) => a + g.ids.length, 0), cls: 'warn' }); }
-    if (!kid && canStaples() && (D().staples || []).length) t.push({ k: 'staples', icon: '🧺', label: 'Staples', n: staplesInfo().low.length, cls: 'warn' });
+    if (!kid && canCarts()) t.push({ k: 'cart', icon: '🛒', label: 'Needs a cart', n: D().list.filter(needsCart).length, cls: 'warn', filter: true });
     return t;
   }
+  const todoTotal = () => todoCounts().reduce((a, x) => a + (x.n || 0), 0);
   function viewTodoTiles() {
     const t = todoCounts();
     if (!t.length || (isKid(S.me) && !t.some((x) => x.n))) return '';
-    return '<div class="todo-tiles">' + t.map((x) => '<button class="todo-tile' + (x.n ? ' on ' + x.cls : '') + '" data-act="todo" data-k="' + x.k + '" aria-label="' + esc(x.label + ': ' + (x.n || 'nothing to do')) + '">' +
+    // 🛒 Needs a cart isn't a sheet: it narrows the List itself (tap again to show everything).
+    return '<div class="todo-tiles">' + t.map((x) => '<button class="todo-tile' + (x.n ? ' on ' + x.cls : '') + (x.filter && S.listKind === 'cart' ? ' picked' : '') + '" data-act="' + (x.filter ? 'todo-cart' : 'todo') + '" data-k="' + x.k + '"' +
+      (x.filter ? ' aria-pressed="' + (S.listKind === 'cart') + '"' : '') + ' aria-label="' + esc(x.label + ': ' + (x.n || 'nothing to do')) + '">' +
       '<span class="tt-top"><span class="tt-icon" aria-hidden="true">' + x.icon + '</span><b class="tt-n">' + (x.n || '✓') + '</b></span><span class="tt-label">' + esc(x.label) + '</span></button>').join('') + '</div>';
   }
   function viewTodoSheet(sh) {
-    const t = todoCounts();
+    const t = todoCounts().filter((x) => !x.filter);
     const cur = t.find((x) => x.k === sh.k) || t[0];
     if (!cur) return '';
     let body = '';
     if (cur.k === 'usesoon') { const rows = D().useSoon || []; body = rows.length ? '<p class="note todo-lead">Perishables near their last good day. Tell Poppy what happened to them.</p>' + useSoonRows(rows) : '<p class="note todo-lead">Nothing needs using up right now.</p>'; }
-    if (cur.k === 'must') body = viewMustSheet(true);
+    if (cur.k === 'must') body = (canMustHave() && (D().items || []).some(isMustHave) ? viewMustSheet(true) : '') +
+      (canStaples() && (D().staples || []).length ? '<h3 class="todo-sub">🧺 Staples · never run out</h3>' + viewStaplesSheet(true) : '');
     if (cur.k === 'meals') body = viewMissing() || '<p class="note todo-lead">Nothing missing for the next 7 days of meals.</p>';
-    if (cur.k === 'staples') body = viewStaplesSheet(true);
     return '<div class="is-head"><div><h2>' + cur.icon + ' ' + esc(cur.label) + '</h2></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>' +
       (t.length > 1 ? '<div class="todo-switch">' + t.map((x) => '<button class="' + (x.k === cur.k ? 'on' : '') + '" data-act="todo" data-k="' + x.k + '" aria-pressed="' + (x.k === cur.k) + '">' + x.icon + ' ' + (x.n ? '<b>' + x.n + '</b>' : '✓') + '</button>').join('') + '</div>' : '') +
       '<div class="todo-body">' + body + '</div>';
@@ -1948,6 +1966,12 @@
         lv('plenty', 'Plenty') + lv('some', 'Some') + lv('low', 'A little') + lv('count', 'Count…') + '</div>' +
         (sh.level === 'count' ? '<div class="is-line"><div class="stepper small"><button type="button" data-act="have-count" data-d="-1" aria-label="Fewer">−</button><b>' + sh.count + '</b><button type="button" data-act="have-count" data-d="1" aria-label="More">+</button></div><button class="btn btn-outline" data-act="have-count-save">Save</button></div>' : '') +
         (row ? '<p class="note">Plenty or Some takes it off the List.</p>' : '') + '</div>';
+    }
+    // Nov 10 (owner): any item can go on the girls' mission list from here.
+    if (!row && sh.item_id) {
+      const chk = girlsChecking(sh.item_id);
+      if (chk && !kid) h += '<p class="note is-mission">🔎 ' + esc(chk) + ' is going to check it</p>';
+      else h += missionBtn(sh.item_id, isMustHave(it) ? 'musthave' : 'item', true);
     }
 
     // ---- Quick: the quiet row
@@ -4342,6 +4366,15 @@
     'staples': () => { S.sheet = { type: 'staples' }; render(); },
     'musthaves': () => { S.sheet = { type: 'musthaves' }; render(); },
     todo: (el) => { S.sheet = { type: 'todo', k: el.dataset.k }; render(); },
+    'item-mission': (el) => {
+      const id = el.dataset.id, it = itemById(id);
+      if (!it || !canSendGirls(id)) return;
+      const kids = D().settings.kids || [];
+      act('missionsAsk', { items: [{ id: id }], kind: el.dataset.kind || 'item' }, () => {
+        (D().review = D().review || []).push({ id: tmpId(), type: 'check', status: 'open', audience: kids[0], detail: '(' + id + ')' });
+      }, '🔎 Sent the girls to check the ' + it.name);
+    },
+    'todo-cart': () => { S.listKind = S.listKind === 'cart' ? 'all' : 'cart'; render(); },
     'must-add': (el) => { const it = itemById(el.dataset.id); if (it && !isKid(S.me)) addItem(it); },
     'must-have': (el) => {
       const id = el.dataset.id, it = itemById(id);

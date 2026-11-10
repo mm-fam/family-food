@@ -1094,3 +1094,9 @@ h2 .fridge-tag { font-size: 12px; vertical-align: 4px; }
 .todo-switch button.on { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
 .todo-lead { margin: 0 0 8px; }
 .todo-body .card.missing { margin-bottom: 0; }
+/* Nov 10: List to-do tiles — 🛒 Needs a cart narrows the List; must-haves sheet holds staples too; per-item 🔎 */
+.todo-tile.picked { outline: 2px solid var(--ink); outline-offset: -2px; }
+.todo-sub { font-size: 14px; margin: 18px 0 4px; }
+.is-mission { margin: 8px 0 0; }
+.todo-body .row > .btn-sm, .miss-btns .btn-sm { flex: none; }
+.todo-tile .tt-label { white-space: normal; line-height: 1.15; overflow: visible; }
