@@ -349,6 +349,7 @@ test('mission fairness: 6 missions a day count; bulk missions alternate, whoever
 
 test('catch-up bonus: below the week top score pays 1.5x (at least +1); every point counts (api 58)', () => {
   const b = fresh();
+  b._ss.getSheetByName('Settings')._data.push(['catchup_step', '0']); // the flat api 58 rule (api 71 ranks by place)
   const today = b.isoDate(new Date());
   const rv = rows(b, 'Review'), H = rv[0];
   const row = (o) => H.map((h) => (o[h] === undefined ? '' : o[h]));
@@ -373,6 +374,56 @@ test('catch-up bonus: below the week top score pays 1.5x (at least +1); every po
   // catchup 1 turns it off.
   b._ss.getSheetByName('Settings')._data.push(['catchup', '1']);
   assert.strictEqual(b.call({ action: 'state', pass: PASS, by: 'Kim' }).state.points.week.Lee, 3);
+});
+
+test('ranked catch-up: 2nd 1.5x, 3rd 2x, 4th 2.5x, at least +1 per place behind (api 71)', () => {
+  const b = fresh();
+  const today = b.isoDate(new Date());
+  const rv = rows(b, 'Review'), H = rv[0];
+  const row = (o) => H.map((h) => (o[h] === undefined ? '' : o[h]));
+  const add = (id, who, at, pts, why) => rv.push(row({ id, created: today, type: why === 'check' ? 'check' : 'profile', detail: 'q (i001)', status: 'closed', answer: 'Out (' + who + ')', audience: who, answered_at: today + 'T' + at, points: pts, points_to: who, points_why: why }));
+  add('r901', 'Kim', '09:00:00', 3, 'check'); // everyone 0: no bonus → Kim 3
+  add('r902', 'Lee', '09:01:00', 3, 'check'); // 2nd (Kim ahead): 1.5x, +1 min → 4
+  add('r903', 'Pat', '09:02:00', 1, 'other'); // 3rd (Kim, Lee ahead): 2x, +2 min → 3
+  add('r904', 'Sam', '09:03:00', 3, 'check'); // 4th (all ahead): 2.5x, +3 min → 7
+  let r = b.call({ action: 'state', pass: PASS, by: 'Kim' });
+  assert.strictEqual(r.ok, true, r.error);
+  let P = r.state.points;
+  assert.deepStrictEqual([P.week.Kim, P.week.Lee, P.week.Pat, P.week.Sam], [3, 4, 3, 7]);
+  assert.deepStrictEqual(P.ladder, [1.5, 2, 2.5]);
+  assert.strictEqual(P.place.Sam, 1); assert.strictEqual(P.mult.Sam, 0);
+  assert.strictEqual(P.place.Lee, 2); assert.strictEqual(P.mult.Lee, 1.5);
+  assert.strictEqual(P.place.Kim, 3); assert.strictEqual(P.place.Pat, 3, 'ties share the better place');
+  assert.strictEqual(P.mult.Kim, 2);
+  const log = b.call({ action: 'pointsLog', pass: PASS, by: 'Kim' }).result;
+  assert.ok(log.entries.some((e) => e.id === 'r904' && e.pts === 7 && e.bonus === 4));
+  // Points scored before catchup_ranked_from keep the flat rule.
+  b._ss.getSheetByName('Settings')._data.push(['catchup_ranked_from', today + 'T23:59']);
+  P = b.call({ action: 'state', pass: PASS, by: 'Kim' }).state.points;
+  assert.deepStrictEqual([P.week.Kim, P.week.Lee, P.week.Pat, P.week.Sam], [3, 4, 2, 4]);
+});
+
+test('away: no kid missions or go-look cards, open ones close as away; state.away (api 71)', () => {
+  const b = fresh();
+  const today = b.isoDate(new Date());
+  const st = b._ss.getSheetByName('Settings')._data;
+  st.push(['away_from', b.addDays(today, -1) + 'T16:00'], ['away_until', b.addDays(today, 1) + 'T20:00']);
+  const ct = st.find((x) => x[0] === 'cards_through'); if (ct) ct[1] = ''; 
+  const rv = rows(b, 'Review'), H = rv[0];
+  const row = (o) => H.map((h) => (o[h] === undefined ? '' : o[h]));
+  rv.push(row({ id: 'r900', created: today, type: 'check', detail: 'Go check the Milk (i001) Options: Plenty; Out', status: 'open', audience: 'Kim' }));
+  rv.push(row({ id: 'r901', created: today, type: 'profile', detail: 'Favorite cookie? Options: A; B', status: 'open', audience: 'Kim' }));
+  let r = b.call({ action: 'state', pass: PASS, by: 'Kim' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.state.away, b.addDays(today, 1) + 'T20:00');
+  const all = rows(b, 'Review'), h = all[0], get = (x, k) => x[h.indexOf(k)];
+  const r900 = all.find((x) => get(x, 'id') === 'r900');
+  assert.strictEqual(get(r900, 'status'), 'closed'); assert.strictEqual(get(r900, 'outcome'), 'away');
+  assert.strictEqual(get(all.find((x) => get(x, 'id') === 'r901'), 'status'), 'open', 'questions stay');
+  assert.ok(!all.some((x) => get(x, 'status') === 'open' && ['check', 'settle'].indexOf(get(x, 'type')) >= 0 && ['Kim', 'Lee'].indexOf(get(x, 'audience')) >= 0), 'no new kid missions');
+  // Once away_until has passed, it's off.
+  st.find((x) => x[0] === 'away_until')[1] = b.addDays(today, -1) + 'T20:00';
+  assert.strictEqual(b.call({ action: 'state', pass: PASS, by: 'Kim' }).state.away, '');
 });
 
 test('weekly prize: last week winner gets a dessert card; the pick goes on the List as needed (api 59)', () => {
@@ -407,26 +458,27 @@ test('who planned it and who is cooking (api 60)', () => {
   const t = tabs();
   t.Review.push(['r950', '2026-11-05', 'meal_request', 'Kim wants Pancakes for dinner, next week. (m01) Options: Plan it; Not now', 'open', '', 'parents', '', 'Kim', '', '', '', '', '', '', '']);
   const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
-  let r = b.call({ action: 'planSet', pass: PASS, by: 'Sam', date: '2026-11-12', meal_id: 'm01', slot: 'dinner' });
+  const D = b.addDays(b.isoDate(new Date()), 3); // a date still in the plan window (was a fixed Nov 12)
+  let r = b.call({ action: 'planSet', pass: PASS, by: 'Sam', date: D, meal_id: 'm01', slot: 'dinner' });
   assert.strictEqual(r.ok, true, r.error);
-  let p = r.state.plan.find((x) => String(x.date).slice(0, 10) === '2026-11-12');
+  let p = r.state.plan.find((x) => String(x.date).slice(0, 10) === D);
   assert.strictEqual(p.planned_by, 'Sam');
   assert.strictEqual(p.asked_by, 'Kim');
   assert.match(String(p.planned_at), /^2026|^\d{4}-/);
   // Anyone signs up; a kid only for herself; a parent for anyone.
-  r = b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: '2026-11-12', name: 'Lee' });
+  r = b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: D, name: 'Lee' });
   assert.strictEqual(r.ok, true, r.error);
-  assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: '2026-11-12', name: 'Kim' }).error);
-  r = b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: '2026-11-12', name: 'pat' });
-  p = r.state.plan.find((x) => String(x.date).slice(0, 10) === '2026-11-12');
+  assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: D, name: 'Kim' }).error);
+  r = b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: D, name: 'pat' });
+  p = r.state.plan.find((x) => String(x.date).slice(0, 10) === D);
   assert.strictEqual(p.cook, 'Pat; Lee');
-  r = b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: '2026-11-12', name: 'Lee', on: false });
-  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === '2026-11-12').cook, 'Pat');
+  r = b.call({ action: 'planCook', pass: PASS, by: 'Lee', date: D, name: 'Lee', on: false });
+  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === D).cook, 'Pat');
   // Re-saving the same meal keeps the cook; a swap clears it and records the new planner.
-  r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: '2026-11-12', meal_id: 'm01', slot: 'dinner', note: '' });
-  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === '2026-11-12').cook, 'Pat');
+  r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: D, meal_id: 'm01', slot: 'dinner', note: '' });
+  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === D).cook, 'Pat');
   assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: '2026-11-13', name: 'Pat' }).error, 'nothing planned');
-  assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: '2026-11-12', name: 'Zed' }).error);
+  assert.ok(b.call({ action: 'planCook', pass: PASS, by: 'Pat', date: D, name: 'Zed' }).error);
 });
 
 test('"Not what we had" marks the night not made and clears its other cards (api 61)', () => {

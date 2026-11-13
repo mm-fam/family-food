@@ -85,6 +85,33 @@ function catchup() {
   const m = settingsMap().catchup === undefined || settingsMap().catchup === '' || isNaN(v) ? CATCHUP : v;
   return m > 1 ? m : 0;
 }
+// Ranked catch-up (api 71, owner Nov 13: "if you're in last place … you should get extra super bonus points versus
+// somebody in third and then second"): the further back you are, the bigger the bonus. Place = 1 + how many people
+// have strictly more points this week at that moment (ties share the better place). 2nd pays CATCHUP (1.5×), each
+// place further back adds CATCHUP_STEP (0.5): 3rd 2×, 4th 2.5×. Settings catchup_step overrides (0 = flat, the
+// api 58 rule). Settings catchup_ranked_from (a time) keeps the flat rule for points scored before it, so a week
+// already under way isn't recounted.
+const CATCHUP_STEP = 0.5;
+function catchupStep() {
+  const v = settingsMap().catchup_step;
+  return v === '' || v === undefined || v === null || isNaN(Number(v)) ? CATCHUP_STEP : Math.max(0, Number(v));
+}
+const normStamp = (x) => String(x || '').replace(/^'/, '').trim().replace(' ', 'T').replace(/T(\d):/, 'T0$1:');
+function rankedFrom() { return normStamp(stampOf(settingsMap().catchup_ranked_from || '')); }
+// The multiplier for a place (1 = first: none).
+function catchupAt(place, m, step) { return !m || place <= 1 ? 0 : m + (place - 2) * step; }
+// Away (api 71, owner Nov 13: out of town for the weekend): Settings away_until (a time, e.g. 2026-11-15T20:00) and
+// away_from. Until away_until the kids get no 🔎 missions or "go look" cards (open ones close with outcome `away`, so
+// they don't count as expired), no 🧾 Did we get it? cards are made, and the app tells the kids they're on the road.
+// No How was it? / Kitchen help cards for days from away_from through away_until (we weren't home to eat the plan).
+// Quick questions keep coming and score as usual. Clear away_until (or let it pass) to switch it off.
+function awayWindow() {
+  const st = settingsMap();
+  const until = normStamp(stampOf(st.away_until || ''));
+  return until ? { from: normStamp(stampOf(st.away_from || '')), until: until } : null;
+}
+function awayNow() { const w = awayWindow(); return !!w && normStamp(nowStamp()) < w.until; }
+function awayDay(d) { const w = awayWindow(); return !!w && !!w.from && d >= w.from.slice(0, 10) && d <= w.until.slice(0, 10); }
 // Weekly prize (api 59, owner Nov 5): last week's winner picks the family dessert for this week. Settings prize = the
 // line the scoreboard shows ('off' = no prize line and no card). The card (type prize) goes to each winner on the first
 // app open of the week; the answer goes on the List as needed (a kid's pick too: it's the prize, no approval).
@@ -94,7 +121,8 @@ function prizeText() {
   const v = String(settingsMap().prize || '').trim();
   return /^off$/i.test(v) ? '' : v || PRIZE_DEFAULT;
 }
-function boosted(pts, m) { return m && pts > 0 ? Math.max(pts + 1, Math.floor(pts * m)) : pts; }
+// extra = the least it adds (api 71: 1 per place behind first, so last place gets +3 on a 1-point card).
+function boosted(pts, m, extra) { return m && pts > 0 ? Math.max(pts + (extra || 1), Math.floor(pts * m)) : pts; }
 function missionCap() {
   const v = settingsMap().mission_cap;
   return v === '' || v === undefined || v === null || isNaN(Number(v)) ? MISSION_CAP : Math.max(0, Number(v));
@@ -388,7 +416,11 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      send the girls on a mission"). missionsAsk {kind: 'item'} = "🔎 Go check the …" (one item from its item screen
 //      or a must-have / staple row). App: List tiles ⏳ · 🥚 (must-haves + staples) · 🍽 · 🛒 Needs a cart; the List
 //      tab's badge counts those to-dos instead of the rows on the List.
-const API_VERSION = 70;
+// 71 = away mode + ranked catch-up (Nov 13, owner). Settings away_until / away_from: no kid missions or "go look"
+//      cards while away (open ones close, outcome away), no Did we get it? cards, no How was it? / Kitchen help for
+//      away days; state.away. Catch-up bonus by place: 2nd 1.5×, 3rd 2×, 4th 2.5× (Settings catchup_step, 0 = flat;
+//      catchup_ranked_from keeps the flat rule before that time); state.points.place / mult / ladder.
+const API_VERSION = 71;
 const ORDERED_DAYS = 3; // a row bought (order placed) this recently covers its item
 const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
@@ -797,6 +829,7 @@ function buildState() {
     review: reviewAll.filter((r) => r.status === 'open').map(stripRow),
     answeredToday: answeredToday(reviewAll, today),
     cardStats: cardStats(reviewAll, today, people()),
+    away: awayNow() ? awayWindow().until : '',
     due: due,
     freshness: buys.freshness,
     useSoon: useSoonList(today, items, list, stockRows, onList),
@@ -2193,18 +2226,25 @@ function scoredEvents() {
   });
   // Catch-up bonus (api 58): in time order, per Mon–Sun week, whoever is below the week's top score at that moment
   // gets the boosted points (e.bonus = the extra). Ties at the top (e.g. Monday morning) get no bonus.
+  // Ranked (api 71): the further back, the bigger the multiplier (catchupAt); before catchup_ranked_from, flat.
   const m = catchup();
   if (m) {
     const weeks = {};
+    const step = catchupStep(), from = rankedFrom();
+    const all = people().map((p) => p.trim().toLowerCase());
     kept.slice().sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)).forEach((e) => {
       if (!(e.pts > 0)) return;
       const day = e.at.slice(0, 10), dow = new Date(day + 'T12:00:00').getDay();
       const wk = addDays(day, -((dow + 6) % 7));
       const tot = (weeks[wk] = weeks[wk] || {});
       const who = e.to.trim().toLowerCase();
-      const top = Math.max.apply(null, Object.keys(tot).map((k) => tot[k]).concat([0]));
-      if ((tot[who] || 0) < top) { const b = boosted(e.pts, m); e.bonus = b - e.pts; e.pts = b; }
-      tot[who] = (tot[who] || 0) + e.pts;
+      const mine = tot[who] || 0;
+      const names = all.indexOf(who) >= 0 ? all : all.concat([who]);
+      const place = 1 + names.filter((k) => (tot[k] || 0) > mine).length;
+      const st = from && normStamp(e.at) < from ? 0 : step;
+      const mult = catchupAt(place, m, st);
+      if (mult) { const b = boosted(e.pts, mult, st ? place - 1 : 1); e.bonus = b - e.pts; e.pts = b; e.place = place; }
+      tot[who] = mine + e.pts;
     });
   }
   return kept;
@@ -2316,6 +2356,14 @@ function pointsSummary(today) {
   if (out.catchup) {
     const top = Math.max.apply(null, everyone.map((p) => out.week[p] || 0).concat([0]));
     everyone.forEach((p) => (out.behind[p] = (out.week[p] || 0) < top));
+    // api 71: each person's place now and what their next card pays (×), and the ladder for the rules screen.
+    const step = catchupStep();
+    out.place = {}; out.mult = {};
+    everyone.forEach((p) => {
+      const place = 1 + everyone.filter((q) => (out.week[q] || 0) > (out.week[p] || 0)).length;
+      out.place[p] = place; out.mult[p] = catchupAt(place, out.catchup, step);
+    });
+    out.ladder = []; for (let k = 2; k <= Math.max(2, everyone.length); k++) out.ladder.push(catchupAt(k, out.catchup, step));
   }
   if (out.missionCap) {
     const q = quickToday(today, 'check');
@@ -2673,6 +2721,15 @@ function dailyCards() {
       }
     });
 
+    // Away (api 71): close the kids' open "go look" cards; they come back after the trip.
+    const away = awayNow();
+    if (away) review.forEach((r) => {
+      if (r.status === 'open' && (r.type === 'check' || r.type === 'settle') && kids.indexOf(String(r.audience)) >= 0) {
+        setFields(TABS.review, r._row, { status: 'closed', outcome: 'away' });
+        r.status = 'closed';
+      }
+    });
+
     // 🏆 Weekly prize (api 59): last week's winner(s) pick this week's family dessert, once per week.
     if (prizeText()) {
       const ps = pointsSummary(today);
@@ -2696,6 +2753,7 @@ function dailyCards() {
     const start = from < addDays(today, -RATE_BACK_DAYS) ? addDays(today, -RATE_BACK_DAYS) : from;
     // Dinners first, then breakfast; at most RATE_PER_DAY cards per person per day so the deck stays fun.
     for (let d = start; d < today; d = addDays(d, 1)) {
+      if (awayDay(d)) continue; // api 71: we were away, so no How was it? / Kitchen help for that day
       const when = d === addDays(today, -1) ? 'yesterday' : 'on ' + DAY_NAMES[new Date(d + 'T12:00:00').getDay()];
       const rows = plan.filter((p) => planDate(p) === d && p.meal_id && mealOf[p.meal_id] && !notMade(p) && RATE_SLOTS.indexOf(planSlot(p)) >= 0)
         .filter((p) => madeBefore(p.meal_id, d) <= RATE_NEW_TIMES) // only meals still new to us
@@ -2727,10 +2785,10 @@ function dailyCards() {
     }
 
     // Missions: a few "go check" cards per kid, every day (see makeMissions).
-    makeMissions(today, kids, review, plan, mealOf).forEach((m) => add(m));
+    if (!away) makeMissions(today, kids, review, plan, mealOf).forEach((m) => add(m));
 
     // Did we get it? Settle List rows that no receipt will close (see makeSettle).
-    makeSettle(today, kids, review).forEach((m) => add(m));
+    if (!away) makeSettle(today, kids, review).forEach((m) => add(m)); // not while away (api 71)
     makeMealSettle(today, review, plan, mealOf).forEach((m) => add(m));
 
     // Same kind (api 62): two cheddars on the List → ask the parents whether one covers it.

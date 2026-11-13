@@ -3209,16 +3209,27 @@
      rest of the day on that phone. Parents aren't affected. App only. */
   const SCHOOL = { days: [1, 2, 3, 4, 5], from: 7 * 60 + 30, to: 16 * 60 + 30, opens: '4:30' };
   const homeKey = () => 'ff_home_' + String(S.me).toLowerCase();
+  // Away (api 71): while the family is out of town (Settings away_until → state.away), missions wait for home all day.
+  const awayNow = () => !!D().away && !!S.me && isKid(S.me);
   function atSchool() {
     if (!S.me || !isKid(S.me)) return false;
+    if (awayNow()) return store.get(homeKey()) !== new Date().toDateString();
     const now = new Date(), mins = now.getHours() * 60 + now.getMinutes();
     if (SCHOOL.days.indexOf(now.getDay()) < 0 || mins < SCHOOL.from || mins >= SCHOOL.to) return false;
     return store.get(homeKey()) !== now.toDateString();
   }
   const homeOnly = (r) => sectionOf(r) === 'mission';
   function homeWaiting() { return atSchool() ? myQuestionsAll().filter((r) => !snoozed(r) && homeOnly(r)) : []; }
+  function awayWhen() {
+    const t = new Date(String(D().away).replace(' ', 'T'));
+    if (isNaN(t)) return 'we’re back';
+    const day = t.toDateString() === new Date().toDateString() ? 'tonight' : t.toLocaleDateString(undefined, { weekday: 'long' }) + (t.getHours() >= 17 ? ' night' : '');
+    return day;
+  }
   function viewHomeWaiting() {
     const n = homeWaiting().length;
+    if (awayNow()) return '<section class="card home-wait"><div class="home-wait-txt"><b>🚗 On the road until ' + esc(awayWhen()) + '</b>' +
+      '<span class="note">No missions this weekend' + (n ? ' (' + n + ' waiting for home)' : '') + '. Questions you can answer from anywhere still score, catch-up bonus too.</span></div></section>';
     if (!n) return '';
     return '<section class="card home-wait"><div class="home-wait-txt"><b>🏠 ' + n + (n === 1 ? ' mission waits' : ' missions wait') + ' for home</b>' +
       '<span class="note">They open at ' + SCHOOL.opens + ', after school. Until then, everything here works from anywhere.</span></div>' +
@@ -3400,7 +3411,10 @@
   const isQuick = (r) => { const t = String(r.type || '').toLowerCase(); return !['meal_request', 'have_check', 'helped', 'rate', 'still'].includes(t) && ['due', 'mission', 'settle'].indexOf(sectionOf(r)) < 0; };
   // Catch-up bonus (api 58): below the week's top score → 1.5× (at least +1). The backend does the real count.
   const behindNow = (who) => { const P = D().points || {}; return !!P.catchup && !!(P.behind || {})[who]; };
-  const boostPts = (p, who) => { const P = D().points || {}; return p > 0 && behindNow(who) ? Math.max(p + 1, Math.floor(p * P.catchup)) : p; };
+  const multFor = (who) => { const P = D().points || {}; return (P.mult && P.mult[who]) || P.catchup; }; // api 71: by place
+  const extraFor = (who) => { const P = D().points || {}; const pl = (P.place || {})[who]; return P.mult && pl > 1 ? pl - 1 : 1; };
+  const boostPts = (p, who) => (p > 0 && behindNow(who) ? Math.max(p + extraFor(who), Math.floor(p * multFor(who))) : p);
+  const placeName = (n) => ['', '1st', '2nd', '3rd'][n] || n + 'th';
   function cardPoints(r, answer) {
     const base = basePoints(r, answer);
     return boostPts(base, r.type === 'helped' ? String(r.points_to || '') : S.me);
@@ -3524,7 +3538,7 @@
         '<ul class="pr-list"><li>A kid’s add is a request: it earns its point when a parent approves it. A skipped request earns nothing.</li>' +
         '<li>Adding something that’s already on the List counts if you weren’t on it yet (you show up as “asked by … + you”).</li>' +
         '<li>Approve and Skip both count for the parent: saying no is a decision too (that includes answering a kid’s “we have it”).</li></ul>' : '') +
-      ((D().points || {}).catchup ? '<h3 class="pr-h">⚡ Catch-up bonus</h3><p class="note">Not in first place this week? Everything you score pays <b>' + D().points.catchup + '×</b> (always at least +1 extra): a +1 card pays +2, a +3 mission +4, Due soon +7, Cooked it +15. It switches off the moment you’re in first (or tied for first) and back on if someone passes you. Monday everyone starts at 0, so nobody has it until someone scores. Every point always counts; nothing stops paying.</p>' : '') +
+      ((D().points || {}).catchup ? '<h3 class="pr-h">⚡ Catch-up bonus</h3>' + catchupRules() : '') +
       viewRaceRules() +
       '<h3 class="pr-h">🧑‍🍳 Kitchen help</h3>' +
       '<p class="note">The day after a planned dinner, a parent gets a card for each kid: “Did <i>kid</i> help cook <i>dinner</i>?” The points go to the <b>kid</b>, not to the parent who answers.</p>' +
@@ -3564,14 +3578,26 @@
       '<li><b>💬 Questions:</b> kids’ decks are kept fuller (' + X.qa + ' cards) than the parents’.</li>' +
       '<li>“Behind” is checked once a day, when the day’s cards are made, using this week’s points (Mon–Sun). Pass your sister and the extra missions switch to her the next day.</li></ul>';
   }
+  // The catch-up rules (api 71: the further back you are, the bigger the bonus).
+  function catchupRules() {
+    const P = D().points || {};
+    const lad = P.ladder && P.ladder.length > 1 && P.ladder[1] !== P.ladder[0] ? P.ladder : null;
+    const pays = (pts, k) => Math.max(pts + (lad ? k - 1 : 1), Math.floor(pts * (lad ? lad[k - 2] : P.catchup)));
+    if (!lad) return '<p class="note">Not in first place this week? Everything you score pays <b>' + P.catchup + '×</b> (always at least +1 extra): a +1 card pays +' + pays(1, 2) + ', a +3 mission +' + pays(3, 2) + ', Due soon +' + pays(5, 2) + ', Cooked it +' + pays(10, 2) + '. It switches off the moment you’re in first (or tied for first). Every point always counts; nothing stops paying.</p>';
+    const rows = lad.map((m, i) => '<tr><td>' + placeName(i + 2) + '</td><td>' + m + '×</td><td>+' + pays(1, i + 2) + '</td><td>+' + pays(3, i + 2) + '</td><td>+' + pays(5, i + 2) + '</td><td>+' + pays(10, i + 2) + '</td></tr>').join('');
+    return '<p class="note">The further back you are this week, the bigger the bonus. It’s worked out the moment you score, from your place right then (tied = the better place). First place gets face value.</p>' +
+      '<table class="dash"><tr><th>Place</th><th>Pays</th><th>+1 card</th><th>Mission</th><th>Due soon</th><th>Cooked it</th></tr>' + rows + '</table>' +
+      '<p class="note">Pass someone and your bonus shrinks; fall back and it grows. Monday everyone starts at 0. Every point always counts; nothing stops paying.</p>';
+  }
   function catchupLine() {
     const P = D().points || {};
     if (!P.catchup) return '';
-    return behindNow(S.me) ? '<div class="note board-foot">⚡ Catch-up bonus is on for you: every card pays ' + P.catchup + '× until you’re in first.</div>' : '';
+    const pl = (P.place || {})[S.me];
+    return behindNow(S.me) ? '<div class="note board-foot">⚡ Catch-up bonus is on for you' + (pl ? ' (' + placeName(pl) + ' place)' : '') + ': every card pays ' + multFor(S.me) + '× until you move up.</div>' : '';
   }
   function raceLine() {
     const P = D().points || {};
-    if (!P.extra || !isKid(S.me)) return '';
+    if (!P.extra || !isKid(S.me) || awayNow()) return '';
     const kids = D().settings.kids.filter((k) => P.week && k in P.week);
     if (kids.length < 2) return '';
     const top = Math.max.apply(null, kids.map((k) => P.week[k] || 0));
