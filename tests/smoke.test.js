@@ -697,3 +697,53 @@ test('missionsAsk kind item: send the girls to check one item (api 70)', () => {
   assert.ok(!/meal plan/.test(card.detail));
   assert.ok(!b.call({ action: 'missionsAsk', pass: PASS, by: 'Kim', kind: 'item', items: [{ id: 'i004' }] }).ok, 'kids can’t');
 });
+
+test('kids suggest meals into empty spots; a parent locks one in (api 72)', () => {
+  const t = tabs();
+  t.Meals.push(['m02', 'Tacos', 'i006', '', 'dinner', '', ''], ['m03', 'Pizza', 'i005', '', 'dinner', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  const iso = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const day = iso(new Date(Date.now() + 2 * 86400000));
+  const past = iso(new Date(Date.now() - 2 * 86400000));
+  const open = (s) => s.review.filter((r) => r.type === 'meal_request' && r.status === 'open');
+  assert.deepStrictEqual(b.call({ action: 'state', pass: PASS, by: 'Kim' }).state.settings.kid_suggest_slots, ['dinner']);
+  // Two girls, two picks for the same dinner; no limit.
+  let r = b.call({ action: 'mealRequest', pass: PASS, by: 'Kim', meal_id: 'm02', slot: 'dinner', date: day });
+  assert.strictEqual(r.ok, true, r.error);
+  const kimId = r.result.id;
+  r = b.call({ action: 'mealRequest', pass: PASS, by: 'Lee', meal_id: 'm03', slot: 'dinner', date: day });
+  assert.strictEqual(r.ok, true, r.error);
+  const leeId = r.result.id;
+  assert.strictEqual(b.call({ action: 'mealRequest', pass: PASS, by: 'Kim', meal_id: 'm02', slot: 'dinner', date: day }).result.already, true);
+  r = b.call({ action: 'mealRequest', pass: PASS, by: 'Kim', meal_id: 'm03', slot: 'dinner', date: day });
+  assert.strictEqual(r.ok, true, 'the same girl can suggest more than one');
+  assert.strictEqual(open(r.state).length, 3);
+  assert.match(open(r.state).find((x) => x.id === kimId).detail, /^Kim suggests Tacos for dinner on \w{3} \d+\/\d+\. \(m02\) \(\d{4}-\d\d-\d\d\) Options: Lock it in; Not now$/);
+  // Breakfast is off until Settings says so; past days and planned spots are refused.
+  assert.match(b.call({ action: 'mealRequest', pass: PASS, by: 'Kim', meal_id: 'm01', slot: 'breakfast', date: day }).error, /dinner/);
+  assert.ok(b.call({ action: 'mealRequest', pass: PASS, by: 'Kim', meal_id: 'm02', slot: 'dinner', date: past }).error);
+  // A kid can't lock it in.
+  assert.match(b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: kimId, answer: 'Lock it in (Kim)' }).error, /parent/);
+  // A parent locks Kim's in: planned, asked_by Kim, the other picks for that spot close.
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: kimId, answer: 'Lock it in (Pat)' });
+  assert.strictEqual(r.ok, true, r.error);
+  const p = r.state.plan.find((x) => String(x.date).slice(0, 10) === day && x.slot === 'dinner');
+  assert.strictEqual(p.meal_id, 'm02');
+  assert.strictEqual(p.asked_by, 'Kim');
+  assert.strictEqual(p.planned_by, 'Pat');
+  assert.strictEqual(open(r.state).length, 0);
+  const leeRow = rows(b, 'Review').find((x) => x[0] === leeId);
+  assert.strictEqual(leeRow[4], 'closed');
+  assert.strictEqual(leeRow[11], 'spot planned (Pat)');
+  // Now it's taken.
+  assert.match(b.call({ action: 'mealRequest', pass: PASS, by: 'Lee', meal_id: 'm03', slot: 'dinner', date: day }).error, /already planned/);
+  // Settings "all" opens breakfast too.
+  const t2 = tabs(); t2.Settings.push(['kid_suggest_slots', 'all']);
+  const b2 = loadBackend(t2, { FAMILY_PASSCODE: PASS });
+  r = b2.call({ action: 'mealRequest', pass: PASS, by: 'Kim', meal_id: 'm01', slot: 'breakfast', date: day });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(r.state.settings.kid_suggest_slots, ['breakfast', 'lunch', 'snack', 'dinner']);
+  // A parent planning the spot another way closes it too.
+  r = b2.call({ action: 'planSet', pass: PASS, by: 'Sam', date: day, slot: 'breakfast', out: 'eatout', place: 'Diner' });
+  assert.strictEqual(r.state.review.filter((x) => x.type === 'meal_request' && x.status === 'open').length, 0);
+});

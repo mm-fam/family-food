@@ -2460,6 +2460,8 @@
       const any = SLOTS.some((x) => planText(rows[x[0]]));
       const lines = SLOTS.map((x) => {
         const t = planText(rows[x[0]]);
+        const sg = !t && canSuggest() ? suggestionsFor(day, x[0]) : [];
+        if (sg.length) return '<span class="dt-line sugg"><span class="dt-k">' + x[1] + '</span><span class="dt-v">💭 ' + esc(sg.length === 1 ? sg[0].meal.name : sg.length + ' ideas') + '</span></span>';
         const ck = canCook() && x[0] === 'dinner' && t ? cookShort(rows[x[0]]) : '';
         return '<span class="dt-line' + (t ? '' : ' none') + '"><span class="dt-k">' + x[1] + '</span><span class="dt-v">' + esc(t || '—') + (ck ? '<small class="dt-cook">🧑‍🍳 ' + esc(ck) + '</small>' : '') + '</span></span>';
       }).join('');
@@ -2526,16 +2528,19 @@
           : planOut(p) && !readOnly ? '<button class="btn btn-plain slot-open" data-act="slot-out-edit" data-slot="' + x[0] + '" aria-label="Change where from">✎</button>' : '<span class="slot-open"></span>';
         const cb = x[0] === 'dinner' ? cookBlock(sh.day, 'dinner', p) : '';
         if (readOnly) {
+          const can = canSuggestHere(sh.day, x[0]);
           return '<div class="slot-row"><div class="slot-label">' + x[1] + '</div>' +
-            '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '—') + '</span></div>' + open + '</div>' + cb;
+            '<div class="slot-pick' + (t ? ' set' : can ? ' sugg' : '') + '"><span>' + esc(t || (can ? '💭 Suggest ' + x[1].toLowerCase() + '…' : '—')) + '</span>' +
+            (can ? '<label class="sr" for="sugg-' + x[0] + '">Suggest ' + x[1].toLowerCase() + '</label><select id="sugg-' + x[0] + '" data-input="slot-suggest" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
+              mealOptions(meals, x[0], '') + '</select>' : '') + '</div>' + open + '</div>' + suggestBlock(sh.day, x[0]) + cb;
         }
         return '<div class="slot-row"><div class="slot-label">' + x[1] + '</div>' +
           '<div class="slot-pick' + (t ? ' set' : '') + '"><span>' + esc(t || '+ Pick ' + x[1].toLowerCase()) + '</span>' +
           '<label class="sr" for="slot-' + x[0] + '">' + x[1] + '</label><select id="slot-' + x[0] + '" data-input="slot-plan" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
-          slotOptions(meals, x[0], p) + '</select></div>' + open + '</div>' + cb +
+          slotOptions(meals, x[0], p) + '</select></div>' + open + '</div>' + suggestBlock(sh.day, x[0]) + cb +
           (sh.find === x[0] ? slotFind(sh, x[0]) : '') + (sh.out && sh.out.slot === x[0] ? slotOut(sh, x[0]) : '');
       }).join('') +
-      '<p class="note">' + (readOnly ? 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.' : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.' + (canOut() ? ' Not cooking? Pick 🥡 Pick-up or 🍴 Eat out at the bottom of the list.' : '')) + '</p>';
+      '<p class="note">' + (readOnly ? (canSuggest() ? 'Tap an empty ' + nameList(kidSlots().map((k) => slotLabel(k).toLowerCase())).replace(' & ', ' or ') + ' spot to suggest a meal. A parent locks it in.' : 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.') : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.' + (canOut() ? ' Not cooking? Pick 🥡 Pick-up or 🍴 Eat out at the bottom of the list.' : '')) + '</p>';
   }
 
   // Pick-up / eat out on a day-sheet row (api 65): where from, with the places we've used before as one-tap chips.
@@ -2885,13 +2890,43 @@
 
   /* ---------- kids' meal requests (api 9) ---------- */
   // Review rows of type meal_request: "<who> wants <meal> for <slot>, <when>. (mNN) Options: Plan it; Not now".
+  // api 72 (Joni's idea, Nov 17): a dated one is a suggestion for one spot in the week: "<who> suggests <meal> for
+  // <slot> on <Day M/D>. (mNN) (yyyy-mm-dd) Options: Lock it in; Not now". Past days and spots planned since drop out.
   function mealRequests() {
-    return (D().review || []).filter((r) => r.type === 'meal_request').map((r) => {
+    return (D().review || []).filter((r) => r.type === 'meal_request' && (!r.status || r.status === 'open')).map((r) => {
       const d = String(r.detail || '');
       const m = mealById((d.match(/\((m\d{2,})\)/) || [])[1] || '');
       const w = d.match(/ for (breakfast|lunch|snack|dinner), (this week|next week|anytime)/i) || [];
-      return { r: r, meal: m, who: r.asked_by || (d.match(/^(\S+) wants/) || [])[1] || '?', slot: (w[1] || '').toLowerCase(), when: w[2] || '' };
-    }).filter((x) => x.meal);
+      const date = (d.match(/\((\d{4}-\d\d-\d\d)\)/) || [])[1] || '';
+      const ws = date ? d.match(/ for (breakfast|lunch|snack|dinner) on /i) || [] : [];
+      return { r: r, meal: m, who: r.asked_by || (d.match(/^(\S+) (wants|suggests)/) || [])[1] || '?', slot: String(w[1] || ws[1] || (date ? 'dinner' : '')).toLowerCase(), when: w[2] || '', date: date };
+    }).filter((x) => x.meal && (!x.date || (x.date >= D().today && spotFree(x.date, x.slot))));
+  }
+  const canSuggest = () => Number(D().api || 0) >= 72;
+  const kidSlots = () => ((D().settings && D().settings.kid_suggest_slots) || ['dinner']);
+  const spotFree = (day, slot) => !planText(planDay(day)[slot]);
+  const suggestionsFor = (day, slot) => mealRequests().filter((x) => x.date === day && x.slot === slot);
+  const canSuggestHere = (day, slot) => canSuggest() && isKid(S.me) && day >= D().today && kidSlots().indexOf(slot) >= 0 && spotFree(day, slot);
+  function suggestMeal(mealId, slot, day) {
+    const m = mealById(mealId); if (!m) return;
+    act('mealRequest', { meal_id: m.id, slot: slot, date: day }, () => {
+      D().review.push({ id: tmpId(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: S.me,
+        detail: S.me + ' suggests ' + m.name + ' for ' + slot + ' on ' + shortDay(day) + '. (' + m.id + ') (' + day + ') Options: Lock it in; Not now' });
+    }, '💭 Suggested ' + m.name + ' for ' + shortDay(day) + '. A parent locks it in.' + ptsTag('meal_ask'));
+  }
+  // The suggestions waiting on one empty spot, for the day sheet. Parents: ✓ Lock it in / ✕. Kids: their own can be cancelled.
+  function suggestBlock(day, slot) {
+    if (!canSuggest() || !spotFree(day, slot)) return '';
+    const sg = suggestionsFor(day, slot);
+    if (!sg.length) return '';
+    return '<div class="sugg-list">' + sg.map((x) => {
+      const mine = String(x.who).toLowerCase() === String(S.me).toLowerCase();
+      return '<div class="sugg-row"><button class="row-main" data-act="open-meal" data-id="' + x.meal.id + '"><span class="row-name">💭 ' + esc(x.meal.name) + '</span>' +
+        '<span class="row-meta">' + esc(mine ? 'You suggested it' + (amParent() ? '' : ' · waiting for a parent') : x.who + ' suggested it') + '</span></button>' +
+        (amParent() ? '<button class="btn btn-primary btn-sm" data-act="sugg-lock" data-id="' + esc(x.r.id) + '">✓ Lock it in</button>' +
+          '<button class="btn btn-quiet btn-sm" data-act="req-no" data-id="' + esc(x.r.id) + '" aria-label="Not now: ' + esc(x.meal.name) + '">✕</button>'
+          : mine ? '<button class="btn btn-quiet btn-sm" data-act="req-cancel" data-id="' + esc(x.r.id) + '">Cancel</button>' : '') + '</div>';
+    }).join('') + (sg.length > 1 && amParent() ? '<p class="note">' + sg.length + ' ideas for this spot. Lock in one; the others close.</p>' : '') + '</div>';
   }
   function viewMealRequests() {
     if (!canV9()) return '';
@@ -2900,8 +2935,10 @@
     if (!mine.length) return '';
     return '<section class="card requests"><div class="card-head">' + (amParent() ? 'MEAL REQUESTS · ' : 'WAITING FOR A PARENT · ') + mine.length + '</div>' + mine.map((x) =>
       '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + x.meal.id + '" data-req="' + esc(x.r.id) + '"><span class="row-name">' + esc(x.meal.name) + '</span>' +
-      '<span class="row-meta">' + esc([amParent() ? x.who + ' asked' : 'You asked', x.slot ? slotLabel(x.slot).toLowerCase() : '', x.when].filter(String).join(' · ')) + '</span></button>' +
-      (amParent() ? '<button class="btn btn-primary" data-act="open-meal" data-id="' + x.meal.id + '" data-req="' + esc(x.r.id) + '">Plan it</button><button class="btn btn-quiet" data-act="req-no" data-id="' + esc(x.r.id) + '">Not now</button>'
+      '<span class="row-meta">' + esc(x.date ? [amParent() ? '💭 ' + x.who + ' suggests' : '💭 You suggested', shortDay(x.date) + ' ' + slotLabel(x.slot).toLowerCase()].join(' · ')
+        : [amParent() ? x.who + ' asked' : 'You asked', x.slot ? slotLabel(x.slot).toLowerCase() : '', x.when].filter(String).join(' · ')) + '</span></button>' +
+      (amParent() && x.date ? '<button class="btn btn-primary" data-act="sugg-lock" data-id="' + esc(x.r.id) + '">Lock it in</button><button class="btn btn-quiet" data-act="req-no" data-id="' + esc(x.r.id) + '">Not now</button>'
+        : amParent() ? '<button class="btn btn-primary" data-act="open-meal" data-id="' + x.meal.id + '" data-req="' + esc(x.r.id) + '">Plan it</button><button class="btn btn-quiet" data-act="req-no" data-id="' + esc(x.r.id) + '">Not now</button>'
         : '<button class="btn btn-quiet" data-act="req-cancel" data-id="' + esc(x.r.id) + '">Cancel</button>') + '</div>').join('') + '</section>';
   }
 
@@ -3028,13 +3065,24 @@
     h += recipeButton(m);
     const kidAsks = canV9() && isKid(S.me);
     if (kidAsks) {
-      const pending = mealRequests().find((x) => x.meal.id === m.id && String(x.who).toLowerCase() === String(S.me).toLowerCase());
+      const pending = mealRequests().find((x) => !x.date && x.meal.id === m.id && String(x.who).toLowerCase() === String(S.me).toLowerCase());
       const ask = sh.ask || (sh.ask = { slot: slot, when: 'next week' });
       const seg2 = (field, opts) => '<div class="seg">' + opts.map((o) => '<button type="button" data-act="ask-meal-seg" data-field="' + field + '" data-v="' + esc(o[0]) + '" class="' + (ask[field] === o[0] ? 'on' : '') + '">' + esc(o[1]) + '</button>').join('') + '</div>';
       h += '<div class="is-block first"><div class="is-label">Want this?</div>' + (pending
         ? '<p class="is-fact">You asked for it (' + esc([slotLabel(pending.slot || slot).toLowerCase(), pending.when].filter(String).join(', ')) + '). Waiting for a parent.</p>'
         : seg2('slot', SLOTS.map((x) => [x[0], x[1]])) + seg2('when', [['this week', 'This week'], ['next week', 'Next week'], ['anytime', 'Anytime']]) +
           '<button class="btn btn-primary btn-block" data-act="ask-meal">Ask for it</button><p class="note">A parent picks the day.</p>') + '</div>';
+      // api 72: or put it right on a day (empty spots only).
+      if (canSuggest() && kidSlots().indexOf(ask.slot) >= 0) {
+        const mine = mealRequests().filter((x) => x.meal.id === m.id && x.date && x.slot === ask.slot && String(x.who).toLowerCase() === String(S.me).toLowerCase()).map((x) => x.date);
+        const free = weeks.map((w) => ({ wk: w.wk, days: w.days.filter((d) => d >= D().today && (spotFree(d, ask.slot) || mine.indexOf(d) >= 0)) })).filter((w) => w.days.length);
+        h += '<div class="is-block"><div class="is-label">💭 Or suggest it for a day · ' + esc(slotLabel(ask.slot)) + '</div>' + (free.length ? free.map((w) =>
+          '<div class="wk"><div class="wk-label">' + wkLabel(w.wk) + '</div><div class="day-chips">' + w.days.map((d) => {
+            const on = mine.indexOf(d) >= 0;
+            return '<button class="day-chip' + (on ? ' on' : '') + '" data-act="sugg-day" data-day="' + d + '"' + (on ? ' disabled' : '') + ' aria-label="' + esc('Suggest for ' + dayName(d) + ' ' + md(d) + (on ? ', suggested' : '')) + '">' +
+              '<b>' + (d === D().today ? 'Today' : dayName(d)) + '</b><small>' + (on ? '💭' : md(d)) + '</small></button>';
+          }).join('') + '</div></div>').join('') + '<p class="note">Only open days show. A parent locks it in.</p>' : '<p class="note">Every ' + esc(slotLabel(ask.slot).toLowerCase()) + ' is planned for now.</p>') + '</div>';
+      }
     }
     if (sh.req && amParent()) {
       const rq = mealRequests().find((x) => x.r.id === sh.req);
@@ -4138,6 +4186,17 @@
         D().review.push({ id: tmpId(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: S.me, detail: S.me + ' wants ' + m.name + ' for ' + a.slot + ', ' + a.when + '. (' + m.id + ') Options: Plan it; Not now' });
       }, 'Asked for ' + m.name + ptsTag('meal_ask'));
     },
+    'sugg-day': (el) => { const sh = S.sheet; if (!sh || sh.type !== 'mealcard' || !sh.ask) return; suggestMeal(sh.id, sh.ask.slot, el.dataset.day); },
+    'sugg-lock': (el) => {
+      const x = mealRequests().find((q) => q.r.id === el.dataset.id); if (!x || !x.date) return;
+      const wk = addDays(x.date, -DAYS.indexOf(dayName(x.date)));
+      act('reviewAnswer', { id: x.r.id, answer: 'Lock it in (' + S.me + ')' }, () => {
+        const gone = suggestionsFor(x.date, x.slot).map((q) => q.r.id);
+        D().review = D().review.filter((r) => gone.indexOf(r.id) < 0);
+        D().plan = D().plan.filter((p) => !(planDate(p) === x.date && slotOf(p) === x.slot));
+        D().plan.push({ date: x.date, week_of: wk, day: dayName(x.date), meal_id: x.meal.id, slot: x.slot, planned_by: S.me, asked_by: x.who });
+      }, '🔒 ' + x.meal.name + ' on ' + (x.date === D().today ? 'today' : shortDay(x.date)) + ' (' + x.who + '’s pick)' + ptsTag('approve'));
+    },
     'req-no': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Not now (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Said not now' + ptsTag('approve')); },
     'req-cancel': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Cancelled (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Cancelled'); },
     'open-feedback': () => { S.sheet = { type: 'feedback', text: '' }; render(); const f = document.getElementById('fb-text'); if (f) f.focus(); },
@@ -4711,6 +4770,7 @@
         if (mealId) D().plan.push({ date: day, week_of: wk, day: dayName(day), meal_id: mealId, slot: slot });
       });
     }
+    if (el.dataset && el.dataset.input === 'slot-suggest') { const v = el.value; el.value = ''; if (v) suggestMeal(v, el.dataset.slot, el.dataset.day); }
     if (el.dataset && el.dataset.input === 'ask-sel') { S.askSel = el.value; render(); }
     if (el.dataset && el.dataset.input === 'push-pick' && S.sheet && S.sheet.picks) { S.sheet.picks[el.dataset.id] = el.value; render(); }
     if (el.dataset && el.dataset.input === 'd' && S.sheet && S.sheet.d) S.sheet.d[el.dataset.field] = el.value;

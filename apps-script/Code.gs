@@ -420,7 +420,15 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      cards while away (open ones close, outcome away), no Did we get it? cards, no How was it? / Kitchen help for
 //      away days; state.away. Catch-up bonus by place: 2nd 1.5×, 3rd 2×, 4th 2.5× (Settings catchup_step, 0 = flat;
 //      catchup_ranked_from keeps the flat rule before that time); state.points.place / mult / ladder.
-const API_VERSION = 71;
+// 72 = the girls suggest meals right in the week (Nov 17, Joni's idea f014: "Allow the girls put meal suggestions in
+//      the actual week and then have a parent approve button on the side that locks it in"). mealRequest takes an
+//      optional date: a dated meal_request "<who> suggests <meal> for <slot> on <Day M/D>. (mNN) (yyyy-mm-dd)
+//      Options: Lock it in; Not now". Empty spots only (no meal, item, pick-up or note there); slots from Settings
+//      kid_suggest_slots (blank = dinner; "all" or a list like "dinner, breakfast"); no limit on how many (points for
+//      asking stay capped by meal_ask). Two picks for one spot both stay open. reviewAnswer "Lock it in" (parents)
+//      plans it (asked_by = the kid) and setPlan closes every other open suggestion for that spot (outcome
+//      "spot planned"). state.settings.kid_suggest_slots.
+const API_VERSION = 72;
 const ORDERED_DAYS = 3; // a row bought (order placed) this recently covers its item
 const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
@@ -851,6 +859,7 @@ function buildState() {
       watcher_chrome: scriptProp('watcher_chrome'),
       inbox_daily: settings.inbox_daily === '' || settings.inbox_daily == null ? INBOX_DAILY : Number(settings.inbox_daily) || 0,
       item_parent: String(settings.item_parent || '').trim(),
+      kid_suggest_slots: kidSuggestSlots(settings),
       stores_checked: settings.stores_checked instanceof Date ? Utilities.formatDate(settings.stores_checked, scriptTz(), "yyyy-MM-dd'T'HH:mm:ss") : String(settings.stores_checked || ''),
     },
   };
@@ -1445,6 +1454,7 @@ function setPlan(req) {
   } else if (keep) {
     appendObj(TABS.plan, Object.assign(fields, what));
   }
+  if (keep && (what.meal_id || itemId || out)) closeSuggestions(date, slot, String(req.by || '')); // api 72
   return { date: date, day: fields.day, slot: slot };
 }
 
@@ -1472,6 +1482,8 @@ function planAskedBy(req, mealId) {
   const who = [];
   readTab(TABS.review).forEach((r) => {
     if (r.type !== 'meal_request' || r.status !== 'open' || String(r.detail).indexOf('(' + mealId + ')') < 0) return;
+    const sp = suggestionSpot(r); // api 72: a dated suggestion only counts for its own spot
+    if (sp && (sp.date !== String(req.date || '').slice(0, 10) || sp.slot !== (String(req.slot || '').toLowerCase() || 'dinner'))) return;
     const n = String(r.asked_by || (String(r.detail).match(/^(\S+) wants/) || [])[1] || '').trim();
     if (n && who.indexOf(n) < 0) who.push(n);
   });
@@ -1934,6 +1946,7 @@ function answerReview(req) {
   if (!r) throw new Error('Review item not found');
   const answer = String(req.answer || '');
   const who = (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || String(req.by || '');
+  const lock = r.type === 'meal_request' && /^lock/i.test(answer) ? lockSuggestion(r, isKid(req.by) ? req.by : who) : null;
   const notHad = /^not what we had\b/i.test(answer) && ['rate', 'helped', 'vote'].indexOf(String(r.type)) >= 0 ? notHadAnswer(r, who) : null;
   const why = pointsWhy(r, answer); // a "Not what we had" still scores like any answer (helped: nothing)
   const pts = why ? ruleByKey(why).pts : 0;
@@ -1951,7 +1964,8 @@ function answerReview(req) {
   const subbed = r.type === 'subbed' ? subbedAnswer(r, answer, who) : null;
   const which = r.type === 'which' ? whichAnswer(r, answer, who) : null;
   const sameKind = r.type === 'same_kind' ? sameKindAnswer(r, answer, who) : r.type === 'kind' ? kindAnswer(r, answer, who) : null;
-  return { id: r.id, points: pts, why: why, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which, sameKind: sameKind };
+  if (lock) setPlan({ date: lock.date, slot: lock.slot, meal_id: lock.meal_id, note: '', by: who, asked_by: String(r.asked_by || '') });
+  return { id: r.id, points: pts, why: why, locked: lock, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which, sameKind: sameKind };
 }
 
 // api 61: "Not what we had" on a card about a meal we just had. Finds that night's Plan row (the card's date if it
@@ -2632,8 +2646,9 @@ function addMealRequest(req) {
   const slot = SLOTS.indexOf(String(req.slot || '').toLowerCase()) >= 0 ? String(req.slot).toLowerCase() : 'dinner';
   const when = ['this week', 'next week', 'anytime'].indexOf(String(req.when || '').toLowerCase()) >= 0 ? String(req.when).toLowerCase() : 'anytime';
   ensureColumn(TABS.review, 'asked_by');
+  if (req.date) return addMealSuggestion(req, meal, slot);
   const review = readTab(TABS.review);
-  const dup = review.find((r) => r.type === 'meal_request' && r.status === 'open' && String(r.asked_by) === String(req.by) && String(r.detail).indexOf('(' + meal.id + ')') >= 0);
+  const dup = review.find((r) => r.type === 'meal_request' && r.status === 'open' && String(r.asked_by) === String(req.by) && String(r.detail).indexOf('(' + meal.id + ')') >= 0 && !suggestionSpot(r));
   if (dup) return { id: dup.id, already: true };
   const id = nextId(review, 'id', 'r', 3);
   appendObj(TABS.review, {
@@ -2642,6 +2657,70 @@ function addMealRequest(req) {
   });
   awardPoints(req.by, 'meal_ask', id, req.by, 'Asked for ' + meal.name);
   return { id: id };
+}
+
+// api 72: which slots the girls can suggest into (Settings kid_suggest_slots; blank = dinner, "all" = all four).
+function kidSuggestSlots(st) {
+  const v = String((st || settingsMap()).kid_suggest_slots || '').trim().toLowerCase();
+  if (!v) return ['dinner'];
+  if (/\ball\b/.test(v)) return SLOTS.slice();
+  const got = SLOTS.filter((x) => v.indexOf(x) >= 0);
+  return got.length ? got : ['dinner'];
+}
+// A dated suggestion's spot, {date, slot}, or null for an ordinary "Want this?" request.
+function suggestionSpot(r) {
+  if (r.type !== 'meal_request') return null;
+  const d = String(r.detail || '');
+  const date = (d.match(/\((\d{4}-\d\d-\d\d)\)/) || [])[1];
+  if (!date) return null;
+  const slot = (d.match(/ for (breakfast|lunch|snack|dinner) on /i) || [])[1];
+  return { date: date, slot: slot ? slot.toLowerCase() : 'dinner' };
+}
+// What's planned in a spot (meal, item, pick-up or a note), or null when it's empty.
+function planInSpot(date, slot) {
+  return readTab(TABS.plan).find((p) => planDate(p) === date && planSlot(p) === slot &&
+    (p.meal_id || p.item_id || String(p.out || '').trim() || String(p.note || '').trim())) || null;
+}
+function addMealSuggestion(req, meal, slot) {
+  const date = String(req.date).slice(0, 10);
+  if (!/^\d{4}-\d\d-\d\d$/.test(date)) throw new Error('Pick a day');
+  if (date < isoDate(new Date())) throw new Error('Pick today or a day ahead');
+  const ok = kidSuggestSlots();
+  if (ok.indexOf(slot) < 0) throw new Error('Suggestions are for ' + ok.join(', ') + ' for now');
+  if (planInSpot(date, slot)) throw new Error('That spot is already planned');
+  const review = readTab(TABS.review);
+  const dup = review.find((r) => r.type === 'meal_request' && r.status === 'open' && String(r.asked_by) === String(req.by) &&
+    String(r.detail).indexOf('(' + meal.id + ')') >= 0 && (suggestionSpot(r) || {}).date === date && suggestionSpot(r).slot === slot);
+  if (dup) return { id: dup.id, already: true };
+  const id = nextId(review, 'id', 'r', 3);
+  const when = DAY_NAMES[new Date(date + 'T12:00:00').getDay()].slice(0, 3) + ' ' + Number(date.slice(5, 7)) + '/' + Number(date.slice(8, 10));
+  appendObj(TABS.review, {
+    id: id, created: nowStamp(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: req.by || '',
+    detail: (req.by || 'Someone') + ' suggests ' + String(meal.name).replace(/[;?]/g, '') + ' for ' + slot + ' on ' + when + '. (' + meal.id + ') (' + date + ') Options: Lock it in; Not now',
+  });
+  awardPoints(req.by, 'meal_ask', id, req.by, 'Suggested ' + meal.name);
+  return { id: id, date: date, slot: slot };
+}
+// "Lock it in" on a dated suggestion: a parent plans it. Checked before the answer is saved.
+function lockSuggestion(r, who) {
+  const spot = suggestionSpot(r);
+  const mealId = (String(r.detail).match(/\((m\d{2,})\)/) || [])[1];
+  if (!spot || !mealId) return null;
+  if (r.status !== 'open') throw new Error('That suggestion is already settled');
+  if (isKid(who)) throw new Error('A parent locks it in');
+  const there = planInSpot(spot.date, spot.slot);
+  if (there) throw new Error('That spot is already planned');
+  return { date: spot.date, slot: spot.slot, meal_id: mealId };
+}
+// When a spot gets planned (a locked-in suggestion or a parent picking it), the other suggestions for it close.
+function closeSuggestions(date, slot, who) {
+  readTab(TABS.review).forEach((x) => {
+    if (x.status !== 'open') return;
+    const sp = suggestionSpot(x);
+    if (!sp || sp.date !== date || sp.slot !== slot) return;
+    ensureColumn(TABS.review, 'outcome');
+    setFields(TABS.review, x._row, { status: 'closed', outcome: 'spot planned' + (who ? ' (' + who + ')' : '') });
+  });
 }
 
 function addFeedback(req) {
