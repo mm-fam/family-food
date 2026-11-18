@@ -92,6 +92,37 @@
   function forgetSavedState() { clearTimeout(saveTimer); store.del(SAVED_KEY); }
   if (S.pass) { const saved = loadSavedState(); if (saved) { S.data = saved; S.stale = true; } }
   // Deep link from a printed recipe card's QR code (Nov 4): ?meal=mNN opens that meal card once we know who you are.
+  /* Update banner (Nov 17, owner: "an update button/banner at the top… there is a newer version"). The app's own
+     cache tag is the ?v= on its script tag; every app change bumps it in index.html. On open, every 10 minutes and
+     whenever the app comes back to the front, Poppy reads index.html fresh and compares tags. A newer one shows
+     "✨ A new version of Poppy is ready · Update" at the top; Update reloads through a new URL (?u=<tag>) so the
+     phone can't serve the old files from its cache, then the URL is cleaned. Changes waiting for signal are kept
+     on the phone (outbox), so updating never loses them. App only. */
+  const APP_TAG = (() => { const src = document.currentScript && document.currentScript.src; const m = src && src.match(/[?&]v=([^&#]+)/); return m ? m[1] : ''; })();
+  try {
+    const u = new URLSearchParams(location.search).get('u');
+    if (u) {
+      // Landed from Update. If the server still handed us the old files (its cache lags a few minutes), don't
+      // offer that same version again right away.
+      if (u !== APP_TAG) store.set('ff_update_skip', u + '|' + Date.now());
+      history.replaceState(null, '', location.pathname + location.search.replace(/([?&])u=[^&]*&?/, '$1').replace(/[?&]$/, '') + location.hash);
+    }
+  } catch (e) { /* fine */ }
+  let updateCheckedAt = 0;
+  function checkForUpdate() {
+    if (!APP_TAG || document.hidden || Date.now() - updateCheckedAt < 60000) return;
+    updateCheckedAt = Date.now();
+    fetch('index.html?check=' + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.text() : '')).then((html) => {
+      const tag = ((html || '').match(/app\.js\?v=([^"'&#\s>]+)/) || [])[1];
+      if (!tag || tag === APP_TAG || tag === S.newVersion) return;
+      const skip = String(store.get('ff_update_skip') || '').split('|');
+      if (skip[0] === tag && Date.now() - Number(skip[1] || 0) < 15 * 60000) return;
+      S.newVersion = tag;
+      render();
+    }).catch(() => { /* offline: try again later */ });
+  }
+  const viewUpdateBar = () => (S.newVersion ? '<button type="button" class="update-bar" data-act="app-update">✨ A new version of Poppy is ready <span class="update-go">Update</span></button>' : '');
+
   try { const dm = new URLSearchParams(location.search).get('meal'); if (/^m\d+$/.test(dm || '')) S.deepMeal = dm; } catch (e) { /* no URL */ }
 
   let seq = 0;
@@ -685,7 +716,7 @@
       else if (isAdmin()) right += '<button class="gear' + (S.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-tab="' + (S.tab === 'admin' ? 'list' : 'admin') + '" aria-label="Behind the scenes">⚙</button>';
       right += '<button class="me" data-act="switch-me" aria-label="Switch person">' + esc(S.me) + '</button>';
     }
-    let top = '<header class="top"><div class="top-row"><div>' + (eyebrow ? '<div class="eyebrow">' + esc(eyebrow) + '</div>' : '') + '<h1>' + title + '</h1></div>' +
+    let top = '<header class="top">' + viewUpdateBar() + '<div class="top-row"><div>' + (eyebrow ? '<div class="eyebrow">' + esc(eyebrow) + '</div>' : '') + '<h1>' + title + '</h1></div>' +
       '<div class="top-right">' + right + '</div></div>';
     const waiting = outbox().length;
     if (waiting) top += '<div class="stale-pill" role="status">⏳ ' + waiting + ' change' + (waiting === 1 ? '' : 's') + ' waiting for signal</div>';
@@ -4129,6 +4160,7 @@
       });
     },
     'inbox-more': () => { store.set(moreKey(), new Date().toDateString()); S.askSection = ''; render(); },
+    'app-update': () => { const t = S.newVersion || String(Date.now()); location.replace(location.pathname + '?u=' + encodeURIComponent(t)); },
     'im-out': () => { store.set(outKey(), new Date().toDateString()); store.del(homeKey()); S.askSection = ''; showToast('🚗 Missions will wait for home. Here’s what you can answer now'); render(); },
     'im-home': () => { store.del(outKey()); store.set(homeKey(), new Date().toDateString()); S.askSection = ''; showToast('🏠 Welcome home! Missions are open'); render(); },
     'ask-later': (el) => { const id = el.dataset.id; S.askPassing = null; S.askSnoozing = S.askSnoozing === id ? null : id; render(); },
@@ -4893,7 +4925,9 @@
   /* ------------------------------------------------------------ boot */
   let stripTouched = 0;
   document.addEventListener('scroll', (ev) => { if (ev.target && ev.target.classList && ev.target.classList.contains('week-strip')) stripTouched = Date.now(); }, true);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); checkForUpdate(); } });
+  setTimeout(checkForUpdate, 3000);
+  setInterval(checkForUpdate, 10 * 60000);
   window.addEventListener('online', () => refresh());
   // Swipe right from the left edge = back to All carts (a store's cart screen), like an iPhone app.
   let edgeX = -1, edgeY = 0;
