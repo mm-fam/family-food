@@ -3259,8 +3259,14 @@
   const homeKey = () => 'ff_home_' + String(S.me).toLowerCase();
   // Away (api 71): while the family is out of town (Settings away_until → state.away), missions wait for home all day.
   const awayNow = () => !!D().away && !!S.me && isKid(S.me);
+  /* I'm out (Nov 17, a kid's 💡 idea f015): checking Poppy in the car after school or on a weekend, she had to tap
+     past every mission to reach a question she could answer. "🚗 I'm out" makes missions wait for home on that phone
+     for the rest of the day (same as school hours); "I'm home" opens them again. Resets at midnight. App only. */
+  const outKey = () => 'ff_out_' + String(S.me).toLowerCase();
+  const outNow = () => !!S.me && isKid(S.me) && store.get(outKey()) === new Date().toDateString();
   function atSchool() {
     if (!S.me || !isKid(S.me)) return false;
+    if (outNow()) return true;
     if (awayNow()) return store.get(homeKey()) !== new Date().toDateString();
     const now = new Date(), mins = now.getHours() * 60 + now.getMinutes();
     if (SCHOOL.days.indexOf(now.getDay()) < 0 || mins < SCHOOL.from || mins >= SCHOOL.to) return false;
@@ -3276,9 +3282,18 @@
   }
   function viewHomeWaiting() {
     const n = homeWaiting().length;
+    if (outNow()) return '<section class="card home-wait"><div class="home-wait-txt"><b>🚗 You’re out · ' + (n ? n + (n === 1 ? ' mission waits' : ' missions wait') + ' for home' : 'missions wait for home') + '</b>' +
+      '<span class="note">Everything here works from anywhere. Tap “I’m home” when you get there.</span></div>' +
+      '<button type="button" class="btn btn-plain" data-act="im-home">I’m home</button></section>';
     if (awayNow()) return '<section class="card home-wait"><div class="home-wait-txt"><b>🚗 On the road until ' + esc(awayWhen()) + '</b>' +
       '<span class="note">No missions this weekend' + (n ? ' (' + n + ' waiting for home)' : '') + '. Questions you can answer from anywhere still score, catch-up bonus too.</span></div></section>';
-    if (!n) return '';
+    if (!n) {
+      if (!S.me || !isKid(S.me)) return '';
+      const m = myQuestionsAll().filter((r) => !snoozed(r) && homeOnly(r)).length;
+      if (!m) return '';
+      return '<div class="out-bar"><span class="note">Not home? Missions can wait.</span>' +
+        '<button type="button" class="btn btn-plain btn-sm" data-act="im-out">🚗 I’m out</button></div>';
+    }
     return '<section class="card home-wait"><div class="home-wait-txt"><b>🏠 ' + n + (n === 1 ? ' mission waits' : ' missions wait') + ' for home</b>' +
       '<span class="note">They open at ' + SCHOOL.opens + ', after school. Until then, everything here works from anywhere.</span></div>' +
       '<button type="button" class="btn btn-plain" data-act="im-home">I’m home</button></section>';
@@ -4114,7 +4129,8 @@
       });
     },
     'inbox-more': () => { store.set(moreKey(), new Date().toDateString()); S.askSection = ''; render(); },
-    'im-home': () => { store.set(homeKey(), new Date().toDateString()); S.askSection = ''; showToast('🏠 Welcome home! Missions are open'); render(); },
+    'im-out': () => { store.set(outKey(), new Date().toDateString()); store.del(homeKey()); S.askSection = ''; showToast('🚗 Missions will wait for home. Here’s what you can answer now'); render(); },
+    'im-home': () => { store.del(outKey()); store.set(homeKey(), new Date().toDateString()); S.askSection = ''; showToast('🏠 Welcome home! Missions are open'); render(); },
     'ask-later': (el) => { const id = el.dataset.id; S.askPassing = null; S.askSnoozing = S.askSnoozing === id ? null : id; render(); },
     'ask-snooze': (el) => {
       const id = el.dataset.id, until = Number(el.dataset.until);
