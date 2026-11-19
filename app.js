@@ -1996,7 +1996,8 @@
       h += '<div class="is-quick"><div class="is-label">' + (row ? 'Already have some?' : 'How much is at home?') + '</div><div class="seg">' +
         lv('plenty', 'Plenty') + lv('some', 'Some') + lv('low', 'A little') + lv('count', 'Count…') + '</div>' +
         (sh.level === 'count' ? '<div class="is-line"><div class="stepper small"><button type="button" data-act="have-count" data-d="-1" aria-label="Fewer">−</button><b>' + sh.count + '</b><button type="button" data-act="have-count" data-d="1" aria-label="More">+</button></div><button class="btn btn-outline" data-act="have-count-save">Save</button></div>' : '') +
-        (row ? '<p class="note">Plenty or Some takes it off the List.</p>' : '') + '</div>';
+        (row ? '<p class="note">Plenty or Some takes it off the List.</p>' : '') +
+        (Number(D().api || 0) >= 73 ? '<button type="button" class="link-btn is-tossed" data-act="item-tossed">🗑 We tossed some</button>' : '') + '</div>';
     }
     // Nov 10 (owner): any item can go on the girls' mission list from here.
     if (!row && sh.item_id) {
@@ -3442,7 +3443,7 @@
     if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) return 'due';
     if (t === 'rate' || t === 'still' || (t === 'vote' && voteTiming(r) === 'after')) return 'rate'; // api 35: a vote right after the meal
     if (t === 'check' || t === 'mission') return 'mission';
-    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed', 'which', 'same_kind', 'kind', 'recipe_check'].indexOf(t) >= 0 ||
+    if (amParent() && (['clarify', 'swap', 'miss', 'unknown_code', 'waste', 'storebrand', 'try', 'bestprice', 'voice', 'tidy', 'subbed', 'which', 'same_kind', 'kind', 'recipe_check', 'take'].indexOf(t) >= 0 ||
       (t === 'preference' && /\((i\d{3,}|x\d{3,})\)|stop buying|add it to our meals/i.test(d)))) return 'decision';
     return 'question';
   }
@@ -3821,7 +3822,9 @@
     } else if (kind === 'emoji') {
       control = '<div class="emoji-row">' + real.map((o) => '<button type="button" class="emoji-btn" data-act="ask-pick" data-id="' + r.id + '" data-v="' + esc(o) + '">' + esc(o) + '</button>').join('') + '</div>';
     } else if (kind === 'pick') {
-      control = '<div class="pick-list">' + real.map((o) => isTypeOpt(o)
+      control = '<div class="pick-list">' + real.map((o) => r.type === 'suggest' && /^pick one$/i.test(o)
+        ? '<button type="button" class="pick-btn" data-act="suggest-go" data-id="' + r.id + '">💭 Pick one</button>'
+        : isTypeOpt(o)
         ? '<button type="button" class="pick-btn pick-other" data-act="ask-type" data-id="' + r.id + '">' + esc(cleanOpt(o)) + '…</button>'
         : '<button type="button" class="pick-btn" data-act="ask-pick" data-id="' + r.id + '" data-v="' + esc(o) + '">' + esc(o) + '</button>').join('') + '</div>';
     } else if (kind === 'dropdown') {
@@ -3868,7 +3871,7 @@
       '<button type="button" class="btn btn-plain" data-act="ask-later" data-id="' + r.id + '">Later →</button>' + '</div>') + '</section>';
     if (deck.length > 1) html += '<div class="deck-edge"></div>';
     const isSettle = r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal';
-    html += '<p class="hint">' + (isSettle ? (r.type === 'settle_meal' ? 'Take them off clears them from the List; Keep them leaves them as regular items. ' : r.type === 'settle_order' ? 'Yes takes the whole cart off the List. Some of it asks about each thing. ' : isKid(S.me) ? 'Go look where it lives (fridge, pantry, bathroom). It’s here takes it off the List. ' : 'Got it or Don’t need it takes it off the List; Still need it keeps it there. ') : '') + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
+    html += '<p class="hint">' + (r.type === 'suggest' ? 'Pick one opens the week: tap an empty spot and choose a meal. Your pick finishes this card. ' : '') + (isSettle ? (r.type === 'settle_meal' ? 'Take them off clears them from the List; Keep them leaves them as regular items. ' : r.type === 'settle_order' ? 'Yes takes the whole cart off the List. Some of it asks about each thing. ' : isKid(S.me) ? 'Go look where it lives (fridge, pantry, bathroom). It’s here takes it off the List. ' : 'Got it or Don’t need it takes it off the List; Still need it keeps it there. ') : '') + (isMission ? 'Go take a look, then tap what you found. A little or Out puts it on the List' + (isKid(S.me) ? ' for a parent to OK' : '') + '. ' : '') + (kind === 'yesno' ? 'Swipe the card right for yes, left for no. ' : '') + 'Answers teach Poppy what the family likes. A parent makes the final call.</p>';
     return html;
   }
 
@@ -4487,6 +4490,26 @@
       const sync = Number(D().api || 0) >= 34 && !isKid(S.me) && r.status === 'carted' && CART_STORES.indexOf(st) >= 0 && (!r.cart_want || r.cart_want === st);
       act('update', { id: r.id, fields: { qty: q } }, () => { r.qty = q; if (sync) { r.cart_want = st; r.cart_note = ''; queueLocal(st); } },
         sync ? '⏳ ' + r.name + ': ' + (lb ? lbText(q) : q) + ' in the ' + storeOf(st).name + ' cart, updating' : undefined);
+    },
+    // api 73 (Joni's f017): the Pick a meal card opens the first day of its week with an open spot the girls can fill.
+    'suggest-go': (el) => {
+      const r = (D().review || []).find((x) => x.id === el.dataset.id); if (!r) return;
+      const wk = (String(r.detail || '').match(/\((\d{4}-\d\d-\d\d)\)/) || [])[1]; if (!wk) return;
+      const slots = kidSlots().filter((x) => x === 'breakfast' || x === 'dinner');
+      const use = slots.length ? slots : kidSlots();
+      let day = '';
+      for (let k = 0; k < 7 && !day; k++) { const d = addDays(wk, k); if (d >= D().today && use.some((sl) => spotFree(d, sl))) day = d; }
+      if (!day) { showToast('Every spot that week is planned already'); return; }
+      S.tab = 'meals'; S.sheet = { type: 'day', day: day }; render();
+    },
+    // api 73 (Joni's f016): log a toss from the item screen, so Poppy's take can see what we waste.
+    'item-tossed': () => {
+      const sh = S.sheet; if (!sh || !sh.item_id) return;
+      const it = itemById(sh.item_id);
+      S.sheet = null;
+      act('stockLog', { item_id: sh.item_id, level: 'waste' }, () => {
+        (D().stock = D().stock || {})[sh.item_id] = { level: 'waste', at: D().today, who: S.me };
+      }, '🗑 Noted: we tossed some' + (it ? ' ' + it.name : '') + '. Poppy will keep an eye on it.');
     },
     'have-level': (el) => {
       const v = el.dataset.v;

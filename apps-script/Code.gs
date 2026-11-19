@@ -428,7 +428,27 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      asking stay capped by meal_ask). Two picks for one spot both stay open. reviewAnswer "Lock it in" (parents)
 //      plans it (asked_by = the kid) and setPlan closes every other open suggestion for that spot (outcome
 //      "spot planned"). state.settings.kid_suggest_slots.
-const API_VERSION = 72;
+// 73 = Joni's two ideas (Nov 19). f017 "Ask girls to add a breakfast or dinner once a week": every Thursday each kid
+//      gets a 💭 Pick a meal card (type suggest, due Sunday 8 pm) for next week's open breakfast / dinner spots (the
+//      slots kid_suggest_slots allows; the card's (yyyy-mm-dd) is that Monday); on Monday a kid who hasn't picked gets
+//      "Still time" for the same week (the Thursday card closes, outcome replaced). Making a dated suggestion in that
+//      week answers the card ("Picked …") and scores it as Due soon; "Not this week" scores nothing; past the week it
+//      closes. Nothing goes out while away, or when every spot is planned. f016 "poppy feedback like we never eat the
+//      meals we plan or we always waste potatoes so stop buying them": 📊 Poppy's take, Thursdays, parents' ⚖ cards
+//      (type take) from the last TAKE_DAYS: a slot where half or more of the planned meals were marked Not what we
+//      had (Plan Fewer of them / Keep planning them / Good to know; nothing changes on its own), and anything tossed
+//      TAKE_WASTE_TIMES+ times (Stop buying it → Items status Drop + needed / requested List rows skipped; Buy less →
+//      Items notes). stockLog takes level "waste" (item screen 🗑 We tossed some, source tossed).
+const API_VERSION = 73;
+const SUGGEST_DUE_HOUR = '20:00';
+const TAKE_DAYS = 28;          // Poppy's take looks back this far
+const TAKE_MIN_PLANNED = 4;    // a slot needs this many planned meals before Poppy says anything about it
+const TAKE_WASTE_TIMES = 2;
+const TAKE_MAX = 3;            // cards per Thursday
+const TAKE_EXPIRE_DAYS = 7;    // an unanswered take closes before the next Thursday's
+const TAKE_SLOT_REASK_DAYS = 13; // a slot finding comes back two weeks later at most
+const TAKE_OPTIONS_SLOT = 'Plan fewer of them; Keep planning them; Good to know';
+const TAKE_OPTIONS_WASTE = 'Stop buying it; Buy less; It’s fine';
 const ORDERED_DAYS = 3; // a row bought (order placed) this recently covers its item
 const OUT_KINDS = ['pickup', 'eatout'];
 const INBOX_DAILY = 6;
@@ -1957,6 +1977,7 @@ function answerReview(req) {
   });
   const mission = r.type === 'check' ? missionAnswer(r, answer, who) : null;
   if (r.type === 'prize') prizeAnswer(r, answer, who);
+  const take = r.type === 'take' ? takeAnswer(r, answer, who) : null;
   if (r.type === 'have_check') haveCheckAnswer(r, answer, who);
   const settled = r.type === 'settle' ? settleAnswer(r, answer, who) : r.type === 'settle_order' ? settleOrderAnswer(r, answer, who) : r.type === 'settle_meal' ? settleMealAnswer(r, answer, who) : null;
   const best = r.type === 'bestprice' ? bestPriceAnswer(r, answer, who) : null;
@@ -1965,7 +1986,7 @@ function answerReview(req) {
   const which = r.type === 'which' ? whichAnswer(r, answer, who) : null;
   const sameKind = r.type === 'same_kind' ? sameKindAnswer(r, answer, who) : r.type === 'kind' ? kindAnswer(r, answer, who) : null;
   if (lock) setPlan({ date: lock.date, slot: lock.slot, meal_id: lock.meal_id, note: '', by: who, asked_by: String(r.asked_by || '') });
-  return { id: r.id, points: pts, why: why, locked: lock, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which, sameKind: sameKind };
+  return { id: r.id, points: pts, why: why, locked: lock, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which, sameKind: sameKind, take: take };
 }
 
 // api 61: "Not what we had" on a card about a meal we just had. Finds that night's Plan row (the card's date if it
@@ -2170,6 +2191,7 @@ function pointsWhy(r, answer) {
   const d = String(r.detail || '');
   if (!a || a === 'skip') return '';
   if (t === 'meal_request') return /^cancel/.test(a) ? '' : 'approve';
+  if (t === 'suggest' && !/^picked/.test(a)) return ''; // api 73: only a real pick scores
   if (t === 'have_check') return 'approve'; // a parent's Plan it / Not now; a kid cancelling scores nothing
   if (t === 'helped') return /^cooked/.test(a) ? 'helped_cooked' : /^helped/.test(a) ? 'helped_helped' : '';
   if (t === 'task' || r.due_at || /^school lunches for next week/i.test(d) || /\bdue (by )?(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(d)) {
@@ -2699,7 +2721,8 @@ function addMealSuggestion(req, meal, slot) {
     detail: (req.by || 'Someone') + ' suggests ' + String(meal.name).replace(/[;?]/g, '') + ' for ' + slot + ' on ' + when + '. (' + meal.id + ') (' + date + ') Options: Lock it in; Not now',
   });
   awardPoints(req.by, 'meal_ask', id, req.by, 'Suggested ' + meal.name);
-  return { id: id, date: date, slot: slot };
+  const card = suggestCardDone(req.by, date, slot, meal.name, when);
+  return { id: id, date: date, slot: slot, card: card };
 }
 // "Lock it in" on a dated suggestion: a parent plans it. Checked before the answer is saved.
 function lockSuggestion(r, who) {
@@ -2795,7 +2818,7 @@ function dailyCards() {
     review.forEach((r) => {
       const age = r.created ? daysBetween(String(r.created).slice(0, 10), today) : 0;
       if (r.status === 'open' && ((r.type === 'rate' && age > RATE_EXPIRE_DAYS) || (r.type === 'helped' && age > HELPED_EXPIRE_DAYS) ||
-        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || (r.type === 'pick' && age > PICK_EXPIRE_DAYS) || (r.type === 'prize' && age > PRIZE_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal') && age > SETTLE_EXPIRE_DAYS))) {
+        (r.type === 'check' && age > MISSION_EXPIRE_DAYS) || (r.type === 'pick' && age > PICK_EXPIRE_DAYS) || (r.type === 'suggest' && suggestWeek(r) && today > addDays(suggestWeek(r), 6)) || (r.type === 'take' && age > TAKE_EXPIRE_DAYS) || (r.type === 'prize' && age > PRIZE_EXPIRE_DAYS) || ((r.type === 'settle' || r.type === 'settle_order' || r.type === 'settle_meal') && age > SETTLE_EXPIRE_DAYS))) {
         setFields(TABS.review, r._row, { status: 'closed' });
       }
     });
@@ -2879,8 +2902,14 @@ function dailyCards() {
     // Head-to-heads: which of two meals of the same kind do you like more (see makePicks).
     makePicks(today, everyone, review, meals).forEach((m) => add(m));
 
+    // api 73: 💭 Pick a meal for the girls (Thu + Mon) and 📊 Poppy's take for the parents (Thu), before Waste learning so a
+    // Thursday's toss finding comes with Stop buying it.
+    if (!away) makeSuggestNudge(today, kids, review, plan).forEach((m) => add(m));
+    makeTake(today, review, plan, mealOf).forEach((m) => add(m));
+
     // Waste learning: tossed the same thing twice lately → ask the parents to buy less (see makeWaste).
     makeWaste(today, review).forEach((m) => add(m));
+
 
     // Still eating? Weekly, a couple per person, from things we buy regularly.
     if (!st.still_through || daysBetween(String(st.still_through).slice(0, 10), today) >= STILL_EVERY_DAYS) {
@@ -3018,6 +3047,12 @@ function itemInfo(req) {
 
 // "We have some" from the item screen when it isn't on the List: just log the sighting.
 function stockLogAction(req) {
+  // api 73: "🗑 We tossed some" from the item screen.
+  if (String(req.level || '').toLowerCase() === 'waste') {
+    if (!req.item_id) throw new Error('Missing item');
+    logStock({ item_id: req.item_id, level: 'waste', who: req.by, source: 'tossed' });
+    return { item_id: req.item_id, level: 'waste' };
+  }
   const level = cleanLevel(req.level);
   if (!req.item_id || !level) throw new Error('Missing item or amount');
   logStock({ item_id: req.item_id, level: level, who: req.by, source: req.list_id ? 'list' : 'shop', list_id: req.list_id || '' });
@@ -3092,7 +3127,7 @@ function makeWaste(today, review) {
   });
   const asked = {};
   review.forEach((r) => {
-    if (r.type !== 'waste' || !r.created || daysBetween(dayOf(r.created), today) > WASTE_REASK_DAYS) return;
+    if ((r.type !== 'waste' && r.type !== 'take') || !r.created || daysBetween(dayOf(r.created), today) > WASTE_REASK_DAYS) return;
     const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) asked[m[1]] = true;
   });
   const items = {};
@@ -3391,4 +3426,154 @@ function setup() {
   ScriptApp.newTrigger('nightly').timeBased().everyDays(1).atHour(3).create();
   const pass = PropertiesService.getScriptProperties().getProperty('FAMILY_PASSCODE');
   Logger.log(pass ? 'Setup done. Passcode is set.' : 'Setup done. Now add FAMILY_PASSCODE in Project Settings → Script Properties.');
+}
+
+/* ---------------------------------------------------------------- 💭 pick a meal + 📊 Poppy's take (api 73) */
+
+// The week (its Monday, yyyy-mm-dd) a suggest card is about.
+function suggestWeek(r) { return (String(r.detail || '').match(/\((\d{4}-\d\d-\d\d)\)/) || [])[1] || ''; }
+function shortMD(iso) { return DAY_NAMES[new Date(iso + 'T12:00:00').getDay()] + ' ' + Number(iso.slice(5, 7)) + '/' + Number(iso.slice(8, 10)); }
+// Breakfast and dinner, as far as kid_suggest_slots allows (Joni, f017); else whatever it allows.
+function nudgeSlots() {
+  const ok = kidSuggestSlots();
+  const bd = ok.filter((x) => x === 'breakfast' || x === 'dinner');
+  return bd.length ? bd : ok;
+}
+
+// Thursday: each kid gets "pick a breakfast or dinner for next week". Monday: a kid who hasn't picked for this week
+// (and didn't say Not this week) gets "Still time"; her Thursday card closes. Only when open spots exist.
+function makeSuggestNudge(today, kids, review, plan) {
+  const dow = new Date(today + 'T12:00:00').getDay();
+  if (dow !== 4 && dow !== 1) return [];
+  const monday = dow === 4 ? addDays(today, 4) : today;
+  const sunday = addDays(monday, 6);
+  const slots = nudgeSlots();
+  const taken = {};
+  plan.forEach((p) => { if (p.meal_id || p.item_id || String(p.out || '').trim() || String(p.note || '').trim()) taken[planDate(p) + '|' + planSlot(p)] = true; });
+  let open = 0;
+  for (let d = monday; d <= sunday; d = addDays(d, 1)) slots.forEach((sl) => { if (d >= today && !taken[d + '|' + sl]) open++; });
+  if (!open) return [];
+  const what = slots.map((x) => x).join(' or ');
+  const range = shortMD(monday) + ' – ' + shortMD(sunday);
+  const out = [];
+  kids.forEach((kid) => {
+    const mine = review.filter((r) => r.type === 'suggest' && String(r.audience) === kid && suggestWeek(r) === monday);
+    if (mine.some((r) => r.created && dayOf(r.created) === today)) return; // already made today
+    if (dow === 1) {
+      if (mine.some((r) => r.status !== 'open')) return; // picked, or said Not this week
+      const picked = review.some((r) => r.type === 'meal_request' && String(r.asked_by) === kid && suggestionSpot(r) &&
+        suggestionSpot(r).date >= monday && suggestionSpot(r).date <= sunday);
+      if (picked) return;
+      mine.filter((r) => r.status === 'open' && r._row).forEach((r) => setFields(TABS.review, r._row, { status: 'closed', outcome: 'replaced' }));
+    }
+    const due = (dow === 4 ? addDays(monday, -1) : addDays(today, 2)) + 'T' + SUGGEST_DUE_HOUR + ':00';
+    ensureColumn(TABS.review, 'due_at');
+    review.push({ type: 'suggest', status: 'open', audience: kid, created: today, detail: '(' + monday + ')' });
+    out.push({
+      type: 'suggest', audience: kid, asked_by: 'Poppy', due_at: "'" + due,
+      detail: '💭 ' + (dow === 4 ? 'Your turn: pick a ' + what + ' for next week' : 'Still time to pick a ' + what + ' for this week') +
+        ' (' + range + '). Tap Pick one, choose an open spot, and a parent locks it in. (' + monday + ') Options: Pick one; Not this week',
+    });
+  });
+  return out;
+}
+
+// A dated suggestion answers that kid's open Pick a meal card for the week it falls in.
+function suggestCardDone(kid, date, slot, mealName, when) {
+  const card = readTab(TABS.review).find((r) => r.type === 'suggest' && r.status === 'open' && String(r.audience) === String(kid) &&
+    suggestWeek(r) && date >= suggestWeek(r) && date <= addDays(suggestWeek(r), 6));
+  if (!card) return null;
+  const res = answerReview({ id: card.id, by: kid, answer: 'Picked ' + String(mealName).replace(/[()]/g, '') + ' for ' + slot + ' on ' + when + ' (' + kid + ')' });
+  return { id: card.id, points: res.points };
+}
+
+// 📊 Poppy's take (Thursdays, parents): plain findings from the plan and the toss log, each with a one-tap answer.
+function makeTake(today, review, plan, mealOf) {
+  if (new Date(today + 'T12:00:00').getDay() !== 4) return [];
+  if (review.some((r) => r.type === 'take' && r.created && dayOf(r.created) === today)) return [];
+  const since = addDays(today, -TAKE_DAYS);
+  const out = [];
+  // 1. Slots where planned meals mostly didn't happen.
+  const bySlot = {};
+  plan.forEach((p) => {
+    const d = planDate(p);
+    if (!d || d < since || d >= today || awayDay(d) || isLeftover(p) || !(p.meal_id || p.item_id)) return;
+    const sl = planSlot(p);
+    const b = bySlot[sl] = bySlot[sl] || { planned: 0, missed: 0, names: {} };
+    b.planned++;
+    if (String(p.not_had || '').trim()) {
+      b.missed++;
+      const nm = p.meal_id ? (mealOf[p.meal_id] || {}).name : (readItemName(p.item_id));
+      if (nm) b.names[nm] = (b.names[nm] || 0) + 1;
+    }
+  });
+  const plural = { breakfast: 'breakfasts', lunch: 'lunches', snack: 'snacks', dinner: 'dinners' };
+  const asked = (pred) => review.some((r) => r.type === 'take' && r.created && daysBetween(dayOf(r.created), today) <= TAKE_SLOT_REASK_DAYS && pred(String(r.detail)));
+  SLOTS.forEach((sl) => {
+    const b = bySlot[sl];
+    if (!b || b.planned < TAKE_MIN_PLANNED || b.missed * 2 < b.planned) return;
+    if (asked((d) => d.indexOf('planned ' + plural[sl]) >= 0)) return;
+    const dn = bySlot.dinner;
+    const top = Object.keys(b.names).sort((x, y) => b.names[y] - b.names[x]).slice(0, 2);
+    const contrast = sl !== 'dinner' && dn && dn.planned >= TAKE_MIN_PLANNED && dn.missed * 2 < dn.planned
+      ? ' Dinners mostly happen: ' + (dn.planned - dn.missed) + ' of ' + dn.planned + '.' : '';
+    out.push({
+      type: 'take', audience: 'parents', asked_by: 'Poppy',
+      detail: '📊 Poppy’s take: ' + b.missed + ' of the last ' + b.planned + ' planned ' + plural[sl] + ' were marked Not what we had (4 weeks).' +
+        (top.length ? ' Most skipped: ' + top.map((n) => n.replace(/[;?()]/g, '') + (b.names[n] > 1 ? ' (' + b.names[n] + '×)' : '')).join(', ') + '.' : '') + contrast +
+        ' Plan fewer ' + plural[sl] + '? Options: ' + TAKE_OPTIONS_SLOT,
+    });
+  });
+  // 2. Things we keep tossing.
+  if (tab(TABS.stock)) {
+    const count = {};
+    readTab(TABS.stock).forEach((s) => {
+      if (String(s.level).toLowerCase() === 'waste' && s.item_id && dayOf(s.at) >= since) count[s.item_id] = (count[s.item_id] || 0) + 1;
+    });
+    const raised = {};
+    review.forEach((r) => {
+      if ((r.type !== 'waste' && r.type !== 'take') || !r.created || daysBetween(dayOf(r.created), today) > WASTE_REASK_DAYS) return;
+      const m = String(r.detail).match(/\((i\d{3,})\)/); if (m) raised[m[1]] = true;
+    });
+    const items = {};
+    readTab(TABS.items).forEach((i) => (items[i.id] = i));
+    Object.keys(count).filter((id) => count[id] >= TAKE_WASTE_TIMES && !raised[id] && items[id] && items[id].status !== 'Drop')
+      .sort((a, b) => count[b] - count[a]).forEach((id) => {
+        out.push({
+          type: 'take', audience: 'parents', asked_by: 'Poppy',
+          detail: '📊 Poppy’s take: we tossed ' + String(items[id].name).replace(/[;?]/g, '') + ' ' + count[id] + ' times in the last 4 weeks. Keep buying it? (' + id + ') Options: ' + TAKE_OPTIONS_WASTE,
+        });
+      });
+  }
+  const keep = out.slice(0, TAKE_MAX);
+  keep.forEach((c) => review.push({ type: 'take', status: 'open', created: today, detail: c.detail })); // so makeWaste skips them today
+  return keep;
+}
+function readItemName(id) { const it = readTab(TABS.items).find((i) => i.id === id); return it ? it.name : ''; }
+
+// Answers: Stop buying it → Items Drop + needed / requested List rows skipped; Buy less → Items notes. Slot answers
+// are kept as the answer (the morning check reports them to the owner); nothing changes on its own.
+function takeAnswer(r, answer, who) {
+  const id = (String(r.detail).match(/\((i\d{3,})\)/) || [])[1];
+  const a = String(answer).toLowerCase();
+  if (!id) return null;
+  const it = readTab(TABS.items).find((i) => i.id === id);
+  if (!it) return null;
+  const today = isoDate(new Date());
+  if (/^stop buying/.test(a)) {
+    setFields(TABS.items, it._row, { status: 'Drop', notes: (it.notes ? it.notes + '; ' : '') + 'Stopped buying: tossed often (' + who + ', ' + today + ')' });
+    const skipped = [];
+    readTab(TABS.list).forEach((x) => {
+      if (x.item_id === id && (x.status === 'needed' || x.status === 'requested')) {
+        setFields(TABS.list, x._row, { status: 'skipped', note: listNote(x, 'stopped buying (' + who + ')'), updated_at: nowStamp() });
+        skipped.push(x.id);
+      }
+    });
+    return { item: id, drop: true, skipped: skipped };
+  }
+  if (/^buy less/.test(a)) {
+    setFields(TABS.items, it._row, { notes: (it.notes ? it.notes + '; ' : '') + 'Tossed often: buy less (' + who + ', ' + today + ')' });
+    return { item: id, less: true };
+  }
+  return { item: id };
 }

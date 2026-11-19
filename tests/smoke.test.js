@@ -544,8 +544,8 @@ test('same kind: one cheddar covers the meals; a second is asked about, not adde
   const card = b.makeSameKind(new Date().toISOString().slice(0, 10), []);
   assert.strictEqual(card.length, 1);
   assert.match(card[0].detail, /Options: Keep both; Just Shredded cheddar; Just Cheddar chunk/);
-  rv.push(['r901', '2026-11-06', 'same_kind', card[0].detail, 'open', '', 'parents'].concat(new Array(h.length - 7).fill('')));
-  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: 'r901', answer: 'Just Shredded cheddar (Pat)' });
+  rv.push(['r990', '2026-11-06', 'same_kind', card[0].detail, 'open', '', 'parents'].concat(new Array(h.length - 7).fill('')));
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: 'r990', answer: 'Just Shredded cheddar (Pat)' });
   assert.strictEqual(r.ok, true, r.error);
   assert.strictEqual(r.result.sameKind.dropped.length, 1);
   assert.strictEqual(r.state.list.filter((x) => /cheddar/i.test(x.name)).length, 1);
@@ -746,4 +746,78 @@ test('kids suggest meals into empty spots; a parent locks one in (api 72)', () =
   // A parent planning the spot another way closes it too.
   r = b2.call({ action: 'planSet', pass: PASS, by: 'Sam', date: day, slot: 'breakfast', out: 'eatout', place: 'Diner' });
   assert.strictEqual(r.state.review.filter((x) => x.type === 'meal_request' && x.status === 'open').length, 0);
+});
+
+test('💭 Pick a meal (Thu + Mon) and 📊 Poppy’s take (api 73)', () => {
+  const t = tabs();
+  t.Settings.push(['kid_suggest_slots', 'dinner, breakfast'], ['cards_through', '2099-01-01']); // the test makes the cards itself
+  t.Meals.push(['m02', 'Tacos', 'i006', '', 'dinner', '', '']);
+  t.Plan[0] = t.Plan[0].concat(['not_had']);
+  const iso = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const add = (d, n) => iso(new Date(new Date(d + 'T12:00:00').getTime() + n * 86400000));
+  const today = iso(new Date());
+  let thu = today; while (new Date(thu + 'T12:00:00').getDay() !== 4) thu = add(thu, 1);
+  const mon = add(thu, 4);
+  // Past plan: 5 breakfasts (4 not had), 4 dinners (all made).
+  for (let k = 1; k <= 5; k++) t.Plan.push(['wk', '', 'm01', add(thu, -k), 'breakfast', '', '', k <= 4 ? 'Kim, ' + add(thu, -k + 1) : '']);
+  for (let k = 1; k <= 4; k++) t.Plan.push(['wk', '', 'm02', add(thu, -k), 'dinner', '', '', '']);
+  t.List.push(['L00001', 'i001', 'Bananas', 'Either', 1, '', 'Pat', '2026-11-01', 'needed', '', '', '', '', '', '', '', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  const rv = () => b.readTab('Review');
+  const put = (cards, at) => cards.forEach((c) => b.appendObj('Review', Object.assign({ id: 'r' + b.nextIdNum(rv()), created: at + 'T07:00:00', status: 'open', answer: '' }, c)));
+
+  // Not on a Wednesday.
+  assert.strictEqual(b.makeSuggestNudge(add(thu, -1), ['Kim', 'Lee'], rv(), b.readTab('Plan')).length, 0);
+  // Thursday: one card each for next week.
+  let cards = b.makeSuggestNudge(thu, ['Kim', 'Lee'], rv(), b.readTab('Plan'));
+  assert.strictEqual(cards.length, 2);
+  assert.match(cards[0].detail, /^💭 Your turn: pick a breakfast or dinner for next week \(Mon \d+\/\d+ – Sun \d+\/\d+\)\. .*\(\d{4}-\d\d-\d\d\) Options: Pick one; Not this week$/);
+  assert.ok(cards[0].detail.indexOf('(' + mon + ')') > 0);
+  put(cards, thu);
+  // Kim suggests Tacos for Monday's dinner: her card is answered and scores as Due soon.
+  let r = b.call({ action: 'mealRequest', pass: PASS, by: 'Kim', meal_id: 'm02', slot: 'dinner', date: mon });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.ok(r.result.card, 'card answered');
+  const kimCard = rv().find((x) => x.type === 'suggest' && x.audience === 'Kim');
+  assert.strictEqual(kimCard.status, 'answered');
+  assert.match(kimCard.answer, /^Picked Tacos for dinner on Mon \d+\/\d+ \(Kim\)$/);
+  assert.strictEqual(kimCard.points_why, 'task');
+  // Monday: only Lee (no pick yet) gets "Still time"; her Thursday card closes.
+  cards = b.makeSuggestNudge(mon, ['Kim', 'Lee'], rv(), b.readTab('Plan'));
+  assert.strictEqual(cards.length, 1);
+  assert.strictEqual(cards[0].audience, 'Lee');
+  assert.match(cards[0].detail, /^💭 Still time to pick a breakfast or dinner for this week/);
+  assert.strictEqual(rv().find((x) => x.type === 'suggest' && x.audience === 'Lee').outcome, 'replaced');
+  put(cards, mon);
+  const leeNew = rv().filter((x) => x.type === 'suggest' && x.audience === 'Lee' && x.status === 'open')[0];
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Lee', id: leeNew.id, answer: 'Not this week (Lee)' });
+  assert.strictEqual(r.result.points, 0);
+  // Every spot planned → no card.
+  const t2 = tabs();
+  for (let k = 0; k < 7; k++) ['breakfast', 'dinner'].forEach((sl) => t2.Plan.push(['wk', '', 'm01', add(mon, k), sl, '', '']));
+  const b2 = loadBackend(t2, { FAMILY_PASSCODE: PASS });
+  assert.strictEqual(b2.makeSuggestNudge(thu, ['Kim'], b2.readTab('Review'), b2.readTab('Plan')).length, 0);
+
+  // 🗑 We tossed some, twice → Poppy's take on Thursday: breakfasts + bananas.
+  r = b.call({ action: 'stockLog', pass: PASS, by: 'Pat', item_id: 'i001', level: 'waste' });
+  assert.strictEqual(r.ok, true, r.error);
+  b.call({ action: 'stockLog', pass: PASS, by: 'Sam', item_id: 'i001', level: 'waste' });
+  assert.strictEqual(b.readTab('Stock').filter((s) => s.level === 'waste' && s.source === 'tossed').length, 2);
+  const mealOf = {}; b.readTab('Meals').forEach((m) => (mealOf[m.id] = m));
+  assert.strictEqual(b.makeTake(add(thu, 1), rv(), b.readTab('Plan'), mealOf).length, 0, 'Thursdays only');
+  const takes = b.makeTake(thu, rv(), b.readTab('Plan'), mealOf);
+  assert.strictEqual(takes.length, 2);
+  assert.match(takes[0].detail, /^📊 Poppy’s take: 4 of the last 5 planned breakfasts were marked Not what we had \(4 weeks\)\. Most skipped: Pancakes \(4×\)\. Dinners mostly happen: 4 of 4\. Plan fewer breakfasts\? Options: Plan fewer of them; Keep planning them; Good to know$/);
+  assert.match(takes[1].detail, /we tossed Bananas 2 times .*\(i001\) Options: Stop buying it; Buy less; It’s fine$/);
+  put(takes, thu);
+  // makeWaste won't ask about bananas again on top.
+  assert.strictEqual(b.makeWaste(thu, rv()).length, 0);
+  const bananaCard = rv().find((x) => x.type === 'take' && /Bananas/.test(x.detail));
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: bananaCard.id, answer: 'Stop buying it (Pat)' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.result.take.drop, true);
+  assert.strictEqual(b.readTab('Items').find((i) => i.id === 'i001').status, 'Drop');
+  assert.strictEqual(b.readTab('List').find((x) => x.id === 'L00001').status, 'skipped');
+  // Asked this Thursday → not again the same day.
+  assert.strictEqual(b.makeTake(thu, rv(), b.readTab('Plan'), mealOf).length, 0);
 });
