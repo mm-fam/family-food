@@ -735,8 +735,8 @@ test('kids suggest meals into empty spots; a parent locks one in (api 72)', () =
   const leeRow = rows(b, 'Review').find((x) => x[0] === leeId);
   assert.strictEqual(leeRow[4], 'closed');
   assert.strictEqual(leeRow[11], 'spot planned (Pat)');
-  // Now it's taken.
-  assert.match(b.call({ action: 'mealRequest', pass: PASS, by: 'Lee', meal_id: 'm03', slot: 'dinner', date: day }).error, /already planned/);
+  // Now it's taken: the same meal again is refused (api 74: a different one is a "something else" suggestion).
+  assert.match(b.call({ action: 'mealRequest', pass: PASS, by: 'Lee', meal_id: 'm02', slot: 'dinner', date: day }).error, /already the plan/);
   // Settings "all" opens breakfast too.
   const t2 = tabs(); t2.Settings.push(['kid_suggest_slots', 'all']);
   const b2 = loadBackend(t2, { FAMILY_PASSCODE: PASS });
@@ -820,4 +820,82 @@ test('💭 Pick a meal (Thu + Mon) and 📊 Poppy’s take (api 73)', () => {
   assert.strictEqual(b.readTab('List').find((x) => x.id === 'L00001').status, 'skipped');
   // Asked this Thursday → not again the same day.
   assert.strictEqual(b.makeTake(thu, rv(), b.readTab('Plan'), mealOf).length, 0);
+});
+
+test('kids suggest something else for a planned spot; a parent swaps it in (api 74)', () => {
+  const t = tabs();
+  t.Meals.push(['m02', 'Tacos', 'i006', '', 'dinner', '', ''], ['m03', 'Pizza', 'i005', '', 'dinner', '', '']);
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  const iso = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const day = iso(new Date(Date.now() + 2 * 86400000));
+  const day2 = iso(new Date(Date.now() + 3 * 86400000));
+  const open = (s) => s.review.filter((r) => r.type === 'meal_request' && r.status === 'open');
+  assert.strictEqual(b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day, slot: 'dinner', meal_id: 'm02' }).ok, true);
+  // Kim wants Pizza instead of Tacos.
+  let r = b.call({ action: 'mealRequest', pass: PASS, by: 'Kim', meal_id: 'm03', slot: 'dinner', date: day });
+  assert.strictEqual(r.ok, true, r.error);
+  const kimId = r.result.id;
+  assert.strictEqual(r.result.instead, 'Tacos');
+  assert.match(open(r.state)[0].detail, /^Kim suggests Pizza instead of Tacos for dinner on \w{3} \d+\/\d+\. \(m03\) \(\d{4}-\d\d-\d\d\) Options: Swap it in; Keep the plan$/);
+  // The plan is untouched until a parent says so; a parent re-saving the same meal doesn't close it.
+  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === day).meal_id, 'm02');
+  r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day, slot: 'dinner', meal_id: 'm02', note: 'early' });
+  assert.strictEqual(open(r.state).length, 1);
+  // Kids still can't; a parent's Swap it in replaces the plan.
+  assert.match(b.call({ action: 'reviewAnswer', pass: PASS, by: 'Kim', id: kimId, answer: 'Swap it in (Kim)' }).error, /parent/);
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Sam', id: kimId, answer: 'Swap it in (Sam)' });
+  assert.strictEqual(r.ok, true, r.error);
+  const p = r.state.plan.find((x) => String(x.date).slice(0, 10) === day && x.slot === 'dinner');
+  assert.strictEqual(p.meal_id, 'm03');
+  assert.strictEqual(p.asked_by, 'Kim');
+  assert.strictEqual(p.planned_by, 'Sam');
+  // Keep the plan: nothing changes. A parent planning something else closes open swap ideas.
+  b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day2, slot: 'dinner', meal_id: 'm03' });
+  const lee = b.call({ action: 'mealRequest', pass: PASS, by: 'Lee', meal_id: 'm02', slot: 'dinner', date: day2 }).result.id;
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: lee, answer: 'Keep the plan (Pat)' });
+  assert.strictEqual(r.state.plan.find((x) => String(x.date).slice(0, 10) === day2).meal_id, 'm03');
+  b.call({ action: 'mealRequest', pass: PASS, by: 'Lee', meal_id: 'm02', slot: 'dinner', date: day2 });
+  r = b.call({ action: 'planSet', pass: PASS, by: 'Pat', date: day2, slot: 'dinner', out: 'eatout', place: 'Diner' });
+  assert.strictEqual(open(r.state).length, 0);
+  // Eating out stays locked.
+  assert.match(b.call({ action: 'mealRequest', pass: PASS, by: 'Lee', meal_id: 'm02', slot: 'dinner', date: day2 }).error, /eating out/);
+});
+
+test('a List row no store sells gets a parents card; typing what to buy splits it (api 74)', () => {
+  const t = tabs();
+  const b0 = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  const ih = b0._ss.getSheetByName('Items')._data[0];
+  const item = (o) => ih.map((h) => (o[h] !== undefined ? o[h] : ''));
+  t.Items.push(item({ id: 'i090', name: 'Brownie mix', store: 'GE', group: 'Pantry', status: 'Sometimes' }),
+    item({ id: 'i091', name: 'Whipped cream', store: 'Either', group: 'Dairy', status: 'Sometimes', aliases: 'reddi-wip' }),
+    item({ id: 'i092', name: 'Brownies and whipped cream', store: 'Either', group: 'Snacks' }),
+    item({ id: 'i093', name: 'Zorble', store: 'Either', group: 'Other' }));
+  t.Settings.push(['cards_through', '2099-01-01']); // no cards until the rows are in
+  const ph = b0._ss.getSheetByName('Products')._data[0];
+  t.Products.push(ph.map((h) => ({ item_id: 'i090', store: 'GE', product: 'Duncan Hines brownie mix' })[h] || ''),
+    ph.map((h) => ({ item_id: 'i091', store: 'GE', product: 'Reddi-wip Original' })[h] || ''));
+  const b = loadBackend(t, { FAMILY_PASSCODE: PASS });
+  let r = b.call({ action: 'add', pass: PASS, by: 'Sam', item_id: 'i092' });
+  const rowId = r.result.id;
+  const row2 = b.call({ action: 'add', pass: PASS, by: 'Sam', item_id: 'i093' }).result.id;
+  b.call({ action: 'add', pass: PASS, by: 'Sam', item_id: 'i090' }); // sold somewhere: no card
+  b._ss.getSheetByName('Settings')._data.forEach((x) => { if (x[0] === 'cards_through') x[1] = ''; });
+  r = b.call({ action: 'state', pass: PASS, by: 'Pat' });
+  const cards = r.state.review.filter((x) => x.type === 'unmapped');
+  assert.strictEqual(cards.length, 2, JSON.stringify(cards)); // the brownies row and Zorble; brownie mix is sold at GE
+  const c1 = cards.find((x) => x.detail.indexOf('(' + rowId + ')') >= 0);
+  assert.match(c1.detail, /Options: Take it off; Leave it$/);
+  // "brownie mix + reddi-wip": both match (name, alias) → the row is skipped, two rows take its place, the item is Drop.
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: c1.id, answer: 'brownie mix, reddi-wip (Pat)' });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(r.result.unmapped.split, ['i090', 'i091']);
+  const list = r.state.list;
+  assert.ok(!list.some((x) => x.id === rowId), 'the combined row is off the List');
+  assert.ok(list.some((x) => x.item_id === 'i091' && x.status === 'needed'));
+  assert.strictEqual(r.state.items.find((x) => x.id === 'i092').status, 'Drop');
+  // Something it can't match stays for Claude; Take it off skips the row.
+  const c2 = cards.find((x) => x.id !== c1.id);
+  r = b.call({ action: 'reviewAnswer', pass: PASS, by: 'Pat', id: c2.id, answer: 'zorbleberries (Pat)' });
+  assert.deepStrictEqual(r.result.unmapped.unmatched, ['zorbleberries']);
+  assert.ok(r.state.list.some((x) => x.id === row2));
 });

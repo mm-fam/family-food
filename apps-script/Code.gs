@@ -439,7 +439,14 @@ const VOTE_SCORE = { '😍': 4, '🙂': 3, '😐': 2, '👎': 1 };
 //      had (Plan Fewer of them / Keep planning them / Good to know; nothing changes on its own), and anything tossed
 //      TAKE_WASTE_TIMES+ times (Stop buying it → Items status Drop + needed / requested List rows skipped; Buy less →
 //      Items notes). stockLog takes level "waste" (item screen 🗑 We tossed some, source tossed).
-const API_VERSION = 73;
+// 74 = (owner, Nov 21) the girls can suggest something else for a spot that's already planned (a meal or an item; not
+//      pick-up / eat out): "<kid> suggests <meal> instead of <what's there> for <slot> on <Day M/D>. (mNN) (date)
+//      Options: Swap it in; Keep the plan". A parent's Swap it in (or Lock it in) replaces the plan; closeSuggestions
+//      now runs only when what's in a spot changes. And a daily parents' card (type unmapped) for List rows whose item
+//      no store sells (no Products row anywhere, e.g. a dessert pick typed as "brownies and whipped cream"): typing
+//      what to buy ("brownie mix, whipped cream") swaps the row for those items when every part matches one;
+//      Take it off skips the row.
+const API_VERSION = 74;
 const SUGGEST_DUE_HOUR = '20:00';
 const TAKE_DAYS = 28;          // Poppy's take looks back this far
 const TAKE_MIN_PLANNED = 4;    // a slot needs this many planned meals before Poppy says anything about it
@@ -1474,7 +1481,8 @@ function setPlan(req) {
   } else if (keep) {
     appendObj(TABS.plan, Object.assign(fields, what));
   }
-  if (keep && (what.meal_id || itemId || out)) closeSuggestions(date, slot, String(req.by || '')); // api 72
+  // api 72; api 74: only when what's in the spot changes, so a "something else" suggestion outlives a note edit.
+  if (keep && changed && (what.meal_id || itemId || out)) closeSuggestions(date, slot, String(req.by || ''));
   return { date: date, day: fields.day, slot: slot };
 }
 
@@ -1966,7 +1974,7 @@ function answerReview(req) {
   if (!r) throw new Error('Review item not found');
   const answer = String(req.answer || '');
   const who = (answer.match(/\(([^()]+)\)\s*$/) || [])[1] || String(req.by || '');
-  const lock = r.type === 'meal_request' && /^lock/i.test(answer) ? lockSuggestion(r, isKid(req.by) ? req.by : who) : null;
+  const lock = r.type === 'meal_request' && /^(lock|swap)/i.test(answer) ? lockSuggestion(r, isKid(req.by) ? req.by : who) : null;
   const notHad = /^not what we had\b/i.test(answer) && ['rate', 'helped', 'vote'].indexOf(String(r.type)) >= 0 ? notHadAnswer(r, who) : null;
   const why = pointsWhy(r, answer); // a "Not what we had" still scores like any answer (helped: nothing)
   const pts = why ? ruleByKey(why).pts : 0;
@@ -1984,9 +1992,10 @@ function answerReview(req) {
   const voice = r.type === 'voice' ? voiceAnswer(r, answer, who) : null;
   const subbed = r.type === 'subbed' ? subbedAnswer(r, answer, who) : null;
   const which = r.type === 'which' ? whichAnswer(r, answer, who) : null;
+  const unmapped = r.type === 'unmapped' ? unmappedAnswer(r, answer, who) : null;
   const sameKind = r.type === 'same_kind' ? sameKindAnswer(r, answer, who) : r.type === 'kind' ? kindAnswer(r, answer, who) : null;
   if (lock) setPlan({ date: lock.date, slot: lock.slot, meal_id: lock.meal_id, note: '', by: who, asked_by: String(r.asked_by || '') });
-  return { id: r.id, points: pts, why: why, locked: lock, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which, sameKind: sameKind, take: take };
+  return { id: r.id, points: pts, why: why, locked: lock, notHad: notHad, mission: mission, settled: settled, best: best, voice: voice, subbed: subbed, which: which, sameKind: sameKind, take: take, unmapped: unmapped };
 }
 
 // api 61: "Not what we had" on a card about a meal we just had. Finds that night's Plan row (the card's date if it
@@ -2709,7 +2718,14 @@ function addMealSuggestion(req, meal, slot) {
   if (date < isoDate(new Date())) throw new Error('Pick today or a day ahead');
   const ok = kidSuggestSlots();
   if (ok.indexOf(slot) < 0) throw new Error('Suggestions are for ' + ok.join(', ') + ' for now');
-  if (planInSpot(date, slot)) throw new Error('That spot is already planned');
+  const there = planInSpot(date, slot);
+  let instead = '';
+  if (there) {
+    // api 74: a planned spot takes a "something else" suggestion (meals and items; not pick-up / eat out).
+    if (String(there.out || '').trim()) throw new Error('We’re eating out then');
+    if (there.meal_id === meal.id) throw new Error('That’s already the plan');
+    instead = planSpotName(there);
+  }
   const review = readTab(TABS.review);
   const dup = review.find((r) => r.type === 'meal_request' && r.status === 'open' && String(r.asked_by) === String(req.by) &&
     String(r.detail).indexOf('(' + meal.id + ')') >= 0 && (suggestionSpot(r) || {}).date === date && suggestionSpot(r).slot === slot);
@@ -2718,12 +2734,21 @@ function addMealSuggestion(req, meal, slot) {
   const when = DAY_NAMES[new Date(date + 'T12:00:00').getDay()].slice(0, 3) + ' ' + Number(date.slice(5, 7)) + '/' + Number(date.slice(8, 10));
   appendObj(TABS.review, {
     id: id, created: nowStamp(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: req.by || '',
-    detail: (req.by || 'Someone') + ' suggests ' + String(meal.name).replace(/[;?]/g, '') + ' for ' + slot + ' on ' + when + '. (' + meal.id + ') (' + date + ') Options: Lock it in; Not now',
+    detail: (req.by || 'Someone') + ' suggests ' + String(meal.name).replace(/[;?]/g, '') + (instead ? ' instead of ' + instead : '') + ' for ' + slot + ' on ' + when + '. (' + meal.id + ') (' + date + ') Options: ' + (instead ? 'Swap it in; Keep the plan' : 'Lock it in; Not now'),
   });
   awardPoints(req.by, 'meal_ask', id, req.by, 'Suggested ' + meal.name);
   const card = suggestCardDone(req.by, date, slot, meal.name, when);
-  return { id: id, date: date, slot: slot, card: card };
+  return { id: id, date: date, slot: slot, card: card, instead: instead };
 }
+// What a planned spot holds, as words for a card ("🍕 Pizza Party", an item's name, or the note). No ids or ;?().
+function planSpotName(p) {
+  let t = '';
+  if (p.meal_id) { const m = readTab(TABS.meals).find((x) => x.id === p.meal_id); t = m ? m.name : ''; }
+  if (!t && p.item_id) { const it = readTab(TABS.items).find((x) => x.id === p.item_id); t = it ? it.name : ''; }
+  if (!t) t = String(p.note || '').trim() || 'what’s planned';
+  return String(t).replace(/[;?()]/g, '').slice(0, 60);
+}
+const isSwapSuggestion = (r) => / instead of .+ for (breakfast|lunch|snack|dinner) on /i.test(String(r.detail || ''));
 // "Lock it in" on a dated suggestion: a parent plans it. Checked before the answer is saved.
 function lockSuggestion(r, who) {
   const spot = suggestionSpot(r);
@@ -2732,8 +2757,9 @@ function lockSuggestion(r, who) {
   if (r.status !== 'open') throw new Error('That suggestion is already settled');
   if (isKid(who)) throw new Error('A parent locks it in');
   const there = planInSpot(spot.date, spot.slot);
-  if (there) throw new Error('That spot is already planned');
-  return { date: spot.date, slot: spot.slot, meal_id: mealId };
+  if (there && there.meal_id === mealId) throw new Error('That’s already the plan');
+  if (there && (!isSwapSuggestion(r) || String(there.out || '').trim())) throw new Error('That spot is already planned');
+  return { date: spot.date, slot: spot.slot, meal_id: mealId, swap: !!there };
 }
 // When a spot gets planned (a locked-in suggestion or a parent picking it), the other suggestions for it close.
 function closeSuggestions(date, slot, who) {
@@ -2909,6 +2935,9 @@ function dailyCards() {
 
     // Waste learning: tossed the same thing twice lately → ask the parents to buy less (see makeWaste).
     makeWaste(today, review).forEach((m) => add(m));
+
+    // api 74: List rows no store sells (no Products row anywhere) can't go in a cart → ask what to buy.
+    makeUnmapped(today, review).forEach((m) => add(m));
 
 
     // Still eating? Weekly, a couple per person, from things we buy regularly.
@@ -3136,6 +3165,80 @@ function makeWaste(today, review) {
     review.push({ type: 'waste', status: 'open', created: today, detail: '(' + id + ')' });
     return { type: 'waste', audience: 'parents', detail: 'We’ve tossed ' + items[id].name + ' ' + count[id] + ' times lately. Buy less? (' + id + ') Options: ' + WASTE_OPTIONS };
   });
+}
+
+/* ---------------------------------------------------------------- can't go in a cart (api 74) */
+
+// Owner, Nov 21: "anything ... that we can't map to a shopping cart should be assessed". A needed List row whose item
+// has no Products row at any store (typed as something new, like a dessert pick "brownies and whipped cream") has
+// nothing a cart build can add. One parents' card per row, up to UNMAPPED_PER_DAY a day, not re-asked for
+// UNMAPPED_REASK_DAYS. Delivery items (Wildgrain) and Drop items are left alone.
+const UNMAPPED_PER_DAY = 3;
+const UNMAPPED_REASK_DAYS = 14;
+const UNMAPPED_OPTIONS = 'Take it off; Leave it';
+function makeUnmapped(today, review) {
+  if (!tab(TABS.products)) return [];
+  const sold = {};
+  readTab(TABS.products).forEach((p) => { if (p.item_id) sold[p.item_id] = true; });
+  const items = {};
+  readTab(TABS.items).forEach((i) => (items[i.id] = i));
+  const asked = {};
+  review.forEach((r) => {
+    if (r.type !== 'unmapped') return;
+    if (r.status === 'open' || (r.created && daysBetween(dayOf(r.created), today) <= UNMAPPED_REASK_DAYS)) {
+      const m = String(r.detail).match(LIST_ID_RE); if (m) asked[m[1]] = true;
+    }
+  });
+  return readTab(TABS.list).filter((x) => x.status === 'needed' && x.item_id && !sold[x.item_id] && !asked[x.id] &&
+    items[x.item_id] && items[x.item_id].status !== 'Drop' && !isDeliveryItem(items[x.item_id]))
+    .slice(0, UNMAPPED_PER_DAY).map((x) => {
+      review.push({ type: 'unmapped', status: 'open', created: today, detail: '(' + x.id + ')' });
+      return { type: 'unmapped', audience: 'parents', asked_by: 'Poppy',
+        detail: '🛒 No store sells “' + String(x.name).replace(/[;?()]/g, '') + '” as one thing, so it can’t go in a cart. Type what to buy (commas for 2+ things, like: brownie mix, whipped cream), or take it off. (' + x.item_id + ') (' + x.id + ') Options: ' + UNMAPPED_OPTIONS };
+    });
+}
+// One typed part ("whipped cream") → a catalog item: exact name, then an alias, then the only item whose name has
+// every word (plural s ignored). Never the unmapped item itself. null when unsure.
+function matchItemText(items, text, skipId) {
+  const t = String(text || '').trim().toLowerCase();
+  if (!t) return null;
+  const pool = items.filter((i) => i.id !== skipId && i.status !== 'Drop');
+  const exact = pool.find((i) => String(i.name).toLowerCase() === t);
+  if (exact) return exact;
+  const alias = pool.find((i) => String(i.aliases || '').toLowerCase().split(';').map((a) => a.trim()).indexOf(t) >= 0);
+  if (alias) return alias;
+  const stem = (w) => w.replace(/(es|s)$/, '');
+  const words = t.split(/[^a-z0-9']+/).filter(String).map(stem);
+  const hits = pool.filter((i) => { const n = String(i.name).toLowerCase().split(/[^a-z0-9']+/).filter(String).map(stem); return words.every((w) => n.indexOf(w) >= 0); });
+  return hits.length === 1 ? hits[0] : null;
+}
+function unmappedAnswer(r, answer, who) {
+  const id = (String(r.detail).match(LIST_ID_RE) || [])[1];
+  const a = String(answer).replace(/\s*\([^()]*\)\s*$/, '').trim();
+  if (!id || !a || /^(skip|leave it|later)$/i.test(a)) return null;
+  const row = readTab(TABS.list).find((x) => x.id === id);
+  if (!row || ACTIVE.indexOf(row.status) < 0) return { list: id, already: true };
+  const stamp = nowStamp();
+  if (/^take it off$/i.test(a)) {
+    setFields(TABS.list, row._row, { status: 'skipped', updated_at: stamp, note: listNote(row, 'taken off: no store sells it as one thing (' + who + ')') });
+    return { list: id, status: 'skipped' };
+  }
+  const items = readTab(TABS.items);
+  const parts = a.split(/\s*(?:,|;|\+|&|\band\b)\s*/i).map((x) => x.trim()).filter(String);
+  const found = parts.map((x) => matchItemText(items, x, row.item_id));
+  if (!parts.length || found.some((x) => !x)) return { list: id, unmatched: parts.filter((x, k) => !found[k]) }; // Claude reads it
+  const names = found.map((i) => i.name);
+  setFields(TABS.list, row._row, { status: 'skipped', updated_at: stamp, note: listNote(row, 'split into ' + names.join(' + ') + ' (' + who + ')') });
+  // Added as the parent who answered (so a kid's dessert pick doesn't turn back into a request), asked for by the same people.
+  const added = found.map((i) => addToList({ item_id: i.id, by: who, qty: row.qty, note: row.note, meal_id: row.meal_id, anyway: true, _noPoints: true }));
+  const fresh = readTab(TABS.list);
+  added.forEach((x) => {
+    const nr = x && x.id && !x.merged ? fresh.find((y) => y.id === x.id) : null;
+    if (nr && row.wanted_by) setFields(TABS.list, nr._row, { wanted_by: row.wanted_by });
+  });
+  const old = items.find((i) => i.id === row.item_id);
+  if (old && old.status !== 'Drop') setFields(TABS.items, old._row, { status: 'Drop', notes: (old.notes ? old.notes + '. ' : '') + 'Two or more things: ' + found.map((i) => i.name + ' (' + i.id + ')').join(' + ') + ' (' + who + ', ' + isoDate(new Date()) + ')' });
+  return { list: id, split: found.map((i) => i.id), rows: added.map((x) => x && x.id) };
 }
 
 /* ---------------------------------------------------------------- cart jobs (api 12) */

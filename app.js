@@ -1582,7 +1582,7 @@
     const all = shown.concat(faded.map((f) => f.row).filter(listKeep));
     const narrowed = listNarrowed();
     if (active.length || faded.length) {
-      const push = canCarts() && amParent() ? shown.filter(needsCart).length : 0;
+      const push = canCarts() && amParent() ? shown.filter((r) => needsCart(r) && !noProduct(r)).length : 0;
       const allClosed = groupsIn(all).every((g) => isClosed('a:' + g));
       html += '<div class="sec-head"><span class="sec-title">On the List · ' + shown.length + (narrowed && shown.length !== active.length ? ' of ' + active.length : '') +
         (narrowed ? '' : ' <button class="link-btn inline fold-link" data-act="fold-all">' + (allClosed ? 'Open all' : 'Close all') + '</button>') + '</span>' +
@@ -2440,18 +2440,22 @@
     return html;
   }
   // Put-in-carts sheet: Poppy's pick per row, changeable, nothing happens until the button.
+  // api 74 (owner, Nov 21): a row whose item no store sells (no Products row anywhere, like "Brownies and whipped
+  // cream") has nothing a cart build can add. It sits apart in the sheet, isn't sent, and a parent fixes it.
+  const noProduct = (r) => !!r.item_id && !Object.keys((D().products || {})[r.item_id] || {}).length;
   function openPushSheet(rows) {
     const picks = {};
-    rows.forEach((r) => (picks[r.id] = pickCart(r).store));
+    rows.forEach((r) => (picks[r.id] = noProduct(r) ? null : pickCart(r).store));
     S.sheet = { type: 'pushall', ids: rows.map((r) => r.id), picks: picks };
     render();
   }
   function viewPushSheet(sh) {
     const rows = sh.ids.map((id) => D().list.find((r) => r.id === id)).filter((r) => r && needsCart(r));
+    const unk = rows.filter((r) => sh.picks[r.id] === null);
     const chosen = rows.filter((r) => sh.picks[r.id]);
     let h = '<div class="is-head"><div><h2>Put ' + chosen.length + ' in carts</h2><div class="is-sub">Poppy picked each store. Change any before you tap.</div></div><button class="x-btn" data-act="close-x" aria-label="Close">✕</button></div>';
     CART_STORES.concat(['']).forEach((code) => {
-      const g = rows.filter((r) => (sh.picks[r.id] || '') === code);
+      const g = rows.filter((r) => sh.picks[r.id] !== null && (sh.picks[r.id] || '') === code);
       if (!g.length) return;
       h += '<div class="push-group"><div class="card-head ' + (code ? 'head-' + storeOf(code).cls : '') + '">' + (code ? esc(storeOf(code).name.toUpperCase()) : 'NOT NOW · GOES TO LATER') + ' · ' + g.length + '</div>' +
         g.map((r) => {
@@ -2463,7 +2467,12 @@
             '<option value=""' + (code ? '' : ' selected') + '>Not now (Later)</option></select></div>';
         }).join('') + '</div>';
     });
-    h += '<div class="sheet-actions"><button class="btn btn-primary" data-act="push-go"' + (rows.length ? '' : ' disabled') + '>' + (chosen.length ? 'Put them in' : 'Move to Later') + '</button></div>' +
+    if (unk.length) h += '<div class="push-group"><div class="card-head">❓ NO STORE SELLS IT AS ONE THING · ' + unk.length + '</div>' +
+      unk.map((r) => '<div class="push-row"><span class="row-name">' + esc(r.name) + ' <span class="note">stays on the List</span></span>' +
+        '<button class="btn btn-outline btn-sm" data-act="open-row" data-id="' + r.id + '">Fix it</button></div>').join('') +
+      '<p class="note">Poppy can’t find this at any store. Open it and add what to buy instead (or answer Poppy’s card in the Inbox).</p></div>';
+    const later = rows.filter((r) => sh.picks[r.id] === '');
+    h += '<div class="sheet-actions"><button class="btn btn-primary" data-act="push-go"' + (chosen.length || later.length ? '' : ' disabled') + '>' + (chosen.length ? 'Put them in' : 'Move to Later') + '</button></div>' +
       '<p class="note">Claude adds them on the cart computer (it has to be on with Chrome open). Each item says “In … cart” once Claude sees it there.</p>';
     return h;
   }
@@ -2495,7 +2504,8 @@
         const sg = !t && canSuggest() ? suggestionsFor(day, x[0]) : [];
         if (sg.length) return '<span class="dt-line sugg"><span class="dt-k">' + x[1] + '</span><span class="dt-v">💭 ' + esc(sg.length === 1 ? sg[0].meal.name : sg.length + ' ideas') + '</span></span>';
         const ck = canCook() && x[0] === 'dinner' && t ? cookShort(rows[x[0]]) : '';
-        return '<span class="dt-line' + (t ? '' : ' none') + '"><span class="dt-k">' + x[1] + '</span><span class="dt-v">' + esc(t || '—') + (ck ? '<small class="dt-cook">🧑‍🍳 ' + esc(ck) + '</small>' : '') + '</span></span>';
+        const sw = t && canSwap() ? suggestionsFor(day, x[0]).length : 0; // api 74: someone suggested something else
+        return '<span class="dt-line' + (t ? '' : ' none') + '"><span class="dt-k">' + x[1] + '</span><span class="dt-v">' + esc(t || '—') + (sw ? '<span class="dt-sw" aria-label="' + sw + ' other idea' + (sw > 1 ? 's' : '') + '">💭</span>' : '') + (ck ? '<small class="dt-cook">🧑‍🍳 ' + esc(ck) + '</small>' : '') + '</span></span>';
       }).join('');
       return '<div class="day-tile slots4' + (any ? ' set' : '') + (isToday ? ' today' : '') + (open ? ' open' : '') + '">' +
         '<button class="dt-all" data-act="open-day" data-day="' + day + '" aria-label="' + esc((isToday ? 'Today, ' : '') + dayName(day) + ' ' + md(day)) + '">' +
@@ -2562,8 +2572,9 @@
         if (readOnly) {
           const can = canSuggestHere(sh.day, x[0]);
           return '<div class="slot-row"><div class="slot-label">' + x[1] + '</div>' +
-            '<div class="slot-pick' + (t ? ' set' : can ? ' sugg' : '') + '"><span>' + esc(t || (can ? '💭 Suggest ' + x[1].toLowerCase() + '…' : '—')) + '</span>' +
-            (can ? '<label class="sr" for="sugg-' + x[0] + '">Suggest ' + x[1].toLowerCase() + '</label><select id="sugg-' + x[0] + '" data-input="slot-suggest" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
+            '<div class="slot-pick' + (t ? ' set' : can ? ' sugg' : '') + (t && can ? ' swap' : '') + '"><span>' + esc(t || (can ? '💭 Suggest ' + x[1].toLowerCase() + '…' : '—')) +
+            (t && can ? '<small class="slot-alt">💭 Suggest something else</small>' : '') + '</span>' +
+            (can ? '<label class="sr" for="sugg-' + x[0] + '">' + (t ? 'Suggest something else for ' : 'Suggest ') + x[1].toLowerCase() + '</label><select id="sugg-' + x[0] + '" data-input="slot-suggest" data-day="' + sh.day + '" data-slot="' + x[0] + '">' +
               mealOptions(meals, x[0], '') + '</select>' : '') + '</div>' + open + '</div>' + suggestBlock(sh.day, x[0]) + cb;
         }
         return '<div class="slot-row"><div class="slot-label">' + x[1] + '</div>' +
@@ -2572,7 +2583,7 @@
           slotOptions(meals, x[0], p) + '</select></div>' + open + '</div>' + suggestBlock(sh.day, x[0]) + cb +
           (sh.find === x[0] ? slotFind(sh, x[0]) : '') + (sh.out && sh.out.slot === x[0] ? slotOut(sh, x[0]) : '');
       }).join('') +
-      '<p class="note">' + (readOnly ? (canSuggest() ? 'Tap an empty ' + nameList(kidSlots().map((k) => slotLabel(k).toLowerCase())).replace(' & ', ' or ') + ' spot to suggest a meal. A parent locks it in.' : 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.') : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.' + (canOut() ? ' Not cooking? Pick 🥡 Pick-up or 🍴 Eat out at the bottom of the list.' : '')) + '</p>';
+      '<p class="note">' + (readOnly ? (canSuggest() ? (canSwap() ? 'Tap any ' : 'Tap an empty ') + nameList(kidSlots().map((k) => slotLabel(k).toLowerCase())).replace(' & ', ' or ') + ' spot to suggest a meal' + (canSwap() ? ', or something else for one that’s planned' : '') + '. A parent decides.' : 'Want something? Tap a meal in Our meals and Ask for it. A parent picks the day.') : 'Picking a meal replaces what was there. Leftovers come over from Hearth as they are.' + (canOut() ? ' Not cooking? Pick 🥡 Pick-up or 🍴 Eat out at the bottom of the list.' : '')) + '</p>';
   }
 
   // Pick-up / eat out on a day-sheet row (api 65): where from, with the places we've used before as one-tap chips.
@@ -2931,34 +2942,43 @@
       const w = d.match(/ for (breakfast|lunch|snack|dinner), (this week|next week|anytime)/i) || [];
       const date = (d.match(/\((\d{4}-\d\d-\d\d)\)/) || [])[1] || '';
       const ws = date ? d.match(/ for (breakfast|lunch|snack|dinner) on /i) || [] : [];
-      return { r: r, meal: m, who: r.asked_by || (d.match(/^(\S+) (wants|suggests)/) || [])[1] || '?', slot: String(w[1] || ws[1] || (date ? 'dinner' : '')).toLowerCase(), when: w[2] || '', date: date };
-    }).filter((x) => x.meal && (!x.date || (x.date >= D().today && spotFree(x.date, x.slot))));
+      const inst = date ? (d.match(/ instead of (.+?) for (?:breakfast|lunch|snack|dinner) on /i) || [])[1] || '' : '';
+      return { r: r, meal: m, who: r.asked_by || (d.match(/^(\S+) (wants|suggests)/) || [])[1] || '?', slot: String(w[1] || ws[1] || (date ? 'dinner' : '')).toLowerCase(), when: w[2] || '', date: date, instead: inst };
+    }).filter((x) => x.meal && (!x.date || (x.date >= D().today && (x.instead ? swapOpen(x) : spotFree(x.date, x.slot)))));
   }
+  // api 74 (owner, Nov 21): the girls can suggest something else for a planned spot. It stays up while the spot still
+  // holds something other than their pick (a parent changing the spot closes it on the backend).
+  const canSwap = () => Number(D().api || 0) >= 74;
+  const swapOpen = (x) => { const p = planDay(x.date)[x.slot]; return !!planText(p) && (!p || p.meal_id !== x.meal.id) && !planOut(p); };
   const canSuggest = () => Number(D().api || 0) >= 72;
   const kidSlots = () => ((D().settings && D().settings.kid_suggest_slots) || ['dinner']);
   const spotFree = (day, slot) => !planText(planDay(day)[slot]);
   const suggestionsFor = (day, slot) => mealRequests().filter((x) => x.date === day && x.slot === slot);
-  const canSuggestHere = (day, slot) => canSuggest() && isKid(S.me) && day >= D().today && kidSlots().indexOf(slot) >= 0 && spotFree(day, slot);
+  const canSuggestHere = (day, slot) => canSuggest() && isKid(S.me) && day >= D().today && kidSlots().indexOf(slot) >= 0 && (spotFree(day, slot) || canSwapHere(day, slot));
+  // A planned spot (a meal or an item, not pick-up / eat out) takes a "something else" suggestion (api 74).
+  const canSwapHere = (day, slot) => canSwap() && !spotFree(day, slot) && !planOut(planDay(day)[slot]);
   function suggestMeal(mealId, slot, day) {
     const m = mealById(mealId); if (!m) return;
+    const there = spotFree(day, slot) ? '' : planText(planDay(day)[slot]);
     act('mealRequest', { meal_id: m.id, slot: slot, date: day }, () => {
       D().review.push({ id: tmpId(), type: 'meal_request', status: 'open', audience: 'parents', asked_by: S.me,
-        detail: S.me + ' suggests ' + m.name + ' for ' + slot + ' on ' + shortDay(day) + '. (' + m.id + ') (' + day + ') Options: Lock it in; Not now' });
-    }, '💭 Suggested ' + m.name + ' for ' + shortDay(day) + '. A parent locks it in.' + ptsTag('meal_ask'));
+        detail: S.me + ' suggests ' + m.name + (there ? ' instead of ' + there : '') + ' for ' + slot + ' on ' + shortDay(day) + '. (' + m.id + ') (' + day + ') Options: ' + (there ? 'Swap it in; Keep the plan' : 'Lock it in; Not now') });
+    }, '💭 Suggested ' + m.name + (there ? ' instead of ' + there : '') + ' for ' + shortDay(day) + '. A parent ' + (there ? 'decides.' : 'locks it in.') + ptsTag('meal_ask'));
   }
   // The suggestions waiting on one empty spot, for the day sheet. Parents: ✓ Lock it in / ✕. Kids: their own can be cancelled.
   function suggestBlock(day, slot) {
-    if (!canSuggest() || !spotFree(day, slot)) return '';
+    if (!canSuggest()) return '';
     const sg = suggestionsFor(day, slot);
     if (!sg.length) return '';
+    const swap = !spotFree(day, slot);
     return '<div class="sugg-list">' + sg.map((x) => {
       const mine = String(x.who).toLowerCase() === String(S.me).toLowerCase();
-      return '<div class="sugg-row"><button class="row-main" data-act="open-meal" data-id="' + x.meal.id + '"><span class="row-name">💭 ' + esc(x.meal.name) + '</span>' +
+      return '<div class="sugg-row"><button class="row-main" data-act="open-meal" data-id="' + x.meal.id + '"><span class="row-name">💭 ' + (swap ? 'Instead: ' : '') + esc(x.meal.name) + '</span>' +
         '<span class="row-meta">' + esc(mine ? 'You suggested it' + (amParent() ? '' : ' · waiting for a parent') : x.who + ' suggested it') + '</span></button>' +
-        (amParent() ? '<button class="btn btn-primary btn-sm" data-act="sugg-lock" data-id="' + esc(x.r.id) + '">✓ Lock it in</button>' +
+        (amParent() ? '<button class="btn btn-primary btn-sm" data-act="sugg-lock" data-id="' + esc(x.r.id) + '">' + (swap ? '⇄ Swap it in' : '✓ Lock it in') + '</button>' +
           '<button class="btn btn-quiet btn-sm" data-act="req-no" data-id="' + esc(x.r.id) + '" aria-label="Not now: ' + esc(x.meal.name) + '">✕</button>'
           : mine ? '<button class="btn btn-quiet btn-sm" data-act="req-cancel" data-id="' + esc(x.r.id) + '">Cancel</button>' : '') + '</div>';
-    }).join('') + (sg.length > 1 && amParent() ? '<p class="note">' + sg.length + ' ideas for this spot. Lock in one; the others close.</p>' : '') + '</div>';
+    }).join('') + (sg.length > 1 && amParent() ? '<p class="note">' + sg.length + ' ideas for this spot. ' + (swap ? 'Swap one in' : 'Lock in one') + '; the others close.</p>' : '') + '</div>';
   }
   function viewMealRequests() {
     if (!canV9()) return '';
@@ -2967,9 +2987,9 @@
     if (!mine.length) return '';
     return '<section class="card requests"><div class="card-head">' + (amParent() ? 'MEAL REQUESTS · ' : 'WAITING FOR A PARENT · ') + mine.length + '</div>' + mine.map((x) =>
       '<div class="row"><button class="row-main" data-act="open-meal" data-id="' + x.meal.id + '" data-req="' + esc(x.r.id) + '"><span class="row-name">' + esc(x.meal.name) + '</span>' +
-      '<span class="row-meta">' + esc(x.date ? [amParent() ? '💭 ' + x.who + ' suggests' : '💭 You suggested', shortDay(x.date) + ' ' + slotLabel(x.slot).toLowerCase()].join(' · ')
+      '<span class="row-meta">' + esc(x.date ? [(amParent() ? '💭 ' + x.who + ' suggests' : '💭 You suggested') + (x.instead ? ' instead of ' + x.instead : ''), shortDay(x.date) + ' ' + slotLabel(x.slot).toLowerCase()].join(' · ')
         : [amParent() ? x.who + ' asked' : 'You asked', x.slot ? slotLabel(x.slot).toLowerCase() : '', x.when].filter(String).join(' · ')) + '</span></button>' +
-      (amParent() && x.date ? '<button class="btn btn-primary" data-act="sugg-lock" data-id="' + esc(x.r.id) + '">Lock it in</button><button class="btn btn-quiet" data-act="req-no" data-id="' + esc(x.r.id) + '">Not now</button>'
+      (amParent() && x.date ? '<button class="btn btn-primary" data-act="sugg-lock" data-id="' + esc(x.r.id) + '">' + (x.instead ? 'Swap it in' : 'Lock it in') + '</button><button class="btn btn-quiet" data-act="req-no" data-id="' + esc(x.r.id) + '">' + (x.instead ? 'Keep plan' : 'Not now') + '</button>'
         : amParent() ? '<button class="btn btn-primary" data-act="open-meal" data-id="' + x.meal.id + '" data-req="' + esc(x.r.id) + '">Plan it</button><button class="btn btn-quiet" data-act="req-no" data-id="' + esc(x.r.id) + '">Not now</button>'
         : '<button class="btn btn-quiet" data-act="req-cancel" data-id="' + esc(x.r.id) + '">Cancel</button>') + '</div>').join('') + '</section>';
   }
@@ -4241,12 +4261,12 @@
     'sugg-lock': (el) => {
       const x = mealRequests().find((q) => q.r.id === el.dataset.id); if (!x || !x.date) return;
       const wk = addDays(x.date, -DAYS.indexOf(dayName(x.date)));
-      act('reviewAnswer', { id: x.r.id, answer: 'Lock it in (' + S.me + ')' }, () => {
+      act('reviewAnswer', { id: x.r.id, answer: (x.instead ? 'Swap it in (' : 'Lock it in (') + S.me + ')' }, () => {
         const gone = suggestionsFor(x.date, x.slot).map((q) => q.r.id);
         D().review = D().review.filter((r) => gone.indexOf(r.id) < 0);
         D().plan = D().plan.filter((p) => !(planDate(p) === x.date && slotOf(p) === x.slot));
         D().plan.push({ date: x.date, week_of: wk, day: dayName(x.date), meal_id: x.meal.id, slot: x.slot, planned_by: S.me, asked_by: x.who });
-      }, '🔒 ' + x.meal.name + ' on ' + (x.date === D().today ? 'today' : shortDay(x.date)) + ' (' + x.who + '’s pick)' + ptsTag('approve'));
+      }, (x.instead ? '⇄ ' : '🔒 ') + x.meal.name + ' on ' + (x.date === D().today ? 'today' : shortDay(x.date)) + ' (' + x.who + '’s pick)' + ptsTag('approve'));
     },
     'req-no': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Not now (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Said not now' + ptsTag('approve')); },
     'req-cancel': (el) => { const id = el.dataset.id; act('reviewAnswer', { id: id, answer: 'Cancelled (' + S.me + ')' }, () => { D().review = D().review.filter((r) => r.id !== id); }, 'Cancelled'); },
@@ -4448,7 +4468,7 @@
       const sh = S.sheet; if (!sh || sh.type !== 'pushall') return;
       const rows = sh.ids.map((id) => D().list.find((r) => r.id === id)).filter((r) => r && needsCart(r));
       const pairs = rows.filter((r) => sh.picks[r.id]).map((r) => ({ r: r, store: sh.picks[r.id] }));
-      const later = rows.filter((r) => !sh.picks[r.id]);
+      const later = rows.filter((r) => sh.picks[r.id] === '');
       S.sheet = null;
       // Not now = we need it, just not this order: it goes to Later (no date), so it stops counting as "needs a cart".
       later.forEach((r) => act('listHold', { id: r.id, level: '', until: LATER_NO_DATE }, () => {
